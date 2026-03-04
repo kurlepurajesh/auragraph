@@ -6,7 +6,6 @@ import { ls_getNotebook, ls_saveNote } from '../localNotebooks';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 import {
     Sparkles, Loader2, ChevronLeft, ChevronRight, Upload, FileText,
     BookOpen, MessageSquare, ArrowLeft, Zap, Brain, CheckCircle2,
@@ -764,22 +763,19 @@ export default function NotebookWorkspace() {
                 body: JSON.stringify({ original_paragraph: page, student_doubt: doubt })
             });
             const data = await res.json();
-            // note.replace(page, ...) breaks because pages[] are trimmed/merged slices.
-            // Instead: split note at ## headings, replace the matching section by heading, rejoin.
+            // Always use heading-based replacement so it survives repeated mutations.
+            // pages[] are trimmed/merged slices and will never match the raw note verbatim
+            // after the first mutation — so note.replace(page) must never be used.
+            const heading = pages[currentPage].match(/^(## .+)/m)?.[1];
+            const parts = note.split(/(?=^## )/m);
+            const idx = heading ? parts.findIndex(p => p.trimStart().startsWith(heading)) : -1;
             let newNote;
-            if (note.includes(pages[currentPage])) {
-                newNote = note.replace(pages[currentPage], data.mutated_paragraph);
+            if (idx !== -1) {
+                parts[idx] = data.mutated_paragraph + '\n';
+                newNote = parts.join('');
             } else {
-                const heading = pages[currentPage].match(/^(## .+)/m)?.[1];
-                const parts = note.split(/(?=^## )/m);
-                const idx = heading ? parts.findIndex(p => p.trimStart().startsWith(heading)) : -1;
-                if (idx !== -1) {
-                    parts[idx] = data.mutated_paragraph;
-                    newNote = parts.join('');
-                } else {
-                    // Last resort: append the rewrite as a new section
-                    newNote = note + '\n\n' + data.mutated_paragraph;
-                }
+                // Single-section note (no ## headings): replace the whole note.
+                newNote = data.mutated_paragraph;
             }
             setNote(newNote);
             setGapText(data.concept_gap);
