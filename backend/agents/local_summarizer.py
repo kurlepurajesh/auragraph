@@ -57,6 +57,16 @@ def _reconstruct_math(text):
             pass
     return text
 
+def _fix_spaces(text: str) -> str:
+    """Re-insert spaces that PDF extraction dropped."""
+    # Split camelCase: discreteRandom -> discrete Random
+    text = re.sub(r'([a-z\d])([A-Z])', r'\1 \2', text)
+    # Space after sentence-ending punctuation: "value.If" -> "value. If"
+    text = re.sub(r'([a-z])([A-Z][a-z])', r'\1 \2', text)
+    # Space after comma/period/semicolon missing: "a,b" -> "a, b"
+    text = re.sub(r'([.,;:])([A-Za-z\d])', r'\1 \2', text)
+    return text
+
 def _clean_text(text):
     lines = text.split("\n")
     cleaned = []
@@ -71,7 +81,7 @@ def _clean_text(text):
             continue
         if len(stripped) < 4:
             continue
-        cleaned.append(line)
+        cleaned.append(_fix_spaces(line))
     text2 = "\n".join(cleaned)
     text2 = re.sub(r"\n{3,}", "\n\n", text2)
     return text2.strip()
@@ -107,11 +117,26 @@ def _split_sections(text):
     return [(f"Section {i+1}", c) for i, c in enumerate(merged)]
 
 def _has_math(text):
+    # If the line has very long runs without spaces (merged prose from PDF),
+    # it is NOT a math line even if it contains = signs
+    stripped = text.strip()
+    tokens = stripped.split()
+    if tokens:
+        max_token_len = max(len(t) for t in tokens)
+        alpha_ratio = sum(c.isalpha() for c in stripped) / max(len(stripped), 1)
+        # Long all-alpha token = merged words: "LetXbeadiscrete..."
+        if max_token_len > 18 and alpha_ratio > 0.6:
+            return False
+    # Reject lines that are more than 70% alphabetic with no real math operators
+    real_ops = re.findall(r'[=<>\^\+\-\*/\\\{\}\(\)\[\]]', stripped)
+    alpha_chars = sum(c.isalpha() for c in stripped)
+    if alpha_chars > 0 and len(real_ops) / max(alpha_chars, 1) < 0.03 and alpha_chars > 25:
+        return False
     return bool(re.search(
-        r"[=\^\u222b\u2211\u220f\u221a\u00b1\u221e\u2202\u2207\u2264\u2265\u2200]|"
-        r"[A-Za-z]\s*[=<>]\s*[A-Za-z0-9(]|"
-        r"\b(sin|cos|tan|exp|log|lim|max|min|det|sum|integral)\b|"
-        r"\b[a-z][\(\[]\s*[nktmz]\s*[\)\]]",
+        r'[=\^\u222b\u2211\u220f\u221a\u00b1\u221e\u2202\u2207\u2264\u2265\u2200]|'
+        r'[A-Za-z]\s*[=<>]\s*[A-Za-z0-9(]|'
+        r'\b(sin|cos|tan|exp|log|lim|max|min|det|sum|integral)\b|'
+        r'\b[a-z][\(\[]\s*[nktmz]\s*[\)\]]',
         text
     ))
 
@@ -157,22 +182,33 @@ def _compress_body(body, max_words=320):
     return result
 
 def _to_latex_line(text: str) -> str:
-    """Best-effort conversion of a raw math line to LaTeX for KaTeX display."""
+    """Convert a raw math line to a KaTeX display block."""
     t = text.strip()
-    # Already has $$ wrapping — leave it
     if t.startswith("$$") and t.endswith("$$"):
         return t
-    # Remove stray $ if just one
     t2 = t.replace("$", "").strip()
-    # Common signal-processing LaTeX rewrites on the raw text
+
+    # --- Safety check: if line has 3+ English prose words, don't wrap in $$ ---
+    words = t2.split()
+    alpha_word_count = sum(
+        1 for w in words
+        if re.match(r'^[a-zA-Z]{4,}$', w.rstrip('.,;:!?'))
+    )
+    if alpha_word_count >= 3:
+        # Mixed prose+math line — render as plain text with inline subs
+        return _reconstruct_math(t2)
+
+    # --- Don't wrap lines with unbalanced brackets (incomplete piecewise lines) ---
+    opens = t2.count('(') + t2.count('{') + t2.count('[')
+    closes = t2.count(')') + t2.count('}') + t2.count(']')
+    if opens != closes:
+        return _reconstruct_math(t2)
+
+    # --- LaTeX keyword replacements ---
     replacements = [
-        (r"([A-Za-z])\^(-?\d+|{[^}]+})", r"\1^{\2}"),
-        (r"([A-Za-z])_(-?\d+|{[^}]+})", r"\1_{\2}"),
         (r"\bsum\b", r"\\sum"),
         (r"\bprod\b", r"\\prod"),
-        (r"\bint\b", r"\\int"),
-        (r"\binfty\b", r"\\infty"),
-        (r"\binfinity\b", r"\\infty"),
+        (r"\binfty\b|\binfinity\b", r"\\infty"),
         (r"\bomega_0\b", r"\\omega_0"),
         (r"\bomega\b", r"\\omega"),
         (r"\balpha\b", r"\\alpha"),
@@ -196,10 +232,11 @@ def _to_latex_line(text: str) -> str:
         (r"\bmax\b", r"\\max"),
         (r"\bmin\b", r"\\min"),
         (r"\bdet\b", r"\\det"),
+        (r"([A-Za-z])\^(-?\d+)", r"\1^{\2}"),
+        (r"([A-Za-z])_(-?\d+|[a-z])", r"\1_{\2}"),
         (r"<=", r"\\leq"),
         (r">=", r"\\geq"),
         (r"!=", r"\\neq"),
-        (r"\*", r"\\cdot"),
     ]
     for pat, repl in replacements:
         try:
@@ -214,11 +251,27 @@ def _format_compressed(compressed):
     formula_buffer = []
 
     def flush_formulas():
-        if formula_buffer:
-            for f in formula_buffer:
-                output.append(_to_latex_line(f))
+        if not formula_buffer:
+            return
+        converted = []
+        for f in formula_buffer:
+            result = _to_latex_line(f)
+            # If _to_latex_line returned a $$ block, extract its inner content
+            if result.startswith("$$\n") and result.endswith("\n$$"):
+                converted.append(result[3:-3].strip())
+            else:
+                # It was demoted to prose — output directly
+                output.append(result)
                 output.append("")
-            formula_buffer.clear()
+                formula_buffer.clear()
+                return
+        if len(converted) == 1:
+            output.append(f"$$\n{converted[0]}\n$$")
+        else:
+            # Multiple math lines: join with LaTeX line-break \\
+            output.append("$$\n" + " \\\\\n".join(converted) + "\n$$")
+        output.append("")
+        formula_buffer.clear()
 
     for line, kind in compressed:
         stripped = line.strip()

@@ -9,7 +9,8 @@ import rehypeKatex from 'rehype-katex';
 import {
     Sparkles, Loader2, ChevronLeft, ChevronRight, Upload, FileText,
     BookOpen, MessageSquare, ArrowLeft, Zap, Brain, CheckCircle2,
-    AlertCircle, MinusCircle, RefreshCw, X
+    AlertCircle, MinusCircle, RefreshCw, X, ChevronDown, ChevronUp,
+    MessageCircle, GitBranch
 } from 'lucide-react';
 
 const API = 'http://localhost:8000';
@@ -308,7 +309,7 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange }) {
     const strugCount = nodes.filter(n => n.status === 'struggling').length;
 
     return (
-        <aside style={{ width: 300, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
             {/* Header */}
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Cognitive Knowledge Map</div>
@@ -374,7 +375,7 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange }) {
             {examinerConcept && (
                 <ExaminerModal concept={examinerConcept} onClose={() => setExaminerConcept(null)} />
             )}
-        </aside>
+        </div>
     );
 }
 
@@ -430,7 +431,14 @@ function NoteRenderer({ content }) {
             };
             const flat = extractText(children);
             const isExamTip = flat.includes('Exam Tip');
+            const isIntuition = flat.includes('💡') || flat.includes('Intuition');
             const isWarning = flat.includes('⚠️') || flat.includes('warning') || flat.includes('offline mode');
+            if (isIntuition) return (
+                <div style={{ background: '#F5F3FF', border: '1.5px solid #C4B5FD', borderLeft: '5px solid #7C3AED', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>💡</span>
+                    <div style={{ fontSize: 13.5, color: '#4C1D95', lineHeight: 1.75, fontFamily: 'Inter, sans-serif' }}>{children}</div>
+                </div>
+            );
             if (isExamTip) return (
                 <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderLeft: '5px solid #F59E0B', borderRadius: 8, padding: '12px 16px', margin: '12px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                     <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>📝</span>
@@ -473,6 +481,81 @@ function NoteRenderer({ content }) {
     >{content || ''}</ReactMarkdown>;
 }
 
+// ─── Doubts Panel ────────────────────────────────────────────────────────────
+function DoubtsPanel({ doubts, currentPage }) {
+    const [expanded, setExpanded] = useState({});
+
+    const toggle = (id) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+
+    const pageDividers = {};
+    doubts.forEach(d => { pageDividers[d.pageIdx] = true; });
+
+    if (doubts.length === 0) {
+        return (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
+                <MessageCircle size={28} color="#C4B5FD" />
+                <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.6 }}>
+                    No doubts yet.<br />
+                    Click <b>Ask a Doubt</b> on any page to start.
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {doubts.map((d) => {
+                const isExpanded = !!expanded[d.id];
+                const insightPreview = d.insight.slice(0, 110) + (d.insight.length > 110 ? '…' : '');
+
+                return (
+                    <div key={d.id}>
+                        {/* Page label */}
+                        <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ background: d.success ? '#EDE9FE' : '#F3F4F6', color: d.success ? '#7C3AED' : '#6B7280', borderRadius: 10, padding: '1px 7px', fontSize: 9, fontWeight: 700, border: `1px solid ${d.success ? '#C4B5FD' : '#E5E7EB'}` }}>p.{d.pageIdx + 1}</span>
+                            <span style={{ color: '#CBD5E1' }}>·</span>
+                            {d.success ? <span style={{ color: '#7C3AED' }}>✨ mutated</span> : <span style={{ color: '#9CA3AF' }}>logged</span>}
+                            <span style={{ marginLeft: 'auto', color: '#D1D5DB', fontSize: 9 }}>{d.time}</span>
+                        </div>
+
+                        {/* Student bubble (right-aligned, outgoing) */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 5 }}>
+                            <div style={{ maxWidth: '85%', background: '#7C3AED', color: '#fff', borderRadius: '14px 14px 3px 14px', padding: '8px 12px', fontSize: 12, lineHeight: 1.6, boxShadow: '0 1px 3px rgba(124,58,237,0.25)' }}>
+                                {d.doubt}
+                            </div>
+                        </div>
+
+                        {/* AuraGraph response bubble (left-aligned, incoming) */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                            <div style={{ maxWidth: '88%', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '3px 14px 14px 14px', padding: '8px 12px', fontSize: 12, lineHeight: 1.65, color: '#3B0764' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <GitBranch size={10} /> AuraGraph
+                                </div>
+                                <div style={{ color: '#4C1D95', fontSize: 12, lineHeight: 1.65 }}>
+                                    {isExpanded ? d.insight : insightPreview}
+                                </div>
+                                {d.gap && isExpanded && (
+                                    <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #DDD6FE', fontSize: 11, color: '#7C3AED', fontStyle: 'italic' }}>
+                                        🔍 {d.gap}
+                                    </div>
+                                )}
+                                {d.insight.length > 110 && (
+                                    <button
+                                        onClick={() => toggle(d.id)}
+                                        style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+                                    >
+                                        {isExpanded ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Read more</>}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 // ─── Main Notebook Workspace ──────────────────────────────────────────────────
 export default function NotebookWorkspace() {
     const { id } = useParams();
@@ -489,6 +572,9 @@ export default function NotebookWorkspace() {
     const [mutating, setMutating] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
     const [gapText, setGapText] = useState('');
+    const [mutatedPages, setMutatedPages] = useState(new Set());
+    const [doubtsLog, setDoubtsLog] = useState([]);
+    const [rightTab, setRightTab] = useState('map'); // 'map' | 'doubts'
 
     // Per-notebook graph state
     const [graphNodes, setGraphNodes] = useState([]);
@@ -621,6 +707,8 @@ export default function NotebookWorkspace() {
     };
 
     const handleMutate = useCallback(async (page, doubt) => {
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const logId = Date.now();
         try {
             const res = await fetch(`${API}/api/mutate`, {
                 method: 'POST',
@@ -631,16 +719,25 @@ export default function NotebookWorkspace() {
             const newNote = note.replace(page, data.mutated_paragraph);
             setNote(newNote);
             setGapText(data.concept_gap);
+            setMutatedPages(prev => new Set([...prev, currentPage]));
             await saveNote(newNote, prof);
-            // Re-extract graph after mutation (new concepts might appear)
             extractAndSaveGraph(newNote);
+            // Log to doubts sidebar — extract the 💡 intuition line (without markdown syntax)
+            const intuitionLine = data.mutated_paragraph
+                .split('\n')
+                .find(l => l.includes('💡') || l.startsWith('> '));
+            const insightText = intuitionLine
+                ? intuitionLine.replace(/^>\s*/, '').replace(/\*\*/g, '').replace(/_/g, '').trim()
+                : data.concept_gap || 'Page updated with your clarification.';
+            setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt, insight: insightText, gap: data.concept_gap, time: timestamp, success: true }, ...prev]);\n            setRightTab('doubts');
         } catch {
-            const fallback = `**[Mutated — Offline]** ${page}\n\n*Your doubt was recorded. Connect to the backend for live AI rewrites.*`;
-            const newNote = note.replace(page, fallback);
-            setNote(newNote);
-            await saveNote(newNote, prof);
+            // Even on failure, log the doubt
+            setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt,
+                insight: 'Could not reach the backend to mutate this page. Your doubt has been recorded — reconnect to get an AI rewrite.',
+                gap: 'Backend unreachable', time: timestamp, success: false }, ...prev]);
+            setRightTab('doubts');
         }
-    }, [note, prof, id]);
+    }, [note, prof, id, currentPage]);
 
     const handleNodeStatusChange = async (node, newStatus) => {
         // Update local state
@@ -666,7 +763,7 @@ export default function NotebookWorkspace() {
     const hasNote = note.trim().length > 0;
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ height: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Header */}
             <header style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -707,11 +804,11 @@ export default function NotebookWorkspace() {
             </header>
 
             {/* Body */}
-            <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 {!hasNote ? (
                     /* ── UPLOAD PANE ── */
-                    <div style={{ flex: 1, padding: '48px 80px', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ maxWidth: 680, width: '100%' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+                        <div style={{ maxWidth: 620, width: '100%' }}>
                             <div style={{ textAlign: 'center', marginBottom: 36 }}>
                                 <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                                     <Zap size={24} color="white" />
@@ -728,7 +825,7 @@ export default function NotebookWorkspace() {
                             </div>
 
                             <div style={{ marginBottom: 24 }}>
-                                <label>Proficiency Level</label>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 10 }}>Proficiency Level</label>
                                 <div style={{ display: 'flex', gap: 10 }}>
                                     {[['Beginner', 'Simpler, analogies-first'], ['Intermediate', 'Balanced depth'], ['Advanced', 'Dense, technical']].map(([p, d]) => (
                                         <button key={p} onClick={() => setProf(p)} style={{ flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${prof === p ? 'var(--text)' : 'var(--border)'}`, background: prof === p ? 'var(--text)' : 'var(--bg)', color: prof === p ? '#fff' : 'var(--text2)', textAlign: 'center', transition: 'all 0.15s' }}>
@@ -746,8 +843,8 @@ export default function NotebookWorkspace() {
                     </div>
                 ) : (
                     /* ── NOTE VIEWER ── */
-                    <div style={{ flex: 1, padding: '32px 40px', overflowY: 'auto', display: 'flex', justifyContent: 'center', background: '#F3F4F6' }}>
-                        <div style={{ maxWidth: 740, width: '100%' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', justifyContent: 'center', background: '#F0F2F5', padding: '28px 24px' }}>
+                        <div style={{ maxWidth: 760, width: '100%' }}>
                             {gapText && (
                                 <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                                     <Brain size={14} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -756,9 +853,9 @@ export default function NotebookWorkspace() {
                                 </div>
                             )}
                             {/* ── Notebook page ── */}
-                            <div style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: '0 1px 3px rgba(0,0,0,0.10), 0 8px 32px rgba(0,0,0,0.12)', border: '1px solid #d0d0d0', minHeight: 600, overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: '1px solid #d0d0d0', overflow: 'hidden' }}>
                                 {/* Spine holes */}
-                                <div style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 52, gap: 52 }}>
+                                <div style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
                                     {[0,1,2,3,4,5].map(i => (
                                         <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />
                                     ))}
@@ -770,7 +867,12 @@ export default function NotebookWorkspace() {
                                     {/* Page header strip */}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
                                         <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
-                                        <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter, sans-serif' }}>Page {currentPage + 1} of {pages.length}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            {mutatedPages.has(currentPage) && (
+                                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EDE9FE', color: '#7C3AED', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>
+                                            )}
+                                            <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter, sans-serif' }}>Page {currentPage + 1} of {pages.length}</span>
+                                        </div>
                                     </div>
                                     <NoteRenderer content={pages[currentPage]} />
                                     {/* Page footer */}
@@ -793,13 +895,37 @@ export default function NotebookWorkspace() {
                     </div>
                 )}
 
-                {/* Right: Cognitive Knowledge Graph Panel */}
-                <KnowledgePanel
-                    nodes={graphNodes}
-                    edges={graphEdges}
-                    notebookId={id}
-                    onNodeStatusChange={handleNodeStatusChange}
-                />
+                {/* Right: Tab-switched sidebar — Knowledge Map or Doubts Log */}
+                <aside style={{ width: 310, minWidth: 310, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflow: 'hidden' }}>
+                    {/* Tab header */}
+                    <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                        {[
+                            { key: 'map', label: 'Concept Map', icon: <Brain size={12} /> },
+                            { key: 'doubts', label: `Doubts${doubtsLog.length ? ` (${doubtsLog.length})` : ''}`, icon: <MessageCircle size={12} /> },
+                        ].map(tab => (
+                            <button key={tab.key} onClick={() => setRightTab(tab.key)} style={{
+                                flex: 1, padding: '10px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                                fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s',
+                                borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent',
+                                background: 'transparent',
+                                color: rightTab === tab.key ? '#7C3AED' : 'var(--text3)',
+                            }}>
+                                {tab.icon} {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {rightTab === 'map' ? (
+                        <KnowledgePanel
+                            nodes={graphNodes}
+                            edges={graphEdges}
+                            notebookId={id}
+                            onNodeStatusChange={handleNodeStatusChange}
+                        />
+                    ) : (
+                        <DoubtsPanel doubts={doubtsLog} currentPage={currentPage} />
+                    )}
+                </aside>
             </div>
 
             {mutating && pages.length > 0 && (
