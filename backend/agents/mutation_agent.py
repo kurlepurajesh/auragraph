@@ -1,48 +1,57 @@
 """
-agents/mutation_agent.py
-Adaptive Mutation Loop — Rewrites confusing paragraphs directly inline based on user doubt.
+agents/mutation_agent.py  — Semantic Kernel 1.x compatible
+Adaptive Mutation Loop: rewrites a confusing paragraph based on the student's doubt.
 """
 
 from semantic_kernel import Kernel
 from semantic_kernel.functions import KernelArguments
-from semantic_kernel.prompt_template import PromptTemplateConfig
+from semantic_kernel.prompt_template import PromptTemplateConfig, InputVariable
 
-MUTATION_PROMPT = """
+
+MUTATION_PROMPT = """\
 You are AuraGraph's Adaptive Mutation Agent.
-A student is struggling with a specific concept in their study note.
+A student is confused about a specific concept in their study note.
 
 ---
-ORIGINAL PARAGRAPH:
+ORIGINAL NOTE SECTION:
 {{$original_paragraph}}
 
-STUDENT DOUBT/CONFUSION:
+STUDENT'S DOUBT:
 {{$student_doubt}}
 
 ---
 TASK:
-1. Identify the conceptual gap the student has.
-2. Rewrite the ORIGINAL PARAGRAPH so that it directly resolves the student's doubt. Use analogies, simpler language, or step-by-step logic based on what confused them.
-3. Your output must contain TWO sections, separated exactly by the sequence '|||'
+1. Diagnose the student's conceptual gap in one clear sentence.
+2. Rewrite the ORIGINAL NOTE SECTION so it directly resolves the doubt.
+   - Add an intuition block (💡) explaining WHY it works using an analogy or concrete example.
+   - Keep all original formulas (in LaTeX $$...$$). Improve explanations around them.
+   - Preserve the Markdown heading if present.
+   - Add a `> 📝 **Exam Tip:**` if the doubt reveals a commonly tested misconception.
+3. Output exactly TWO sections separated by `|||` (three pipe characters, no spaces around):
 
-Format Output:
-<Rewritten paragraph that replaces the original>
+<Fully rewritten section that replaces the original>
 |||
-<A single short sentence explaining the diagnosed conceptual gap>
+<One sentence: the diagnosed conceptual gap>
 
-Do not include labels like 'Rewritten:' or 'Gap:'. Just the output separated by '|||'.
+Do NOT write labels like "Rewritten:" or "Gap:". Just the two sections separated by |||.
 """
 
 
 class MutationAgent:
     def __init__(self, kernel: Kernel):
         self._kernel = kernel
+        config = PromptTemplateConfig(
+            template=MUTATION_PROMPT,
+            template_format="semantic-kernel",
+            input_variables=[
+                InputVariable(name="original_paragraph", description="The note section to rewrite"),
+                InputVariable(name="student_doubt", description="What the student is confused about"),
+            ],
+        )
         self._fn = kernel.add_function(
             function_name="mutate",
             plugin_name="MutationAgent",
-            prompt=MUTATION_PROMPT,
-            prompt_template_settings=PromptTemplateConfig(
-                template_format="semantic-kernel"
-            ),
+            prompt_template_config=config,
         )
 
     async def mutate(
@@ -55,9 +64,9 @@ class MutationAgent:
             student_doubt=student_doubt,
         )
         result = await self._kernel.invoke(self._fn, args)
-        
-        # Split output based on the separator 
-        parts = str(result).split("|||")
+        text = str(result).strip()
+        parts = text.split("|||")
         if len(parts) >= 2:
             return parts[0].strip(), parts[1].strip()
-        return str(result).strip(), "Student showed conceptual misunderstanding."
+        # If separator missing, return the whole thing as the rewrite
+        return text, "Student required additional clarification."

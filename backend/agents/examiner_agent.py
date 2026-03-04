@@ -1,52 +1,53 @@
 """
-agents/examiner_agent.py
-Examiner Agent — Generates multiple-choice targeted practice questions based on weak zones.
+agents/examiner_agent.py  — Semantic Kernel 1.x compatible
+Examiner Agent: generates targeted MCQ practice questions for a concept.
 """
 
 from semantic_kernel import Kernel
 from semantic_kernel.functions import KernelArguments
-from semantic_kernel.prompt_template import PromptTemplateConfig
+from semantic_kernel.prompt_template import PromptTemplateConfig, InputVariable
 
-EXAMINER_PROMPT = """
+
+EXAMINER_PROMPT = """\
 You are AuraGraph's Examiner Agent.
-A student is struggling with the following conceptual node:
+A student is struggling with the following concept:
+
 CONCEPT: {{$concept_name}}
 
 TASK:
-Generate EXACTLY 3 multiple-choice questions (MCQs) to test their understanding of this specific concept and its typical pitfalls.
-For each question:
-- Provide 4 options (A, B, C, D).
-- Indicate the correct answer.
-- Provide a very brief explanation (1 sentence) of why it's correct.
+Generate EXACTLY 5 multiple-choice questions (MCQs) that test this concept,
+focusing on the most commonly examined aspects and typical exam mistakes.
 
-Format Output exactly like this for each question:
-Q1. [Question text]?
+For each question use this format:
+Q[n]. [Question text]
 A) [Option]
 B) [Option]
 C) [Option]
 D) [Option]
-Correct: [Letter]
-Explanation: [Text]
+✅ Correct: [Letter]
+💡 Explanation: [One clear sentence explaining why]
+
+Cover: definition, formula/derivation, application, comparison, and one tricky edge case.
 """
+
 
 class ExaminerAgent:
     def __init__(self, kernel: Kernel):
         self._kernel = kernel
+        config = PromptTemplateConfig(
+            template=EXAMINER_PROMPT,
+            template_format="semantic-kernel",
+            input_variables=[
+                InputVariable(name="concept_name", description="The concept to generate questions for"),
+            ],
+        )
         self._fn = kernel.add_function(
             function_name="examine",
             plugin_name="ExaminerAgent",
-            prompt=EXAMINER_PROMPT,
-            prompt_template_settings=PromptTemplateConfig(
-                template_format="semantic-kernel"
-            ),
+            prompt_template_config=config,
         )
 
-    async def examine(
-        self,
-        concept_name: str,
-    ) -> str:
-        args = KernelArguments(
-            concept_name=concept_name,
-        )
+    async def examine(self, concept_name: str) -> str:
+        args = KernelArguments(concept_name=concept_name)
         result = await self._kernel.invoke(self._fn, args)
         return str(result).strip()
