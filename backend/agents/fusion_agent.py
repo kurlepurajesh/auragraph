@@ -23,28 +23,49 @@ TEXTBOOK TEXT:
 {{$textbook_paragraph}}
 
 TARGET PROFICIENCY: {{$proficiency}}
-  - Beginner    → plain English, every term defined, real-world analogies first, formulas last
-  - Intermediate → balanced: prose explanation + formula + brief derivation
-  - Advanced    → full mathematical rigour, complete derivations, edge-case conditions
+
+  - Beginner → The student has NEVER seen this topic before. Your job is to TEACH it from scratch.
+    Write the LONGEST, most detailed notes. For every concept:
+      - Explain WHAT it is in plain English (no jargon first)
+      - Explain WHY it matters and WHERE it is used in real life
+      - Give a concrete real-world analogy (e.g. "Convolution is like sliding a weighing window across data")
+      - Walk through HOW it works step-by-step
+      - THEN introduce the formula — show it in LaTeX, then explain every symbol in plain English below it
+      - End with what examiners typically ask
+    DO NOT skip formulas — beginners need to SEE them, just with full explanation.
+    Target: 2000–3000 words, 6–10 sections.
+
+  - Intermediate → Balanced depth. Definition + intuition + formula + brief application.
+    Assume the student has seen the topic but needs consolidation.
+    Target: 1500–2000 words, 5–7 sections.
+
+  - Advanced → Full mathematical rigour. Formal definition → full derivation → edge cases/conditions.
+    Skip basic analogies. Dense, precise, exam-ready.
+    Target: 1200–1800 words, 5–8 tightly packed sections.
 
 ---
-YOUR TASK — Write a COMPLETE, EXAM-ORIENTED STUDY NOTE.
+STRICT FORMAT RULES (apply to ALL proficiency levels):
 
-STRICT FORMAT RULES:
 1. Use Markdown. Each major topic → `## Topic`. Sub-topics → `### Sub-topic`.
-2. DO NOT write heading-only sections. Every `##` section MUST have ALL of:
-   a. 1-2 sentence crisp definition/overview
-   b. Intuition — WHY it works (not just what it is)
-   c. Key formula clearly wrapped in LaTeX: `$$formula$$`
-   d. A short worked example (verbal or numeric)
-   e. `> 📝 **Exam Tip:**` line with what examiners ask, common mistakes, mark-worthy phrases
 
-3. Write like a brilliant professor — precise, engaging, NOT a dictionary, NOT bullets-only.
-4. Adjust density/jargon for {{$proficiency}} level.
-5. Total length: 1200–2000 words. Depth over breadth. Generate 4-8 well-developed sections.
-6. Structure around what appears in university examinations: definitions, derivations, applications.
-7. For all mathematical expressions use proper LaTeX wrapped in `$$...$$` for display math.
-8. Begin directly with the first `##` heading. NO meta-text like "Here is your note" or "Sure!".
+2. For **Beginner**, every `##` section MUST contain ALL of these sub-sections:
+   `### 📖 What Is It?` | `### 🎯 Why Does It Matter?` | `### ⚙️ How Does It Work?` |
+   `### 💎 Worked Example` | a `> 🎵 Real-world Analogy:` blockquote | `### 🔢 The Formula`
+
+3. For **Intermediate**, every `##` section must have:
+   Definition paragraph | Intuition paragraph | Formula in LaTeX | Short application/example
+
+4. For **Advanced**, every `##` section must have:
+   Formal Definition | Mathematical derivation (step by step) | Edge cases / Conditions / Constraints
+
+5. Every `##` section MUST end with a `> 📝 **Exam Tip:**` block.
+
+6. For ALL mathematical expressions, use EXACT LaTeX:
+   - Inline: `$x = y^2$`
+   - Display: `$$\\sum_{i=1}^{n} x_i$$`
+   - NEVER use backticks for math. NEVER write raw "integral" or "sigma" — use \\int and \\sigma.
+
+7. Begin directly with the first `##` heading. NO preamble like "Here is your note" or "Sure!".
 """
 
 
@@ -55,9 +76,9 @@ class FusionAgent:
             template=FUSION_PROMPT,
             template_format="semantic-kernel",
             input_variables=[
-                InputVariable(name="slide_summary", description="Slides text"),
-                InputVariable(name="textbook_paragraph", description="Textbook text"),
-                InputVariable(name="proficiency", description="Student proficiency level"),
+                InputVariable(name="slide_summary",       description="Slides text"),
+                InputVariable(name="textbook_paragraph",  description="Textbook text"),
+                InputVariable(name="proficiency",         description="Student proficiency level"),
             ],
         )
         self._fn = kernel.add_function(
