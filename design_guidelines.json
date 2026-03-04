@@ -1,0 +1,138 @@
+{
+  "identity": {
+    "name": "AuraGraph",
+    "tagline": "The Cognitive Operating System for Students",
+    "description": "AI-powered study platform that fuses textbooks and slides into a single knowledge graph.",
+    "aesthetics": "Intellectual Minimalism meets High-Tech AI. Think 'Notion' meets 'Obsidian' with a touch of 'Ivy League Library'.",
+    "target_audience": "IIT/Engineering Students (18-25). High achievers, efficient, tech-savvy."
+  },
+  "typography": {
+    "primary_font": "Manrope",
+    "secondary_font": "Crimson Pro",
+    "code_font": "JetBrains Mono",
+    "heading_font": "Playfair Display",
+    "usage": {
+      "headings": "Playfair Display (Serif) for emotional connection and 'textbook' feel. Weights: 600/700.",
+      "ui_text": "Manrope (Sans) for dashboard, buttons, and navigation. Clean, modern, legible.",
+      "reading_content": "Crimson Pro (Serif) for the Fused Notes. Optimized for long-form reading.",
+      "code_snippets": "JetBrains Mono for any math/code blocks."
+    },
+    "scale": {
+      "h1": "text-4xl md:text-6xl tracking-tight leading-none",
+      "h2": "text-3xl md:text-4xl tracking-tight",
+      "h3": "text-2xl font-semibold",
+      "body": "text-base md:text-lg leading-relaxed text-slate-700"
+    }
+  },
+  "colors": {
+    "palette": {
+      "mode": "light",
+      "background": {
+        "default": "#FDFBF7",
+        "paper": "#FFFFFF",
+        "sidebar": "#F6F5F0"
+      },
+      "foreground": {
+        "primary": "#1A1A1A",
+        "secondary": "#52525B",
+        "muted": "#A1A1AA"
+      },
+      "brand": {
+        "primary": "#0F5132",
+        "secondary": "#0D9488",
+        "accent": "#F59E0B"
+      },
+      "functional": {
+        "success": "#10B981",
+        "warning": "#F59E0B",
+        "error": "#EF4444",
+        "info": "#3B82F6",
+        "mutation": "#8B5CF6"
+      },
+      "graph_nodes": {
+        "mastered": "#10B981",
+        "learning": "#F59E0B",
+        "struggling": "#EF4444",
+        "neutral": "#94A3B8"
+      }
+    },
+    "rules": "Avoid pure black (#000000). Use #1A1A1A or #0F172A. Backgrounds should feel like 'Paper' (#FDFBF7) rather than 'Screen White' (#FFFFFF) where possible, especially in reading views."
+  },
+  "layout_strategy": {
+    "dashboard": "Bento Grid (Mode A). Use a grid of 12 columns. Notebooks should be cards that span 4 cols. 'Quick Actions' span 2 cols.",
+    "workspace": "Split Pane Layout. Left: Source (PDF/Slides). Right: Fused Note (Editable). Floating Sidebar: Knowledge Graph.",
+    "containers": "Rounded corners (rounded-xl or rounded-2xl). Subtle borders (border-stone-200).",
+    "spacing": "Generous padding (p-6 to p-8) inside cards. Gap-6 between grid items."
+  },
+  "visual_enhancers": {
+    "glassmorphism": "Use sparingly. Only for sticky headers or floating toolbars. Class: 'bg-white/80 backdrop-blur-md border-b border-stone-200/50'.",
+    "shadows": "Soft, diffuse shadows. 'shadow-[0_2px_8px_rgba(0,0,0,0.04)]'. Hover states should lift ('shadow-lg -translate-y-1').",
+    "textures": "Use a subtle CSS noise overlay on the main background to give it a 'paper' feel. opacity-50 mix-blend-multiply.",
+    "borders": "1px solid borders in #E5E5E5. For active inputs or focused cards, use a 'Trace Beam' effect or a solid brand color border."
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-brand-primary text-white hover:bg-brand-primary/90 rounded-lg px-6 py-2.5 font-medium transition-all shadow-sm active:scale-95",
+      "secondary": "bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 rounded-lg px-6 py-2.5 font-medium transition-all",
+      "ghost": "text-stone-600 hover:bg-stone-100 hover:text-stone-900 rounded-lg px-4 py-2"
+    },
+    "cards": {
+      "notebook": "bg-white border border-stone-200 rounded-xl p-0 overflow-hidden hover:shadow-md transition-all group relative cursor-pointer",
+      "stat": "bg-stone-50 border border-stone-100 rounded-xl p-6"
+    },
+    "inputs": {
+      "default": "bg-white border-stone-200 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 rounded-lg"
+    },
+    "navigation": {
+      "sidebar": "w-64 border-r border-stone-200 bg-background-sidebar h-screen p-4 flex flex-col",
+      "topbar": "h-16 border-b border-stone-200 bg-white/80 backdrop-blur sticky top-0 z-50 px-6 flex items-center justify-between"
+    }
+  },
+  "assets": {
+    "images": {
+      "hero_student": "https://images.unsplash.com/photo-1770235621081-030607a06cee?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwyfHx1bml2ZXJzaXR5JTIwc3R1ZGVudCUyMHN0dWR5aW5nJTIwZm9jdXNlZCUyMGxpYnJhcnl8ZW58MHx8fHwxNzcyNjQ1MDE0fDA&ixlib=rb-4.1.0&q=85",
+      "abstract_ai": "https://images.pexels.com/photos/17485657/pexels-photo-17485657.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "book_cover_pattern": "https://images.unsplash.com/photo-1723283207299-aa59d7b17275?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxtaW5pbWFsJTIwYWJzdHJhY3QlMjBnZW9tZXRyaWMlMjBib29rJTIwY292ZXIlMjBkZXNpZ258ZW58MHx8fHwxNzcyNjQ1MDE3fDA&ixlib=rb-4.1.0&q=85",
+      "login_bg": "https://images.unsplash.com/photo-1721046013656-0a0980264689?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHw0fHx1bml2ZXJzaXR5JTIwc3R1ZGVudCUyMHN0dWR5aW5nJTIwZm9jdXNlZCUyMGxpYnJhcnl8ZW58MHx8fHwxNzcyNjQ1MDE0fDA&ixlib=rb-4.1.0&q=85"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px (Thin/Elegant). Size 20px or 24px."
+    }
+  },
+  "motion": {
+    "page_transition": "initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}",
+    "hover_card": "whileHover={{ y: -4, transition: { duration: 0.2 } }}",
+    "list_stagger": "variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }}"
+  },
+  "libraries": {
+    "charts": "recharts",
+    "graph": "react-force-graph or react-d3-graph (Check package.json, otherwise use Shadcn/Recharts for analytics)",
+    "math": "katex (Already required)",
+    "icons": "lucide-react"
+  },
+  "accessibility": {
+    "contrast": "Ensure text-slate-600+ is used on white backgrounds. Avoid text-slate-400 for body text.",
+    "focus": "Visible focus rings (ring-2 ring-offset-2) on all interactive elements.",
+    "aria": "All icon-only buttons must have aria-label."
+  },
+  "universal_guidelines": [
+    "Do NOT use 'Inter' for headings. Use 'Playfair Display' or 'Instrument Serif'.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts. Use grids and asymmetry.",
+    "Every interaction needs micro-animations - hover states, transitions, entrance animations.",
+    "Use 'sonner' for toasts.",
+    "Use 'lucide-react' for icons.",
+    "All interactive elements MUST include a 'data-testid' attribute."
+  ],
+  "instructions_to_main_agent": [
+    "1. Setup global CSS variables for the 'Paper' theme (#FDFBF7 background).",
+    "2. Install 'Playfair Display' and 'Crimson Pro' via Google Fonts (or @fontsource).",
+    "3. Refactor the Dashboard to use a Masonry/Bento grid for Notebooks.",
+    "4. Implement the 'Fused Note' view as a centered, max-w-3xl article container with 'Crimson Pro' typography.",
+    "5. Ensure the Knowledge Graph sidebar floats or is collapsible.",
+    "6. Use the 'Trace Beam' effect for the 'Note Mutation' active state.",
+    "7. Strictly follow the color palette. No generic blue.",
+    "8. Use 'data-testid' on all buttons and inputs."
+  ]
+}
