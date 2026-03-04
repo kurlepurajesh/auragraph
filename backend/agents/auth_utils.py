@@ -54,7 +54,18 @@ def login_user(email: str, password: str) -> dict:
     return {k: v for k, v in user.items() if k not in ("password_hash",)}
 
 
+_DEMO_USER = {
+    "id": "demo",
+    "email": "demo@auragraph.local",
+    "name": "Demo",
+    "token": "demo-token",
+    "token_issued_at": 0,  # never expires for demo
+}
+
 def validate_token(token: str) -> dict:
+    # Allow demo-token so the frontend works without registration
+    if token == "demo-token":
+        return dict(_DEMO_USER)
     users = _get_users()
     user = next((u for u in users if u.get("token") == token), None)
     if not user:
