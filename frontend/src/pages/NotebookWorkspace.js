@@ -401,12 +401,34 @@ export default function NotebookWorkspace() {
     try {
       const res = await fetch(`${API}/mutate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ original_paragraph: page, student_doubt: doubt }) });
       const data = await res.json();
-      const heading = pages[currentPage]?.match(/^(## .+)/m)?.[1];
-      const parts = note.split(/(?=^## )/m);
-      const idx = heading ? parts.findIndex(p => p.trimStart().startsWith(heading)) : -1;
-      let newNote;
-      if (idx !== -1) { parts[idx] = data.mutated_paragraph + '\n'; newNote = parts.join(''); }
-      else { newNote = data.mutated_paragraph; }
+
+      // Replace the current page content in the full note
+      // Strategy: find the exact page text in the note and replace it
+      const currentPageText = pages[currentPage];
+      let newNote = note;
+
+      if (currentPageText && note.includes(currentPageText.trim())) {
+        // Direct text replacement - most reliable
+        newNote = note.replace(currentPageText.trim(), data.mutated_paragraph.trim());
+      } else {
+        // Fallback: split by ## headings and replace by index
+        const allSections = note.split(/(?=^## )/m).filter(s => s.trim());
+        // Find which section index corresponds to currentPage
+        const heading = currentPageText?.match(/^(## .+)/m)?.[1];
+        if (heading) {
+          const secIdx = allSections.findIndex(s => s.trimStart().startsWith(heading));
+          if (secIdx !== -1) {
+            allSections[secIdx] = data.mutated_paragraph.trim() + '\n';
+            newNote = allSections.join('\n');
+          } else {
+            // Last resort: replace entire note with mutated version
+            newNote = note.replace(currentPageText, data.mutated_paragraph);
+          }
+        } else {
+          newNote = data.mutated_paragraph;
+        }
+      }
+
       setNote(newNote);
       setGapText(data.concept_gap);
       setMutatedPages(prev => new Set([...prev, currentPage]));
@@ -414,8 +436,9 @@ export default function NotebookWorkspace() {
       extractGraph(newNote);
       setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt, insight: data.concept_gap || 'Page updated.', time: timestamp, success: true }, ...prev]);
       setRightTab('doubts');
-    } catch {
-      setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt, insight: 'Backend unreachable.', time: timestamp, success: false }, ...prev]);
+    } catch (err) {
+      console.error('Mutation error:', err);
+      setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt, insight: 'Backend unreachable. Please try again.', time: timestamp, success: false }, ...prev]);
       setRightTab('doubts');
     }
   }, [note, prof, id, currentPage, pages]);

@@ -26,7 +26,7 @@ from agents.local_summarizer import generate_local_note
 from agents.local_mutation import local_mutate
 from agents.local_examiner import local_examine
 from agents.concept_extractor import extract_concepts
-from agents.ai_agents import ai_fuse, ai_mutate, ai_examine
+from agents.ai_agents import ai_fuse, ai_mutate, ai_examine, fix_latex_delimiters
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -238,7 +238,7 @@ async def fuse_knowledge(req: FusionRequest):
     except Exception as e:
         logger.warning(f"AI fusion failed, using local: {e}")
         local_note = generate_local_note(req.slide_summary, req.textbook_paragraph, req.proficiency)
-        return {"fused_note": local_note}
+        return {"fused_note": fix_latex_delimiters(local_note)}
 
 
 @api_router.post("/upload-fuse")
@@ -264,7 +264,7 @@ async def upload_fuse(
     except Exception as e:
         logger.warning(f"AI fusion failed, using local: {e}")
         local_note = generate_local_note(slides_text, textbook_text, proficiency)
-        return {"fused_note": local_note}
+        return {"fused_note": fix_latex_delimiters(local_note)}
 
 
 @api_router.post("/upload-fuse-multi")
@@ -300,7 +300,7 @@ async def upload_fuse_multi(
     except Exception as e:
         logger.warning(f"AI fusion failed, using local: {e}")
         local_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
-        return {"fused_note": local_note}
+        return {"fused_note": fix_latex_delimiters(local_note)}
 
 
 @api_router.post("/mutate")
@@ -311,7 +311,7 @@ async def mutate_note(req: MutationRequest):
     except Exception as e:
         logger.warning(f"AI mutation failed, using local: {e}")
         mutated, gap = local_mutate(req.original_paragraph, req.student_doubt)
-        return {"mutated_paragraph": mutated, "concept_gap": gap}
+        return {"mutated_paragraph": fix_latex_delimiters(mutated), "concept_gap": gap}
 
 
 @api_router.post("/examine")

@@ -152,9 +152,9 @@ def _build_section(heading, body, prose_k, include_math, is_beginner):
 
 
 _PROF = {
-    "Beginner": {"prose_k": 4, "include_math": False, "max_sec": 12, "is_beginner": True, "label": "Conceptual focus"},
-    "Intermediate": {"prose_k": 6, "include_math": True, "max_sec": 16, "is_beginner": False, "label": "Balanced depth"},
-    "Advanced": {"prose_k": 8, "include_math": True, "max_sec": 24, "is_beginner": False, "label": "Full depth"},
+    "Beginner": {"prose_k": 8, "include_math": True, "max_sec": 30, "is_beginner": True, "label": "Detailed & beginner-friendly"},
+    "Intermediate": {"prose_k": 8, "include_math": True, "max_sec": 30, "is_beginner": False, "label": "Balanced depth"},
+    "Advanced": {"prose_k": 10, "include_math": True, "max_sec": 40, "is_beginner": False, "label": "Full depth"},
 }
 
 

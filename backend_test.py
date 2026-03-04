@@ -1,6 +1,7 @@
 import requests
 import json
 import sys
+import re
 from datetime import datetime
 import time
 
@@ -12,6 +13,23 @@ class AuraGraphAPITester:
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []
+
+    def validate_latex_formatting(self, content):
+        """Validate LaTeX formatting - should use $ and $$ delimiters"""
+        issues = []
+        
+        # Check for bad delimiters
+        if '\\(' in content or '\\)' in content:
+            issues.append("Found \\( \\) delimiters - should be $ $")
+        if '\\[' in content or '\\]' in content:
+            issues.append("Found \\[ \\] delimiters - should be $$ $$")
+        
+        # Check for raw bracket formulas
+        raw_brackets = re.findall(r'^\s*\[\s*[^[\]]*\s*\]\s*$', content, re.MULTILINE)
+        if raw_brackets:
+            issues.append(f"Found {len(raw_brackets)} raw bracket formulas like {raw_brackets[0][:50]}...")
+            
+        return issues
 
     def run_test(self, name, method, endpoint, expected_status, data=None, headers=None, files=None):
         """Run a single API test"""
@@ -30,19 +48,19 @@ class AuraGraphAPITester:
         
         try:
             if method == 'GET':
-                response = requests.get(url, headers=test_headers)
+                response = requests.get(url, headers=test_headers, timeout=30)
             elif method == 'POST':
                 if files:
                     # Remove Content-Type for file uploads
                     if 'Content-Type' in test_headers:
                         del test_headers['Content-Type']
-                    response = requests.post(url, files=files, data=data, headers=test_headers)
+                    response = requests.post(url, files=files, data=data, headers=test_headers, timeout=30)
                 else:
-                    response = requests.post(url, json=data, headers=test_headers)
+                    response = requests.post(url, json=data, headers=test_headers, timeout=30)
             elif method == 'PATCH':
-                response = requests.patch(url, json=data, headers=test_headers)
+                response = requests.patch(url, json=data, headers=test_headers, timeout=30)
             elif method == 'DELETE':
-                response = requests.delete(url, headers=test_headers)
+                response = requests.delete(url, headers=test_headers, timeout=30)
 
             success = response.status_code == expected_status
             
@@ -167,37 +185,180 @@ class AuraGraphAPITester:
         return success
 
     def test_knowledge_fusion(self):
-        """Test knowledge fusion endpoint"""
-        test_data = {
-            "slide_summary": "Introduction to Digital Signal Processing: Signals are mathematical functions that represent physical quantities. Key concepts include continuous-time and discrete-time signals.",
-            "textbook_paragraph": "Digital Signal Processing involves the manipulation of signals using computational algorithms. The field encompasses signal acquisition, transformation, filtering, and reconstruction.",
-            "proficiency": "Intermediate"
+        """Test knowledge fusion endpoint with bug-specific tests"""
+        print("\n🔍 Testing Knowledge Fusion - Bug Validation...")
+        
+        required_topics = ['Hypergeometric', 'Binomial', 'Poisson', 'Normal', 'Central Limit']
+        
+        # Test Beginner proficiency - should be detailed with all topics covered
+        beginner_data = {
+            "slide_summary": """
+            Statistics Topics for Exam:
+            1. Hypergeometric Distribution - sampling without replacement from finite population
+            2. Binomial Distribution - n independent trials with probability p
+            3. Poisson Distribution - modeling rare events with rate λ  
+            4. Normal Distribution - continuous bell-shaped distribution
+            5. Central Limit Theorem - sample means approach normal distribution
+            """,
+            "textbook_paragraph": """
+            The hypergeometric distribution models probability when sampling without replacement.
+            If population has N items with K successes, drawing n items:
+            P(X=k) = C(K,k) * C(N-K,n-k) / C(N,n)
+            Expected value: E(X) = nK/N
+            Variance: Var(X) = n(K/N)(1-K/N)((N-n)/(N-1))
+            """,
+            "proficiency": "Beginner"
         }
         
         success, response = self.run_test(
-            "Knowledge Fusion",
+            "Fusion - Beginner Level",
+            "POST",
+            "fuse", 
+            200,
+            data=beginner_data
+        )
+        
+        if success and 'fused_note' in response:
+            content = response['fused_note']
+            print(f"   Content length: {len(content)} chars")
+            
+            # Check for all required topics
+            missing_topics = [topic for topic in required_topics if topic.lower() not in content.lower()]
+            if missing_topics:
+                print(f"   ❌ Missing topics: {missing_topics}")
+                success = False
+            else:
+                print(f"   ✅ All topics covered")
+            
+            # Check LaTeX formatting
+            latex_issues = self.validate_latex_formatting(content)
+            if latex_issues:
+                print(f"   ❌ LaTeX issues: {latex_issues}")
+                success = False
+            else:
+                print(f"   ✅ LaTeX formatting correct")
+                
+            # Check for beginner-level features
+            if len(content) < 1000:
+                print(f"   ❌ Content too short for Beginner level")
+                success = False
+            else:
+                print(f"   ✅ Sufficient detail for Beginner")
+                
+        time.sleep(3)  # Give AI API rest
+        
+        # Test Advanced proficiency 
+        advanced_data = beginner_data.copy()
+        advanced_data["proficiency"] = "Advanced"
+        
+        success2, response2 = self.run_test(
+            "Fusion - Advanced Level", 
             "POST",
             "fuse",
             200,
-            data=test_data
+            data=advanced_data
         )
-        return success and 'fused_note' in response
+        
+        if success2 and 'fused_note' in response2:
+            content2 = response2['fused_note']
+            
+            # Check for all topics in advanced
+            missing_topics2 = [topic for topic in required_topics if topic.lower() not in content2.lower()]
+            if missing_topics2:
+                print(f"   ❌ Advanced missing topics: {missing_topics2}")
+                success2 = False
+            else:
+                print(f"   ✅ Advanced all topics covered")
+            
+            # Check LaTeX formatting  
+            latex_issues2 = self.validate_latex_formatting(content2)
+            if latex_issues2:
+                print(f"   ❌ Advanced LaTeX issues: {latex_issues2}")
+                success2 = False
+            else:
+                print(f"   ✅ Advanced LaTeX formatting correct")
+        
+        return success and success2
 
     def test_note_mutation(self):
-        """Test note mutation endpoint"""
+        """Test note mutation endpoint with bug-specific validation"""
+        print("\n🔍 Testing Note Mutation - Bug Validation...")
+        
         test_data = {
-            "original_paragraph": "The Fourier Transform decomposes a signal into its frequency components.",
-            "student_doubt": "I don't understand why we need frequency components. What's the practical use?"
+            "original_paragraph": """
+            ## Hypergeometric Distribution
+            
+            The hypergeometric distribution models sampling without replacement from a finite population.
+            
+            The probability mass function is:
+            P(X = k) = C(K,k) * C(N-K,n-k) / C(N,n)
+            
+            Expected value: E(X) = nK/N
+            
+            > **Exam Tip:** Remember this applies when sampling WITHOUT replacement.
+            """,
+            "student_doubt": "I don't understand why we need combinations in this formula. Why can't we just use regular multiplication?"
         }
         
         success, response = self.run_test(
             "Note Mutation",
-            "POST",
+            "POST", 
             "mutate",
             200,
             data=test_data
         )
-        return success and 'mutated_paragraph' in response
+        
+        if success and response:
+            mutated = response.get('mutated_paragraph', '')
+            gap = response.get('concept_gap', '')
+            
+            print(f"   Mutated length: {len(mutated)} chars")
+            print(f"   Gap diagnosis: {gap[:100]}...")
+            
+            # Validation checks
+            checks_passed = 0
+            total_checks = 5
+            
+            # 1. Should contain rewritten content
+            if len(mutated) > 100:
+                print(f"   ✅ Sufficient mutated content")
+                checks_passed += 1
+            else:
+                print(f"   ❌ Mutated content too short")
+            
+            # 2. Should address the doubt about combinations
+            if any(word in mutated.lower() for word in ['combination', 'choosing', 'select', 'ways']):
+                print(f"   ✅ Addresses combination concept")
+                checks_passed += 1
+            else:
+                print(f"   ❌ Doesn't address combinations doubt")
+            
+            # 3. Should have concept gap diagnosis
+            if len(gap) > 10:
+                print(f"   ✅ Concept gap diagnosed")
+                checks_passed += 1
+            else:
+                print(f"   ❌ Missing concept gap diagnosis")
+            
+            # 4. LaTeX formatting should be correct
+            latex_issues = self.validate_latex_formatting(mutated)
+            if not latex_issues:
+                print(f"   ✅ LaTeX formatting correct")
+                checks_passed += 1
+            else:
+                print(f"   ❌ LaTeX issues: {latex_issues}")
+            
+            # 5. Should have intuition block
+            if 'intuition' in mutated.lower():
+                print(f"   ✅ Contains intuition block")
+                checks_passed += 1
+            else:
+                print(f"   ❌ Missing intuition block")
+            
+            success = checks_passed >= 4
+            print(f"   Overall: {checks_passed}/{total_checks} checks passed")
+            
+        return success
 
     def test_concept_examiner(self):
         """Test examiner endpoint"""
