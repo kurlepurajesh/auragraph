@@ -15,6 +15,29 @@ _NOISE_LINE = re.compile(
 )
 _NOISE_SHORT = re.compile(r"^\s*[\d\.\-\*\u2022]+\s*$")
 
+# ── PDF artifact Unicode cleanup ────────────────────────────────────────────
+_PDF_ARTIFACTS = [
+    ("\u25c6", " "),   # ◆ black diamond
+    ("\u2666", " "),   # ♦ diamond suit
+    ("\u2662", " "),   # ♢ white diamond
+    ("\u22c4", " "),   # ⋄ diamond operator  (often mis-encoded sum/prod)
+    ("\u25aa", " "),   # ▪ small square
+    ("\u2022", " - "), # • bullet
+    ("\u25e6", " - "), # ◦ white bullet
+    ("\u2013", "-"),   # – en dash
+    ("\u2014", " - "),  # — em dash
+    ("\ufb01", "fi"),  # ﬁ ligature
+    ("\ufb02", "fl"),  # ﬂ ligature
+    ("\u2212", "-"),   # − minus sign
+    ("\u00d7", "*"),   # × multiplication
+    ("\u22c5", "*"),   # ⋅ dot product
+]
+
+def _normalize_unicode(text: str) -> str:
+    for ch, repl in _PDF_ARTIFACTS:
+        text = text.replace(ch, repl)
+    return text
+
 _MATH_SUBS = [
     (r"\bomega_0\b", r"$\\omega_0$"),
     (r"\bomega\b", r"$\\omega$"),
@@ -59,12 +82,16 @@ def _reconstruct_math(text):
 
 def _fix_spaces(text: str) -> str:
     """Re-insert spaces that PDF extraction dropped."""
+    # Normalize unicode artifacts first
+    text = _normalize_unicode(text)
     # Split camelCase: discreteRandom -> discrete Random
     text = re.sub(r'([a-z\d])([A-Z])', r'\1 \2', text)
     # Space after sentence-ending punctuation: "value.If" -> "value. If"
     text = re.sub(r'([a-z])([A-Z][a-z])', r'\1 \2', text)
     # Space after comma/period/semicolon missing: "a,b" -> "a, b"
     text = re.sub(r'([.,;:])([A-Za-z\d])', r'\1 \2', text)
+    # Number immediately followed by letter that starts a var: "1eitqi" → "1 e itqi"
+    text = re.sub(r'(\d)([a-df-hj-np-z])', r'\1 \2', text)  # skip 'e' (scientific notation)
     return text
 
 def _clean_text(text):
@@ -152,15 +179,19 @@ def _classify_line(line):
 
 _STOP = set("a an the is are was were be been being have has had do does did will would shall should may might must can could to of in on at for by with from as it its this that these those and or but not so if then than when where which who what how all any each every no more most other some such into out up down over under also just only very well about after before during between through while i we they he she you".split())
 
-def _compress_body(body, max_words=320):
+def _compress_body(body, max_words=320, keep_derivations=True):
     lines = [l.rstrip() for l in body.split("\n")]
     formula_lines, prose_lines = [], []
     for line in lines:
         stripped = line.strip()
         if not stripped: continue
         k = _classify_line(stripped)
-        if k in ("formula", "definition", "theorem", "derivation", "note", "example"):
+        if k in ("formula", "definition", "theorem", "note", "example"):
             formula_lines.append((stripped, k))
+        elif k == "derivation":
+            if keep_derivations:
+                formula_lines.append((stripped, k))
+            # else skip derivation lines (Beginner mode)
         else:
             prose_lines.append(stripped)
     all_words = [w.lower() for s in prose_lines for w in re.findall(r"\b[a-zA-Z]{3,}\b", s) if w.lower() not in _STOP]
@@ -310,47 +341,72 @@ def _exam_tips(heading, body):
 
 MAX_SECTIONS = 22
 
+# Proficiency config: (max_words, keep_derivations, prose_keep_ratio_divisor, section_limit)
+_PROF_CONFIG = {
+    "Beginner":      dict(max_words=520, keep_derivations=False, prose_div=2, sec_limit=18),
+    "Intermediate":  dict(max_words=340, keep_derivations=True,  prose_div=3, sec_limit=22),
+    "Advanced":      dict(max_words=180, keep_derivations=True,  prose_div=5, sec_limit=22),
+}
+
+def _prof_preamble(proficiency, heading):
+    """Return a short tailored intro line for a section based on proficiency."""
+    if proficiency == "Beginner":
+        return f"> 💬 **Beginner focus:** Understand what this means conceptually before studying the formulas.\n"
+    if proficiency == "Advanced":
+        return f"> ⚡ **Advanced:** Derivations, edge cases and rigorous conditions are included.\n"
+    return ""  # Intermediate — no preamble
+
 def generate_local_note(slides_text, textbook_text, proficiency):
     slides_text = _clean_text(slides_text)
     textbook_text = _clean_text(textbook_text)
-    proficiency_desc = {
-        "Beginner": "Focus on understanding definitions and core concepts before formulas.",
-        "Intermediate": "Technical depth with formulas and worked examples.",
-        "Advanced": "Full depth: derivations, edge cases, and rigorous conditions.",
-    }.get(proficiency, "Technical depth with formulas and worked examples.")
+
+    cfg = _PROF_CONFIG.get(proficiency, _PROF_CONFIG["Intermediate"])
+    max_words      = cfg["max_words"]
+    keep_deriv     = cfg["keep_derivations"]
+    sec_limit      = cfg["sec_limit"]
 
     output_sections = []
     seen_headings = set()
 
     if slides_text.strip():
         for heading, body in _split_sections(slides_text):
-            if len(output_sections) >= MAX_SECTIONS: break
+            if len(output_sections) >= sec_limit: break
             h_key = re.sub(r"\s+", " ", heading.lower().strip())
             if h_key in seen_headings: continue
             seen_headings.add(h_key)
-            formatted = _format_compressed(_compress_body(body, 320))
+            preamble = _prof_preamble(proficiency, heading)
+            formatted = _format_compressed(_compress_body(body, max_words, keep_deriv))
             if not formatted.strip(): continue
             tips = _exam_tips(heading, body)
             tip_block = "\n".join(f"> \U0001f4dd **Exam Tip:** {t}" for t in tips)
-            output_sections.append(f"## {heading}\n\n{formatted}\n\n{tip_block}")
+            output_sections.append(f"## {heading}\n\n{preamble}{formatted}\n\n{tip_block}")
 
     if textbook_text.strip():
+        # Textbook sections get slightly fewer words than slides
+        tb_max_words = max(120, max_words - 60)
         for heading, body in _split_sections(textbook_text):
-            if len(output_sections) >= MAX_SECTIONS: break
+            if len(output_sections) >= sec_limit: break
             h_key = re.sub(r"\s+", " ", heading.lower().strip())
             if h_key in seen_headings: continue
             seen_headings.add(h_key)
-            formatted = _format_compressed(_compress_body(body, 260))
+            preamble = _prof_preamble(proficiency, heading)
+            formatted = _format_compressed(_compress_body(body, tb_max_words, keep_deriv))
             if not formatted.strip(): continue
             tips = _exam_tips(heading, body)
             tip_block = "\n".join(f"> \U0001f4dd **Exam Tip:** {t}" for t in tips)
-            output_sections.append(f"## {heading} *(Textbook)*\n\n{formatted}\n\n{tip_block}")
+            output_sections.append(f"## {heading} *(Textbook)*\n\n{preamble}{formatted}\n\n{tip_block}")
 
     if not output_sections:
         return "## Note\n\nCould not extract text. Ensure PDFs are text-based (not scanned)."
 
+    _prof_labels = {
+        "Beginner":     "Conceptual focus \u2014 core ideas and worked examples",
+        "Intermediate": "Balanced depth \u2014 formulas and key derivations",
+        "Advanced":     "Full depth \u2014 derivations, edge cases and rigorous conditions",
+    }
+    prof_label = _prof_labels.get(proficiency, "Balanced depth")
     header = (
         f"# AuraGraph Study Notes\n"
-        f"*Proficiency: **{proficiency}*** — {proficiency_desc}\n"
+        f"*Proficiency: **{proficiency}*** \u2014 {prof_label}\n"
     )
     return header + "\n\n---\n\n" + "\n\n---\n\n".join(output_sections)

@@ -484,74 +484,119 @@ function NoteRenderer({ content }) {
 // ─── Doubts Panel ────────────────────────────────────────────────────────────
 function DoubtsPanel({ doubts, currentPage }) {
     const [expanded, setExpanded] = useState({});
-
     const toggle = (id) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
 
-    const pageDividers = {};
-    doubts.forEach(d => { pageDividers[d.pageIdx] = true; });
+    // Only show doubts for the current page
+    const pageDiagnostics = doubts.filter(d => d.pageIdx === currentPage);
+    // All other pages that have doubts (for the footer hint)
+    const otherPages = [...new Set(doubts.filter(d => d.pageIdx !== currentPage).map(d => d.pageIdx))];
 
-    if (doubts.length === 0) {
+    // Compact markdown renderer for insight bubbles (math + bold + italic only)
+    const InsightMarkdown = ({ text }) => (
+        <ReactMarkdown
+            remarkPlugins={[remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+            components={{
+                p: ({ children }) => <span style={{ display: 'block', marginBottom: 4 }}>{children}</span>,
+                strong: ({ children }) => <strong style={{ color: '#5B21B6', fontWeight: 700 }}>{children}</strong>,
+                em: ({ children }) => <em style={{ color: '#6D28D9' }}>{children}</em>,
+                code: ({ children }) => <code style={{ background: '#EDE9FE', color: '#5B21B6', borderRadius: 3, padding: '1px 4px', fontSize: 11, fontFamily: 'monospace' }}>{children}</code>,
+                a: ({ children }) => <span>{children}</span>,
+            }}
+        >{text || ''}</ReactMarkdown>
+    );
+
+    if (pageDiagnostics.length === 0) {
         return (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }}>
-                <MessageCircle size={28} color="#C4B5FD" />
-                <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.6 }}>
-                    No doubts yet.<br />
-                    Click <b>Ask a Doubt</b> on any page to start.
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 }}>
+                    <MessageCircle size={26} color="#C4B5FD" />
+                    <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.7 }}>
+                        No doubts on <b>page {currentPage + 1}</b> yet.<br />
+                        <span style={{ fontSize: 11 }}>Click <b>Ask a Doubt</b> to add one.</span>
+                    </div>
                 </div>
+                {otherPages.length > 0 && (
+                    <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)', lineHeight: 1.6 }}>
+                        Doubts exist on page{otherPages.length > 1 ? 's' : ''}{' '}
+                        <span style={{ color: '#7C3AED', fontWeight: 600 }}>
+                            {otherPages.map(p => p + 1).join(', ')}
+                        </span>
+                        {' '}— navigate there to view them.
+                    </div>
+                )}
             </div>
         );
     }
 
     return (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {doubts.map((d) => {
-                const isExpanded = !!expanded[d.id];
-                const insightPreview = d.insight.slice(0, 110) + (d.insight.length > 110 ? '…' : '');
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Page indicator */}
+            <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', background: '#EDE9FE', border: '1px solid #C4B5FD', borderRadius: 10, padding: '2px 8px' }}>
+                    Page {currentPage + 1}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                    {pageDiagnostics.length} doubt{pageDiagnostics.length > 1 ? 's' : ''}
+                </span>
+                {otherPages.length > 0 && (
+                    <span style={{ fontSize: 10, color: '#9CA3AF', marginLeft: 'auto' }}>
+                        +{doubts.length - pageDiagnostics.length} on other pages
+                    </span>
+                )}
+            </div>
 
-                return (
-                    <div key={d.id}>
-                        {/* Page label */}
-                        <div style={{ fontSize: 9, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span style={{ background: d.success ? '#EDE9FE' : '#F3F4F6', color: d.success ? '#7C3AED' : '#6B7280', borderRadius: 10, padding: '1px 7px', fontSize: 9, fontWeight: 700, border: `1px solid ${d.success ? '#C4B5FD' : '#E5E7EB'}` }}>p.{d.pageIdx + 1}</span>
-                            <span style={{ color: '#CBD5E1' }}>·</span>
-                            {d.success ? <span style={{ color: '#7C3AED' }}>✨ mutated</span> : <span style={{ color: '#9CA3AF' }}>logged</span>}
-                            <span style={{ marginLeft: 'auto', color: '#D1D5DB', fontSize: 9 }}>{d.time}</span>
-                        </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {pageDiagnostics.map((d) => {
+                    const isExpanded = !!expanded[d.id];
+                    const previewLen = 130;
+                    const needsExpand = d.insight.length > previewLen;
+                    const previewText = needsExpand && !isExpanded
+                        ? d.insight.slice(0, previewLen).replace(/\*\*[^*]*$/, '').replace(/\$[^$]*$/, '') + '…'
+                        : d.insight;
 
-                        {/* Student bubble (right-aligned, outgoing) */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 5 }}>
-                            <div style={{ maxWidth: '85%', background: '#7C3AED', color: '#fff', borderRadius: '14px 14px 3px 14px', padding: '8px 12px', fontSize: 12, lineHeight: 1.6, boxShadow: '0 1px 3px rgba(124,58,237,0.25)' }}>
-                                {d.doubt}
+                    return (
+                        <div key={d.id}>
+                            {/* Timestamp + status row */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginBottom: 4 }}>
+                                {d.success
+                                    ? <span style={{ fontSize: 9, color: '#7C3AED', fontWeight: 700 }}>✨ mutated</span>
+                                    : <span style={{ fontSize: 9, color: '#9CA3AF' }}>logged</span>}
+                                <span style={{ fontSize: 9, color: '#D1D5DB' }}>{d.time}</span>
                             </div>
-                        </div>
 
-                        {/* AuraGraph response bubble (left-aligned, incoming) */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                            <div style={{ maxWidth: '88%', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '3px 14px 14px 14px', padding: '8px 12px', fontSize: 12, lineHeight: 1.65, color: '#3B0764' }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <GitBranch size={10} /> AuraGraph
+                            {/* Student bubble — right aligned */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                                <div style={{ maxWidth: '84%', background: '#7C3AED', color: '#fff', borderRadius: '14px 14px 3px 14px', padding: '9px 13px', fontSize: 12.5, lineHeight: 1.55, boxShadow: '0 1px 4px rgba(124,58,237,0.3)' }}>
+                                    {d.doubt}
                                 </div>
-                                <div style={{ color: '#4C1D95', fontSize: 12, lineHeight: 1.65 }}>
-                                    {isExpanded ? d.insight : insightPreview}
-                                </div>
-                                {d.gap && isExpanded && (
-                                    <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #DDD6FE', fontSize: 11, color: '#7C3AED', fontStyle: 'italic' }}>
-                                        🔍 {d.gap}
+                            </div>
+
+                            {/* AuraGraph bubble — left aligned */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                                <div style={{ maxWidth: '90%', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '3px 14px 14px 14px', padding: '9px 13px', fontSize: 12, lineHeight: 1.7, color: '#3B0764' }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <GitBranch size={10} /> AuraGraph
                                     </div>
-                                )}
-                                {d.insight.length > 110 && (
-                                    <button
-                                        onClick={() => toggle(d.id)}
-                                        style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}
-                                    >
-                                        {isExpanded ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Read more</>}
-                                    </button>
-                                )}
+                                    <div style={{ color: '#4C1D95' }}>
+                                        <InsightMarkdown text={previewText} />
+                                    </div>
+                                    {d.gap && isExpanded && (
+                                        <div style={{ marginTop: 7, paddingTop: 7, borderTop: '1px solid #DDD6FE', fontSize: 11, color: '#7C3AED', fontStyle: 'italic' }}>
+                                            🔍 {d.gap}
+                                        </div>
+                                    )}
+                                    {needsExpand && (
+                                        <button onClick={() => toggle(d.id)} style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                                            {isExpanded ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Read more</>}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
         </div>
     );
 }
@@ -722,14 +767,15 @@ export default function NotebookWorkspace() {
             setMutatedPages(prev => new Set([...prev, currentPage]));
             await saveNote(newNote, prof);
             extractAndSaveGraph(newNote);
-            // Log to doubts sidebar — extract the 💡 intuition line (without markdown syntax)
+            // Log to doubts sidebar — extract the 💡 intuition line, keeping markdown for rendering
             const intuitionLine = data.mutated_paragraph
                 .split('\n')
                 .find(l => l.includes('💡') || l.startsWith('> '));
             const insightText = intuitionLine
-                ? intuitionLine.replace(/^>\s*/, '').replace(/\*\*/g, '').replace(/_/g, '').trim()
+                ? intuitionLine.replace(/^>\s*/, '').trim()   // strip only the "> " blockquote prefix
                 : data.concept_gap || 'Page updated with your clarification.';
-            setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt, insight: insightText, gap: data.concept_gap, time: timestamp, success: true }, ...prev]);\n            setRightTab('doubts');
+            setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt, insight: insightText, gap: data.concept_gap, time: timestamp, success: true }, ...prev]);
+            setRightTab('doubts');
         } catch {
             // Even on failure, log the doubt
             setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt,
