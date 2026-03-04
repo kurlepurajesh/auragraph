@@ -1,53 +1,59 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Provider, useSelector } from 'react-redux';
+import { store } from './store';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import NotebookWorkspace from './pages/NotebookWorkspace';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center flex-col gap-4 p-8" style={{ background: '#FEF2F2' }}>
+          <div className="text-lg font-bold" style={{ color: '#991B1B' }}>Something went wrong</div>
+          <pre className="max-w-2xl overflow-auto p-4 rounded-lg text-sm" style={{ background: '#fff', border: '1px solid #FCA5A5', color: '#7F1D1D', whiteSpace: 'pre-wrap' }}>
+            {this.state.error?.message}
+          </pre>
+          <button onClick={() => { this.setState({ error: null }); window.location.href = '/dashboard'; }}
+            className="px-5 py-2 rounded-lg text-sm font-semibold" style={{ background: '#DC2626', color: '#fff' }}>
+            Back to Dashboard
+          </button>
+        </div>
+      );
     }
-  };
+    return this.props.children;
+  }
+}
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
+function PrivateRoute({ children }) {
+  const user = useSelector(s => s.app.user);
+  const token = localStorage.getItem('ag_token');
+  return user || token ? children : <Navigate to="/" replace />;
+}
 
+function AppRoutes() {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <BrowserRouter>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<LoginPage />} />
+          <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+          <Route path="/notebook/:id" element={<PrivateRoute><ErrorBoundary><NotebookWorkspace /></ErrorBoundary></PrivateRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
+    </BrowserRouter>
   );
-};
+}
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <Provider store={store}>
+      <AppRoutes />
+    </Provider>
   );
 }
 
