@@ -6,6 +6,7 @@ import { ls_getNotebook, ls_saveNote } from '../localNotebooks';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import {
     Sparkles, Loader2, ChevronLeft, ChevronRight, Upload, FileText,
     BookOpen, MessageSquare, ArrowLeft, Zap, Brain, CheckCircle2,
@@ -157,7 +158,9 @@ function ExaminerModal({ concept, onClose }) {
                 <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', borderRadius: 10, padding: '16px', border: '1px solid var(--border)' }}>
                     {loading
                         ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text3)', fontSize: 13 }}><Loader2 className="spin" size={16} /> Generating questions…</div>
-                        : <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.8, color: 'var(--text)' }}>{questions}</pre>
+                        : <div style={{ fontSize: 13, lineHeight: 1.8, color: 'var(--text)' }}>
+                            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{questions}</ReactMarkdown>
+                          </div>
                     }
                 </div>
                 <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
@@ -761,19 +764,43 @@ export default function NotebookWorkspace() {
                 body: JSON.stringify({ original_paragraph: page, student_doubt: doubt })
             });
             const data = await res.json();
-            const newNote = note.replace(page, data.mutated_paragraph);
+            // note.replace(page, ...) breaks because pages[] are trimmed/merged slices.
+            // Instead: split note at ## headings, replace the matching section by heading, rejoin.
+            let newNote;
+            if (note.includes(pages[currentPage])) {
+                newNote = note.replace(pages[currentPage], data.mutated_paragraph);
+            } else {
+                const heading = pages[currentPage].match(/^(## .+)/m)?.[1];
+                const parts = note.split(/(?=^## )/m);
+                const idx = heading ? parts.findIndex(p => p.trimStart().startsWith(heading)) : -1;
+                if (idx !== -1) {
+                    parts[idx] = data.mutated_paragraph;
+                    newNote = parts.join('');
+                } else {
+                    // Last resort: append the rewrite as a new section
+                    newNote = note + '\n\n' + data.mutated_paragraph;
+                }
+            }
             setNote(newNote);
             setGapText(data.concept_gap);
             setMutatedPages(prev => new Set([...prev, currentPage]));
             await saveNote(newNote, prof);
             extractAndSaveGraph(newNote);
-            // Log to doubts sidebar — extract the 💡 intuition line, keeping markdown for rendering
-            const intuitionLine = data.mutated_paragraph
-                .split('\n')
-                .find(l => l.includes('💡') || l.startsWith('> '));
-            const insightText = intuitionLine
-                ? intuitionLine.replace(/^>\s*/, '').trim()   // strip only the "> " blockquote prefix
-                : data.concept_gap || 'Page updated with your clarification.';
+            // Log to doubts sidebar — capture the full 💡 blockquote, not just one line.
+            const paraLines = data.mutated_paragraph.split('\n');
+            const bqStart = paraLines.findIndex(l => l.includes('💡') || l.trimStart().startsWith('> '));
+            let insightText;
+            if (bqStart !== -1) {
+                const bqLines = [];
+                for (let i = bqStart; i < paraLines.length; i++) {
+                    if (paraLines[i].startsWith('> ') || paraLines[i] === '>') {
+                        bqLines.push(paraLines[i].replace(/^>\s?/, ''));
+                    } else if (bqLines.length > 0) break;
+                }
+                insightText = bqLines.join(' ').trim() || data.concept_gap || 'Page updated.';
+            } else {
+                insightText = data.concept_gap || 'Page updated with your clarification.';
+            }
             setDoubtsLog(prev => [{ id: logId, pageIdx: currentPage, doubt, insight: insightText, gap: data.concept_gap, time: timestamp, success: true }, ...prev]);
             setRightTab('doubts');
         } catch {

@@ -1,72 +1,70 @@
+/**
+ * AuraGraphNodeGraph — SVG-based knowledge graph (replaces broken react-flow-renderer v10).
+ * Uses the same Redux graph state; renders with plain SVG for zero extra deps.
+ */
 import React, { useMemo } from 'react';
-import ReactFlow, { Background, Controls } from 'react-flow-renderer';
 import { useSelector } from 'react-redux';
 
-const defaultNodeStyle = {
-    borderRadius: '50%',
-    width: 14,
-    height: 14,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 10,
-    color: 'transparent',
-    border: '2px solid transparent'
-};
-
-const NodeComponent = ({ data }) => {
-    const S = {
-        mastered: { bg: "#16a34a", ring: "#4ade80", dot: "#86efac" },
-        partial: { bg: "#b45309", ring: "#f59e0b", dot: "#fcd34d" },
-        struggling: { bg: "#b91c1c", ring: "#ef4444", dot: "#fca5a5" },
-    };
-
-    const c = S[data.status] || S.mastered;
-
-    return (
-        <div style={{ ...defaultNodeStyle, backgroundColor: c.bg, borderColor: c.ring, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 20, whiteSpace: 'nowrap', color: '#94a3b8', fontSize: '10px', fontFamily: 'monospace' }}>{data.label}</div>
-        </div>
-    );
+const STATUS = {
+    mastered:   { fill: '#10B981', ring: '#6EE7B7', label: '#064E3B' },
+    partial:    { fill: '#F59E0B', ring: '#FCD34D', label: '#78350F' },
+    struggling: { fill: '#EF4444', ring: '#FCA5A5', label: '#7F1D1D' },
 };
 
 export default function EnhancedGraph() {
     const { nodes, edges } = useSelector(state => state.graph);
 
-    const reactFlowNodes = useMemo(() => {
-        return nodes.map(n => ({
-            id: String(n.id),
-            data: { label: n.label, status: n.status },
-            position: { x: n.x * 3, y: n.y * 3 }, // scale up slightly from original SVG coords
-            type: 'custom'
-        }));
-    }, [nodes]);
+    const W = 280, H = 280;
 
-    const reactFlowEdges = useMemo(() => {
-        return edges.map((e, i) => ({
-            id: `e${e[0]}-${e[1]}`,
-            source: String(e[0]),
-            target: String(e[1]),
-            animated: true,
-            style: { stroke: '#1e3a5f', strokeWidth: 1.5 }
-        }));
-    }, [edges]);
+    // Map concept positions (given as % 0-100) to SVG viewport
+    const svgNodes = useMemo(() =>
+        (nodes || []).map(n => ({
+            ...n,
+            cx: (n.x / 100) * W,
+            cy: (n.y / 100) * H,
+        })), [nodes]);
 
-    const nodeTypes = useMemo(() => ({ custom: NodeComponent }), []);
+    const idToPos = useMemo(() => {
+        const m = {};
+        svgNodes.forEach(n => { m[n.id] = { x: n.cx, y: n.cy }; });
+        return m;
+    }, [svgNodes]);
 
-    if (!nodes || nodes.length === 0) return null;
+    if (!svgNodes.length) return null;
 
     return (
-        <div style={{ width: '100%', height: '100%', minHeight: '220px' }}>
-            <ReactFlow
-                nodes={reactFlowNodes}
-                edges={reactFlowEdges}
-                nodeTypes={nodeTypes}
-                fitView
-            >
-                <Background color="#1e3a5f" gap={16} />
-                <Controls />
-            </ReactFlow>
-        </div>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', minHeight: 220 }}>
+            {/* edges */}
+            {(edges || []).map(([s, t], i) => {
+                const a = idToPos[s], b = idToPos[t];
+                if (!a || !b) return null;
+                return (
+                    <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                        stroke="#1e3a5f" strokeWidth="1.5" strokeOpacity="0.6"
+                        markerEnd="url(#arr)" />
+                );
+            })}
+            {/* arrowhead marker */}
+            <defs>
+                <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L6,3 z" fill="#1e3a5f" opacity="0.6" />
+                </marker>
+            </defs>
+            {/* nodes */}
+            {svgNodes.map(n => {
+                const c = STATUS[n.status] || STATUS.partial;
+                return (
+                    <g key={n.id}>
+                        <circle cx={n.cx} cy={n.cy} r={9} fill={c.ring} opacity={0.35} />
+                        <circle cx={n.cx} cy={n.cy} r={6} fill={c.fill} />
+                        <text x={n.cx} y={n.cy + 18} textAnchor="middle"
+                            fontSize="8" fill="#94a3b8" fontFamily="monospace"
+                            style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                            {n.label}
+                        </text>
+                    </g>
+                );
+            })}
+        </svg>
     );
 }

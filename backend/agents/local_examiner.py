@@ -192,12 +192,13 @@ def _match_concept(concept_name: str) -> list[tuple]:
 
 def _format_questions(questions: list[tuple], concept_name: str) -> str:
     lines = [f"**Practice Questions: {concept_name}**\n"]
-    for i, (q_text, options, correct, explanation) in enumerate(questions[:3], 1):
-        lines.append(f"Q{i}. {q_text}")
+    for i, (q_text, options, correct, explanation) in enumerate(questions[:5], 1):
+        lines.append(f"**Q{i}.** {q_text}")
         for opt in options:
-            lines.append(opt)
-        lines.append(f"Correct: {correct}")
-        lines.append(f"Explanation: {explanation}")
+            letter = opt[0]  # 'A', 'B', 'C', 'D'
+            marker = " ✅" if letter == correct else ""
+            lines.append(f"{opt}{marker}")
+        lines.append(f"> 💡 **Explanation:** {explanation}")
         lines.append("")
     return "\n".join(lines).strip()
 
