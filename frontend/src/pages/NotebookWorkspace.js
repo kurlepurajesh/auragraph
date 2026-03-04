@@ -8,7 +8,7 @@ import 'katex/dist/katex.min.css';
 import {
   Loader2, ChevronLeft, ChevronRight, Upload, FileText,
   BookOpen, ArrowLeft, Zap, Brain, CheckCircle2,
-  AlertCircle, MinusCircle, X, ChevronDown, ChevronUp,
+  AlertCircle, MinusCircle, X,
   MessageCircle, Sparkles, Target
 } from 'lucide-react';
 
@@ -19,7 +19,7 @@ function authHeaders() {
   return { Authorization: `Bearer ${token}` };
 }
 
-// ---- File Drop ----
+/* ---- File Drop ---- */
 function FileDrop({ label, icon: Icon, files, onFiles }) {
   const ref = useRef();
   const [drag, setDrag] = useState(false);
@@ -33,31 +33,31 @@ function FileDrop({ label, icon: Icon, files, onFiles }) {
       onDragOver={e => { e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
       onDrop={e => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
-      className="rounded-xl p-5 cursor-pointer transition-all"
+      className="rounded-xl p-6 cursor-pointer transition-all"
       style={{
-        border: `2px dashed ${drag ? '#0F5132' : files.length ? '#10B981' : '#D4D4D8'}`,
-        background: drag ? '#F6F5F0' : files.length ? '#ECFDF5' : '#fff',
+        border: `2px dashed ${drag ? '#000' : files.length ? '#000' : '#D4D4D8'}`,
+        background: drag ? '#F4F4F5' : '#fff',
       }}
       onClick={() => !files.length && ref.current.click()}
     >
       <input ref={ref} type="file" accept=".pdf" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
       {!files.length ? (
         <div className="text-center py-4">
-          <Icon size={28} className="mx-auto mb-2" style={{ color: '#0F5132' }} strokeWidth={1.5} />
-          <div className="text-sm font-semibold mb-1" style={{ color: '#1A1A1A', fontFamily: "'Manrope', sans-serif" }}>{label}</div>
-          <div className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>Drop PDFs or click to browse</div>
+          <Icon size={28} className="mx-auto mb-3" style={{ color: '#000' }} strokeWidth={1.5} />
+          <div className="text-sm font-semibold mb-1" style={{ color: '#000', fontFamily: "'DM Sans', sans-serif" }}>{label}</div>
+          <div className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>Drop PDFs here or click to browse</div>
         </div>
       ) : (
         <div>
           {files.map((f, i) => (
-            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1" style={{ background: '#fff', border: '1px solid #D1FAE5' }}>
-              <FileText size={13} style={{ color: '#10B981' }} />
-              <span className="text-xs flex-1 truncate" style={{ color: '#065F46', fontFamily: "'Manrope', sans-serif" }}>{f.name}</span>
+            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1" style={{ background: '#F4F4F5' }}>
+              <FileText size={13} style={{ color: '#000' }} />
+              <span className="text-xs flex-1 truncate" style={{ color: '#000', fontFamily: "'DM Sans', sans-serif" }}>{f.name}</span>
               <button onClick={e => { e.stopPropagation(); onFiles(prev => prev.filter((_, idx) => idx !== i)); }} className="text-xs" style={{ color: '#A1A1AA' }}>x</button>
             </div>
           ))}
-          <button onClick={() => ref.current.click()} className="w-full mt-2 py-1.5 rounded-lg text-xs font-medium" style={{ border: '1px dashed #6EE7B7', color: '#10B981', fontFamily: "'Manrope', sans-serif" }}>
-            + Add more ({files.length} file{files.length > 1 ? 's' : ''})
+          <button onClick={() => ref.current.click()} className="w-full mt-2 py-1.5 rounded-lg text-xs font-medium" style={{ border: '1px dashed #D4D4D8', color: '#71717A', fontFamily: "'DM Sans', sans-serif" }}>
+            + Add more
           </button>
         </div>
       )}
@@ -65,38 +65,31 @@ function FileDrop({ label, icon: Icon, files, onFiles }) {
   );
 }
 
-// ---- Note Renderer ----
+/* ---- Note Renderer ---- */
 function NoteRenderer({ content }) {
   const mkComponents = useMemo(() => ({
     h1: ({ children }) => (
-      <div className="rounded-xl mb-7 px-7 py-5" style={{ background: '#0F5132', color: '#fff' }}>
-        <div className="text-xs uppercase tracking-widest mb-2" style={{ opacity: 0.6, fontFamily: "'Manrope', sans-serif" }}>AuraGraph Study Notes</div>
-        <div className="text-xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>{children}</div>
+      <div className="mb-8 pb-4" style={{ borderBottom: '2px solid #000' }}>
+        <div className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>AuraGraph Study Notes</div>
+        <div className="text-2xl font-bold" style={{ fontFamily: "'Sora', sans-serif", color: '#000', letterSpacing: '-0.03em' }}>{children}</div>
       </div>
     ),
     h2: ({ children }) => (
-      <div className="flex items-stretch gap-0 mt-8 mb-4">
-        <div className="w-1 rounded-full mr-3 flex-shrink-0" style={{ background: '#0F5132' }} />
-        <div>
-          <div className="text-lg font-bold" style={{ color: '#0F5132', fontFamily: "'Playfair Display', serif" }}>{children}</div>
-          <div className="h-px mt-1" style={{ background: 'linear-gradient(90deg, #D1FAE5, transparent)' }} />
-        </div>
+      <div className="mt-10 mb-4">
+        <div className="text-lg font-bold" style={{ color: '#000', fontFamily: "'Sora', sans-serif", letterSpacing: '-0.02em' }}>{children}</div>
+        <div className="h-px mt-2" style={{ background: '#E5E5E5' }} />
       </div>
     ),
     h3: ({ children }) => (
-      <div className="mt-5 mb-2 pl-3" style={{ borderLeft: '3px solid #0D9488' }}>
-        <span className="text-xs font-bold uppercase tracking-wide" style={{ color: '#0D9488', fontFamily: "'Manrope', sans-serif" }}>{children}</span>
+      <div className="mt-6 mb-2">
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#71717A', fontFamily: "'DM Sans', sans-serif" }}>{children}</span>
       </div>
     ),
     p: ({ children }) => (
-      <p className="mb-3 leading-relaxed" style={{ color: '#1A1A1A', fontFamily: "'Crimson Pro', Georgia, serif", fontSize: '16px', lineHeight: '1.85' }}>{children}</p>
+      <p className="mb-3" style={{ color: '#27272A', fontFamily: "'Source Serif 4', Georgia, serif", fontSize: '16px', lineHeight: '1.9' }}>{children}</p>
     ),
-    strong: ({ children }) => (
-      <strong className="font-bold" style={{ color: '#0F5132' }}>{children}</strong>
-    ),
-    em: ({ children }) => (
-      <em style={{ color: '#8B5CF6' }}>{children}</em>
-    ),
+    strong: ({ children }) => <strong className="font-bold" style={{ color: '#000' }}>{children}</strong>,
+    em: ({ children }) => <em style={{ color: '#52525B' }}>{children}</em>,
     blockquote: ({ children }) => {
       const extractText = (node) => {
         if (!node) return '';
@@ -109,56 +102,56 @@ function NoteRenderer({ content }) {
       const isExamTip = flat.includes('Exam Tip');
       const isMutation = flat.includes('Intuition');
       if (isExamTip) return (
-        <div className="rounded-lg px-4 py-3 my-3 flex gap-2.5 items-start" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderLeft: '4px solid #F59E0B' }}>
-          <Target size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#F59E0B' }} />
-          <div className="text-sm leading-relaxed" style={{ color: '#78350F', fontFamily: "'Crimson Pro', serif" }}>{children}</div>
+        <div className="rounded-lg px-5 py-3.5 my-4 flex gap-3 items-start" style={{ background: '#F4F4F5', borderLeft: '3px solid #000' }}>
+          <Target size={14} className="flex-shrink-0 mt-1" style={{ color: '#000' }} />
+          <div className="text-sm leading-relaxed" style={{ color: '#27272A', fontFamily: "'Source Serif 4', serif" }}>{children}</div>
         </div>
       );
       if (isMutation) return (
-        <div className="rounded-lg px-4 py-3 my-3 flex gap-2.5 items-start" style={{ background: '#F5F3FF', border: '1px solid #C4B5FD', borderLeft: '4px solid #8B5CF6' }}>
-          <Sparkles size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#8B5CF6' }} />
-          <div className="text-sm leading-relaxed" style={{ color: '#4C1D95', fontFamily: "'Crimson Pro', serif" }}>{children}</div>
+        <div className="rounded-lg px-5 py-3.5 my-4 flex gap-3 items-start" style={{ background: '#fff', border: '1px solid #000', borderLeft: '3px solid #000' }}>
+          <Sparkles size={14} className="flex-shrink-0 mt-1" style={{ color: '#000' }} />
+          <div className="text-sm leading-relaxed" style={{ color: '#27272A', fontFamily: "'Source Serif 4', serif" }}>{children}</div>
         </div>
       );
       return (
-        <div className="rounded-lg px-4 py-3 my-3" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderLeft: '4px solid #10B981' }}>
-          <div className="text-sm leading-relaxed" style={{ color: '#064E3B', fontFamily: "'Crimson Pro', serif" }}>{children}</div>
+        <div className="rounded-lg px-5 py-3.5 my-4" style={{ background: '#F4F4F5', borderLeft: '3px solid #D4D4D8' }}>
+          <div className="text-sm leading-relaxed" style={{ color: '#52525B', fontFamily: "'Source Serif 4', serif" }}>{children}</div>
         </div>
       );
     },
     code: ({ className, children }) => {
       if (!className) return (
-        <code className="px-1.5 py-0.5 rounded text-sm font-medium" style={{ background: '#F0FDF4', color: '#0F5132', fontFamily: "'JetBrains Mono', monospace" }}>{children}</code>
+        <code className="px-1.5 py-0.5 rounded text-sm font-medium" style={{ background: '#F4F4F5', color: '#000', fontFamily: "'JetBrains Mono', monospace" }}>{children}</code>
       );
       return (
-        <pre className="rounded-lg px-5 py-4 my-3 overflow-x-auto text-sm" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', fontFamily: "'JetBrains Mono', monospace", color: '#334155', lineHeight: 1.75 }}>
+        <pre className="rounded-lg px-5 py-4 my-4 overflow-x-auto text-sm" style={{ background: '#FAFAFA', border: '1px solid #E5E5E5', fontFamily: "'JetBrains Mono', monospace", color: '#27272A', lineHeight: 1.75 }}>
           <code>{children}</code>
         </pre>
       );
     },
     pre: ({ children }) => <>{children}</>,
-    ul: ({ children }) => <ul className="pl-5 my-2" style={{ fontFamily: "'Crimson Pro', serif", fontSize: '16px', lineHeight: '1.85', color: '#1A1A1A' }}>{children}</ul>,
-    ol: ({ children }) => <ol className="pl-5 my-2" style={{ fontFamily: "'Crimson Pro', serif", fontSize: '16px', lineHeight: '1.85', color: '#1A1A1A' }}>{children}</ol>,
+    ul: ({ children }) => <ul className="pl-5 my-2 list-disc" style={{ fontFamily: "'Source Serif 4', serif", fontSize: '16px', lineHeight: '1.9', color: '#27272A' }}>{children}</ul>,
+    ol: ({ children }) => <ol className="pl-5 my-2 list-decimal" style={{ fontFamily: "'Source Serif 4', serif", fontSize: '16px', lineHeight: '1.9', color: '#27272A' }}>{children}</ol>,
     li: ({ children }) => <li className="mb-1">{children}</li>,
-    hr: () => <div className="my-7" style={{ borderTop: '2px dashed #E5E5E5' }} />,
+    hr: () => <div className="my-8" style={{ borderTop: '1px solid #E5E5E5' }} />,
   }), []);
 
   return <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={mkComponents}>{content || ''}</ReactMarkdown>;
 }
 
-// ---- Knowledge Graph ----
-const STATUS_COLOR = {
-  mastered: { fill: '#10B981', ring: '#6EE7B7', text: '#064E3B' },
-  partial: { fill: '#F59E0B', ring: '#FCD34D', text: '#78350F' },
-  struggling: { fill: '#EF4444', ring: '#FCA5A5', text: '#7F1D1D' },
+/* ---- Knowledge Graph ---- */
+const STATUS_CLR = {
+  mastered: { fill: '#000', ring: '#00000030', text: '#000' },
+  partial: { fill: '#A1A1AA', ring: '#A1A1AA30', text: '#71717A' },
+  struggling: { fill: '#DC2626', ring: '#DC262630', text: '#DC2626' },
 };
 
 function KnowledgeGraph({ nodes, edges, onNodeClick }) {
   const W = 280, H = 380;
   if (!nodes?.length) return (
     <div className="flex flex-col items-center justify-center h-48 text-center px-4">
-      <Brain size={26} style={{ color: '#D4D4D8' }} className="mb-2" />
-      <p className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>Concept graph appears after generating notes.</p>
+      <Brain size={24} style={{ color: '#D4D4D8' }} className="mb-2" />
+      <p className="text-xs leading-relaxed" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>Concept graph appears<br />after generating notes.</p>
     </div>
   );
   const nodeById = Object.fromEntries(nodes.map(n => [n.id, n]));
@@ -170,17 +163,17 @@ function KnowledgeGraph({ nodes, edges, onNodeClick }) {
         const src = nodeById[e[0]], dst = nodeById[e[1]];
         if (!src || !dst) return null;
         const sp = getPos(src), dp = getPos(dst);
-        return <line key={i} x1={sp.cx} y1={sp.cy} x2={dp.cx} y2={dp.cy} stroke="#D4D4D8" strokeWidth={1.2} strokeDasharray="4,3" />;
+        return <line key={i} x1={sp.cx} y1={sp.cy} x2={dp.cx} y2={dp.cy} stroke="#E5E5E5" strokeWidth={1} />;
       })}
       {nodes.map(n => {
-        const c = STATUS_COLOR[n.status] || STATUS_COLOR.partial;
+        const c = STATUS_CLR[n.status] || STATUS_CLR.partial;
         const { cx, cy } = getPos(n);
-        const label = n.label.length > 16 ? n.label.slice(0, 14) + '...' : n.label;
+        const label = n.label.length > 16 ? n.label.slice(0, 14) + '..' : n.label;
         return (
           <g key={n.id} style={{ cursor: 'pointer' }} onClick={() => onNodeClick(n)}>
-            <circle cx={cx} cy={cy} r={16} fill={c.ring} opacity={0.2} />
-            <circle cx={cx} cy={cy} r={10} fill={c.fill} stroke="#fff" strokeWidth={2} />
-            <text x={cx} y={cy + 22} textAnchor="middle" fontSize={8} fill="#52525B" fontWeight={500} style={{ pointerEvents: 'none', fontFamily: "'Manrope', sans-serif" }}>{label}</text>
+            <circle cx={cx} cy={cy} r={15} fill={c.ring} />
+            <circle cx={cx} cy={cy} r={8} fill={c.fill} stroke="#fff" strokeWidth={2} />
+            <text x={cx} y={cy + 20} textAnchor="middle" fontSize={8} fill="#71717A" fontWeight={500} style={{ pointerEvents: 'none', fontFamily: "'DM Sans', sans-serif" }}>{label}</text>
           </g>
         );
       })}
@@ -188,32 +181,35 @@ function KnowledgeGraph({ nodes, edges, onNodeClick }) {
   );
 }
 
-// ---- Node Popover ----
+/* ---- Node Popover ---- */
 function NodePopover({ node, onClose, onExamine, onStatusChange }) {
-  const colors = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
-  const icons = { mastered: <CheckCircle2 size={12} />, partial: <MinusCircle size={12} />, struggling: <AlertCircle size={12} /> };
+  const statusList = [
+    { key: 'mastered', label: 'Mastered', color: '#000', bg: '#F4F4F5', icon: <CheckCircle2 size={12} /> },
+    { key: 'partial', label: 'Partial', color: '#A1A1AA', bg: '#FAFAFA', icon: <MinusCircle size={12} /> },
+    { key: 'struggling', label: 'Weak', color: '#DC2626', bg: '#FEF2F2', icon: <AlertCircle size={12} /> },
+  ];
   return (
-    <div className="mx-3 mb-3 rounded-xl p-4" style={{ background: '#fff', border: '1px solid #E5E5E5', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} data-testid="node-popover">
+    <div className="mx-3 mb-3 rounded-xl p-4" style={{ background: '#fff', border: '1px solid #E5E5E5', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }} data-testid="node-popover">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-bold" style={{ color: '#1A1A1A', fontFamily: "'Manrope', sans-serif" }}>{node.label}</span>
+        <span className="text-sm font-bold" style={{ color: '#000', fontFamily: "'DM Sans', sans-serif" }}>{node.label}</span>
         <button onClick={onClose} style={{ color: '#A1A1AA' }}><X size={14} /></button>
       </div>
       <div className="flex gap-1.5 mb-3">
-        {['mastered', 'partial', 'struggling'].map(s => (
-          <button key={s} onClick={() => onStatusChange(node, s)} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all" data-testid={`status-${s}-btn`}
-            style={{ border: `1px solid ${node.status === s ? colors[s] : '#E5E5E5'}`, background: node.status === s ? colors[s] + '18' : 'transparent', color: node.status === s ? colors[s] : '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>
-            {icons[s]} {s}
+        {statusList.map(s => (
+          <button key={s.key} onClick={() => onStatusChange(node, s.key)} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all" data-testid={`status-${s.key}-btn`}
+            style={{ border: `1.5px solid ${node.status === s.key ? s.color : '#E5E5E5'}`, background: node.status === s.key ? s.bg : 'transparent', color: node.status === s.key ? s.color : '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>
+            {s.icon} {s.label}
           </button>
         ))}
       </div>
-      <button data-testid="generate-questions-btn" onClick={() => onExamine(node.label)} className="w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5" style={{ background: node.status === 'struggling' ? '#EF4444' : '#0F5132', color: '#fff', fontFamily: "'Manrope', sans-serif" }}>
+      <button data-testid="generate-questions-btn" onClick={() => onExamine(node.label)} className="w-full py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]" style={{ background: '#000', color: '#fff', fontFamily: "'DM Sans', sans-serif" }}>
         <Brain size={12} /> Generate Practice Questions
       </button>
     </div>
   );
 }
 
-// ---- Examiner Modal ----
+/* ---- Examiner Modal ---- */
 function ExaminerModal({ concept, onClose }) {
   const [questions, setQuestions] = useState('');
   const [loading, setLoading] = useState(true);
@@ -228,19 +224,19 @@ function ExaminerModal({ concept, onClose }) {
     })();
   }, [concept]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div className="rounded-2xl w-[600px] max-w-[96vw] max-h-[80vh] flex flex-col" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()} data-testid="examiner-modal">
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #E5E5E5' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }} onClick={onClose}>
+      <div className="rounded-2xl w-[620px] max-w-[96vw] max-h-[80vh] flex flex-col" style={{ background: '#fff', boxShadow: '0 24px 80px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()} data-testid="examiner-modal">
+        <div className="flex items-center justify-between px-7 py-5" style={{ borderBottom: '1px solid #E5E5E5' }}>
           <div>
-            <h3 className="text-base font-bold" style={{ fontFamily: "'Playfair Display', serif", color: '#1A1A1A' }}>Practice Questions</h3>
-            <p className="text-xs mt-0.5" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>Targeted for: <b>{concept}</b></p>
+            <h3 className="text-base font-bold" style={{ fontFamily: "'Sora', sans-serif", color: '#000' }}>Practice Questions</h3>
+            <p className="text-xs mt-0.5" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>Targeted for: <b style={{ color: '#000' }}>{concept}</b></p>
           </div>
-          <button onClick={onClose} style={{ color: '#A1A1AA' }} data-testid="close-examiner-btn"><X size={18} /></button>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ color: '#A1A1AA', background: '#F4F4F5' }} data-testid="close-examiner-btn"><X size={16} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-7">
           {loading
-            ? <div className="flex items-center gap-2 text-sm" style={{ color: '#A1A1AA' }}><Loader2 size={15} className="animate-spin" /> Generating questions...</div>
-            : <div style={{ fontFamily: "'Crimson Pro', serif", fontSize: '15px', lineHeight: '1.8', color: '#1A1A1A' }}>
+            ? <div className="flex items-center gap-2 text-sm" style={{ color: '#A1A1AA' }}><Loader2 size={15} className="animate-spin" /> Generating...</div>
+            : <div style={{ fontFamily: "'Source Serif 4', serif", fontSize: '15px', lineHeight: '1.8', color: '#27272A' }}>
                 <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{questions}</ReactMarkdown>
               </div>
           }
@@ -250,7 +246,7 @@ function ExaminerModal({ concept, onClose }) {
   );
 }
 
-// ---- Mutation Modal ----
+/* ---- Mutation Modal ---- */
 function MutateModal({ page, onClose, onMutate }) {
   const [doubt, setDoubt] = useState('');
   const [busy, setBusy] = useState(false);
@@ -262,13 +258,13 @@ function MutateModal({ page, onClose, onMutate }) {
     onClose();
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div className="rounded-2xl p-7 w-[480px] max-w-[94vw]" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()} data-testid="mutation-modal">
-        <h3 className="text-lg font-bold mb-1" style={{ fontFamily: "'Playfair Display', serif", color: '#1A1A1A' }}>Ask a Doubt</h3>
-        <p className="text-xs mb-4 leading-relaxed" style={{ color: '#52525B', fontFamily: "'Manrope', sans-serif" }}>
-          Describe your confusion. AuraGraph will permanently rewrite this section.
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }} onClick={onClose}>
+      <div className="rounded-2xl p-8 w-[500px] max-w-[94vw]" style={{ background: '#fff', boxShadow: '0 24px 80px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()} data-testid="mutation-modal">
+        <h3 className="text-xl font-bold mb-1" style={{ fontFamily: "'Sora', sans-serif", color: '#000', letterSpacing: '-0.03em' }}>Ask a Doubt</h3>
+        <p className="text-sm mb-5" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>
+          Describe what confuses you. AuraGraph will rewrite this section.
         </p>
-        <div className="rounded-lg px-3 py-2.5 mb-4 text-xs line-clamp-3 leading-relaxed" style={{ background: '#F6F5F0', border: '1px solid #E5E5E5', color: '#52525B', fontFamily: "'Manrope', sans-serif" }}>
+        <div className="rounded-lg px-4 py-3 mb-5 text-xs line-clamp-3 leading-relaxed" style={{ background: '#FAFAFA', border: '1px solid #E5E5E5', color: '#71717A', fontFamily: "'DM Sans', sans-serif" }}>
           {page?.slice(0, 200)}...
         </div>
         <textarea
@@ -278,12 +274,12 @@ function MutateModal({ page, onClose, onMutate }) {
           value={doubt}
           onChange={e => setDoubt(e.target.value)}
           placeholder="e.g. Why does convolution in time become multiplication in frequency?"
-          className="w-full px-4 py-3 rounded-lg text-sm outline-none resize-y mb-4"
-          style={{ border: '1px solid #D4D4D8', fontFamily: "'Manrope', sans-serif" }}
+          className="w-full px-4 py-3 rounded-lg text-sm outline-none resize-y mb-5 focus:ring-2 focus:ring-black/10"
+          style={{ border: '1px solid #E5E5E5', fontFamily: "'DM Sans', sans-serif" }}
         />
         <div className="flex gap-3 justify-end">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ border: '1px solid #D4D4D8', color: '#52525B' }} data-testid="cancel-mutation-btn">Cancel</button>
-          <button data-testid="mutate-btn" onClick={go} disabled={busy || !doubt.trim()} className="px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2" style={{ background: '#8B5CF6', color: '#fff', opacity: (busy || !doubt.trim()) ? 0.5 : 1, fontFamily: "'Manrope', sans-serif" }}>
+          <button onClick={onClose} className="h-10 px-5 rounded-lg text-sm font-medium" style={{ border: '1px solid #E5E5E5', color: '#71717A' }} data-testid="cancel-mutation-btn">Cancel</button>
+          <button data-testid="mutate-btn" onClick={go} disabled={busy || !doubt.trim()} className="h-10 px-6 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all active:scale-[0.97]" style={{ background: '#000', color: '#fff', opacity: (busy || !doubt.trim()) ? 0.4 : 1, fontFamily: "'DM Sans', sans-serif" }}>
             {busy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
             {busy ? 'Mutating...' : 'Mutate This Page'}
           </button>
@@ -293,7 +289,7 @@ function MutateModal({ page, onClose, onMutate }) {
   );
 }
 
-// ---- Main Workspace ----
+/* ======= Main Workspace ======= */
 export default function NotebookWorkspace() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -384,7 +380,7 @@ export default function NotebookWorkspace() {
       slidesFiles.forEach(f => form.append('slides_pdfs', f));
       textbookFiles.forEach(f => form.append('textbook_pdfs', f));
       form.append('proficiency', prof);
-      setFuseProgress('Running Fusion Agent...');
+      setFuseProgress('Running AI Fusion...');
       const res = await fetch(`${API}/upload-fuse-multi`, { method: 'POST', body: form });
       const data = await res.json();
       setNote(data.fused_note);
@@ -433,8 +429,8 @@ export default function NotebookWorkspace() {
   };
 
   if (!notebook) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#FDFBF7' }}>
-      <Loader2 size={28} className="animate-spin" style={{ color: '#A1A1AA' }} />
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#fff' }}>
+      <Loader2 size={24} className="animate-spin" style={{ color: '#D4D4D8' }} />
     </div>
   );
 
@@ -444,28 +440,28 @@ export default function NotebookWorkspace() {
   const strugCount = graphNodes.filter(n => n.status === 'struggling').length;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#FDFBF7' }} data-testid="notebook-workspace">
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#fff' }} data-testid="notebook-workspace">
       {/* Header */}
-      <header className="flex-shrink-0 px-5 h-14 flex items-center justify-between" style={{ background: 'rgba(253,251,247,0.9)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #E5E5E5' }}>
-        <div className="flex items-center gap-3">
-          <button data-testid="back-to-dashboard" onClick={() => navigate('/dashboard')} className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all" style={{ color: '#52525B', fontFamily: "'Manrope', sans-serif" }}>
-            <ArrowLeft size={13} /> Back
+      <header className="flex-shrink-0 h-14 px-6 flex items-center justify-between" style={{ borderBottom: '1px solid #E5E5E5' }}>
+        <div className="flex items-center gap-4">
+          <button data-testid="back-to-dashboard" onClick={() => navigate('/dashboard')} className="flex items-center gap-1 text-xs font-medium" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>
+            <ArrowLeft size={14} /> Back
           </button>
           <div className="w-px h-5" style={{ background: '#E5E5E5' }} />
           <div>
-            <div className="font-semibold text-sm" style={{ color: '#1A1A1A', fontFamily: "'Manrope', sans-serif" }}>{notebook.name}</div>
-            <div className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>{notebook.course}</div>
+            <div className="font-semibold text-sm" style={{ color: '#000', fontFamily: "'DM Sans', sans-serif" }}>{notebook.name}</div>
+            {notebook.course && <div className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>{notebook.course}</div>}
           </div>
         </div>
         {hasNote && (
           <div className="flex items-center gap-3">
-            <span className="text-xs px-3 py-1 rounded-full font-medium" style={{ background: '#F6F5F0', border: '1px solid #E5E5E5', color: '#52525B', fontFamily: "'Manrope', sans-serif" }}>{prof}</span>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: '#fff', border: '1px solid #E5E5E5' }}>
-              <button data-testid="prev-page" onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} style={{ color: currentPage === 0 ? '#D4D4D8' : '#52525B' }}><ChevronLeft size={14} /></button>
-              <span className="text-xs min-w-[50px] text-center font-medium" style={{ color: '#52525B', fontFamily: "'Manrope', sans-serif" }}>{currentPage + 1} / {pages.length}</span>
-              <button data-testid="next-page" onClick={() => setCurrentPage(Math.min(pages.length - 1, currentPage + 1))} disabled={currentPage >= pages.length - 1} style={{ color: currentPage >= pages.length - 1 ? '#D4D4D8' : '#52525B' }}><ChevronRight size={14} /></button>
+            <span className="text-xs px-3 py-1 rounded-full font-medium" style={{ background: '#F4F4F5', color: '#000', fontFamily: "'DM Sans', sans-serif" }}>{prof}</span>
+            <div className="flex items-center gap-2 h-8 px-3 rounded-lg" style={{ border: '1px solid #E5E5E5' }}>
+              <button data-testid="prev-page" onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} style={{ color: currentPage === 0 ? '#D4D4D8' : '#000' }}><ChevronLeft size={14} /></button>
+              <span className="text-xs min-w-[50px] text-center font-medium" style={{ color: '#000', fontFamily: "'DM Sans', sans-serif" }}>{currentPage + 1} / {pages.length}</span>
+              <button data-testid="next-page" onClick={() => setCurrentPage(Math.min(pages.length - 1, currentPage + 1))} disabled={currentPage >= pages.length - 1} style={{ color: currentPage >= pages.length - 1 ? '#D4D4D8' : '#000' }}><ChevronRight size={14} /></button>
             </div>
-            <button data-testid="ask-doubt-btn" onClick={() => setMutating(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all active:scale-[0.97]" style={{ background: '#8B5CF6', color: '#fff', fontFamily: "'Manrope', sans-serif" }}>
+            <button data-testid="ask-doubt-btn" onClick={() => setMutating(true)} className="flex items-center gap-1.5 h-9 px-4 rounded-lg text-xs font-semibold transition-all active:scale-[0.97]" style={{ background: '#000', color: '#fff', fontFamily: "'DM Sans', sans-serif" }}>
               <Sparkles size={13} /> Ask a Doubt
             </button>
           </div>
@@ -475,15 +471,16 @@ export default function NotebookWorkspace() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         {!hasNote ? (
+          /* Upload View */
           <div className="flex-1 overflow-y-auto flex items-center justify-center px-6 py-10">
-            <div className="max-w-[600px] w-full">
+            <div className="max-w-[580px] w-full">
               <div className="text-center mb-10">
-                <div className="w-14 h-14 rounded-2xl mx-auto mb-5 flex items-center justify-center" style={{ background: '#0F5132' }}>
-                  <Zap size={26} color="white" strokeWidth={1.5} />
+                <div className="w-12 h-12 rounded-xl mx-auto mb-5 flex items-center justify-center" style={{ background: '#000' }}>
+                  <Zap size={22} color="white" strokeWidth={1.8} />
                 </div>
-                <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif", color: '#1A1A1A' }}>Generate Fused Notes</h2>
-                <p className="text-sm leading-relaxed" style={{ color: '#52525B', fontFamily: "'Manrope', sans-serif" }}>
-                  Upload your course materials. AuraGraph will fuse them into personalised study notes calibrated to your level.
+                <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: "'Sora', sans-serif", color: '#000', letterSpacing: '-0.03em' }}>Generate Study Notes</h2>
+                <p className="text-sm leading-relaxed max-w-md mx-auto" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>
+                  Upload your course materials. AuraGraph will fuse them into personalised study notes.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4 mb-6">
@@ -491,57 +488,54 @@ export default function NotebookWorkspace() {
                 <FileDrop label="Textbook PDFs" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
               </div>
               <div className="mb-6">
-                <label className="block text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: '#52525B', fontFamily: "'Manrope', sans-serif" }}>Proficiency Level</label>
+                <label className="block text-xs font-medium mb-2" style={{ color: '#000', fontFamily: "'DM Sans', sans-serif" }}>Proficiency Level</label>
                 <div className="flex gap-3">
                   {[['Beginner', 'Analogies first'], ['Intermediate', 'Balanced depth'], ['Advanced', 'Full rigour']].map(([p, d]) => (
-                    <button key={p} data-testid={`prof-${p.toLowerCase()}`} onClick={() => setProf(p)} className="flex-1 py-3 px-2 rounded-lg text-center transition-all"
-                      style={{ border: `1.5px solid ${prof === p ? '#0F5132' : '#E5E5E5'}`, background: prof === p ? '#0F5132' : '#fff', color: prof === p ? '#fff' : '#52525B', fontFamily: "'Manrope', sans-serif" }}>
+                    <button key={p} data-testid={`prof-${p.toLowerCase()}`} onClick={() => setProf(p)} className="flex-1 py-3 rounded-lg text-center transition-all"
+                      style={{ border: `1.5px solid ${prof === p ? '#000' : '#E5E5E5'}`, background: prof === p ? '#000' : '#fff', color: prof === p ? '#fff' : '#71717A', fontFamily: "'DM Sans', sans-serif" }}>
                       <div className="text-sm font-semibold">{p}</div>
-                      <div className="text-xs mt-0.5" style={{ opacity: 0.7 }}>{d}</div>
+                      <div className="text-xs mt-0.5" style={{ opacity: 0.6 }}>{d}</div>
                     </button>
                   ))}
                 </div>
               </div>
               <button data-testid="generate-notes-btn" onClick={handleFuse} disabled={fusing || !slidesFiles.length || !textbookFiles.length}
-                className="w-full py-3.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                style={{ background: '#0F5132', color: '#fff', opacity: (fusing || !slidesFiles.length || !textbookFiles.length) ? 0.5 : 1, fontFamily: "'Manrope', sans-serif" }}>
+                className="w-full h-12 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                style={{ background: '#000', color: '#fff', opacity: (fusing || !slidesFiles.length || !textbookFiles.length) ? 0.3 : 1, fontFamily: "'DM Sans', sans-serif" }}>
                 {fusing ? <><Loader2 size={15} className="animate-spin" /> {fuseProgress}</> : <><Sparkles size={15} /> Generate Digital Notes</>}
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto flex justify-center py-8 px-6" style={{ background: '#F0EDE6' }}>
-            <div className="max-w-[720px] w-full">
+          /* Note View */
+          <div className="flex-1 overflow-y-auto flex justify-center py-10 px-8" style={{ background: '#FAFAFA' }}>
+            <div className="max-w-[700px] w-full">
               {gapText && (
-                <div className="mb-4 px-4 py-3 rounded-lg flex items-start gap-2 text-xs" style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E' }} data-testid="gap-banner">
-                  <Brain size={13} className="flex-shrink-0 mt-0.5" />
-                  <div className="flex-1"><b>Concept gap:</b> {gapText}</div>
-                  <button onClick={() => setGapText('')} style={{ color: '#92400E' }}><X size={12} /></button>
+                <div className="mb-5 px-4 py-3 rounded-lg flex items-start gap-2.5 text-xs" style={{ background: '#fff', border: '1px solid #E5E5E5', color: '#27272A' }} data-testid="gap-banner">
+                  <Brain size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#000' }} />
+                  <div className="flex-1"><b>Concept gap identified:</b> {gapText}</div>
+                  <button onClick={() => setGapText('')}><X size={12} style={{ color: '#A1A1AA' }} /></button>
                 </div>
               )}
-              {/* Notebook page */}
-              <div className="rounded-sm overflow-hidden flex" style={{ background: '#fff', boxShadow: '0 2px 12px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.06)', border: '1px solid #D4D4D8' }}>
-                <div className="w-9 flex-shrink-0 flex flex-col items-center justify-evenly py-8" style={{ background: '#FAFAF9', borderRight: '2px solid #E5E7EB' }}>
-                  {[0,1,2,3,4,5].map(i => <div key={i} className="w-4 h-4 rounded-full" style={{ background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.12)' }} />)}
-                </div>
-                <div className="w-px flex-shrink-0" style={{ background: '#FCA5A5' }} />
-                <div className="flex-1 px-10 py-10 min-w-0" style={{ minHeight: '500px' }}>
-                  <div className="flex justify-between items-center mb-7 pb-3" style={{ borderBottom: '1px solid #E5E5E5' }}>
-                    <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>{notebook?.name}</span>
+              {/* Paper */}
+              <div className="rounded-lg overflow-hidden" style={{ background: '#fff', border: '1px solid #E5E5E5', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <div className="px-12 py-10" style={{ minHeight: '520px' }}>
+                  <div className="flex justify-between items-center mb-8 pb-3" style={{ borderBottom: '1px solid #E5E5E5' }}>
+                    <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>{notebook?.name}</span>
                     <div className="flex items-center gap-2">
-                      {mutatedPages.has(currentPage) && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#F5F3FF', color: '#8B5CF6', border: '1px solid #C4B5FD', fontFamily: "'Manrope', sans-serif" }}>Mutated</span>}
-                      <span className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>Page {currentPage + 1} of {pages.length}</span>
+                      {mutatedPages.has(currentPage) && <span className="text-xs font-bold px-2.5 py-0.5 rounded-full" style={{ background: '#F4F4F5', color: '#000', fontFamily: "'DM Sans', sans-serif" }}>Mutated</span>}
+                      <span className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>Page {currentPage + 1} of {pages.length}</span>
                     </div>
                   </div>
                   <NoteRenderer content={pages[currentPage]} />
-                  <div className="mt-8 pt-3 flex justify-between items-center" style={{ borderTop: '1px solid #E5E5E5' }}>
-                    <span className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>{notebook?.course}</span>
-                    <span className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>AuraGraph &middot; {prof}</span>
+                  <div className="mt-10 pt-3 flex justify-between items-center" style={{ borderTop: '1px solid #E5E5E5' }}>
+                    <span className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>{notebook?.course}</span>
+                    <span className="text-xs" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>AuraGraph &middot; {prof}</span>
                   </div>
                 </div>
               </div>
-              <div className="mt-4 flex justify-center gap-3">
-                <button data-testid="re-upload-btn" onClick={() => setNote('')} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg" style={{ color: '#52525B', border: '1px solid #E5E5E5', fontFamily: "'Manrope', sans-serif" }}>
+              <div className="mt-5 flex justify-center">
+                <button data-testid="re-upload-btn" onClick={() => setNote('')} className="flex items-center gap-1.5 text-xs font-medium h-8 px-4 rounded-lg transition-all" style={{ color: '#A1A1AA', border: '1px solid #E5E5E5', fontFamily: "'DM Sans', sans-serif" }}>
                   <Upload size={12} /> Re-upload
                 </button>
               </div>
@@ -553,8 +547,8 @@ export default function NotebookWorkspace() {
         <aside className="w-[300px] min-w-[300px] flex flex-col overflow-hidden" style={{ borderLeft: '1px solid #E5E5E5', background: '#fff' }}>
           <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid #E5E5E5' }}>
             {[{ key: 'map', label: 'Concepts', icon: <Brain size={12} /> }, { key: 'doubts', label: `Doubts${doubtsLog.length ? ` (${doubtsLog.length})` : ''}`, icon: <MessageCircle size={12} /> }].map(tab => (
-              <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-all"
-                style={{ borderBottom: rightTab === tab.key ? '2px solid #0F5132' : '2px solid transparent', color: rightTab === tab.key ? '#0F5132' : '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>
+              <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} className="flex-1 flex items-center justify-center gap-1.5 py-3.5 text-xs font-semibold transition-all"
+                style={{ borderBottom: rightTab === tab.key ? '2px solid #000' : '2px solid transparent', color: rightTab === tab.key ? '#000' : '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>
                 {tab.icon} {tab.label}
               </button>
             ))}
@@ -564,10 +558,10 @@ export default function NotebookWorkspace() {
             <div className="flex-1 flex flex-col overflow-hidden">
               {graphNodes.length > 0 && (
                 <div className="px-4 py-3 flex gap-2" style={{ borderBottom: '1px solid #E5E5E5' }}>
-                  {[['mastered', '#10B981', masterCount], ['partial', '#F59E0B', partialCount], ['struggling', '#EF4444', strugCount]].map(([k, c, count]) => (
-                    <div key={k} className="flex-1 text-center rounded-lg py-1.5" style={{ background: c + '12', border: `1px solid ${c}30` }}>
+                  {[['mastered', '#000', masterCount], ['partial', '#A1A1AA', partialCount], ['struggling', '#DC2626', strugCount]].map(([k, c, count]) => (
+                    <div key={k} className="flex-1 text-center rounded-lg py-2" style={{ background: '#FAFAFA' }}>
                       <div className="text-base font-bold" style={{ color: c }}>{count}</div>
-                      <div className="text-[9px] font-semibold uppercase" style={{ color: c }}>{k}</div>
+                      <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: c }}>{k}</div>
                     </div>
                   ))}
                 </div>
@@ -579,12 +573,12 @@ export default function NotebookWorkspace() {
                   <div className="px-3 pt-2 pb-3" style={{ borderTop: '1px solid #E5E5E5' }}>
                     <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#A1A1AA' }}>All Concepts</div>
                     {graphNodes.map(n => {
-                      const c = STATUS_COLOR[n.status] || STATUS_COLOR.partial;
+                      const c = STATUS_CLR[n.status] || STATUS_CLR.partial;
                       return (
-                        <div key={n.id} onClick={() => setSelectedNode(prev => prev?.id === n.id ? null : n)} className="flex items-center gap-2 px-2 py-1.5 rounded-lg mb-0.5 cursor-pointer transition-all"
-                          style={{ background: selectedNode?.id === n.id ? '#F6F5F0' : 'transparent' }}>
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.fill, boxShadow: `0 0 4px ${c.fill}66` }} />
-                          <span className="flex-1 text-xs truncate" style={{ fontFamily: "'Manrope', sans-serif" }}>{n.label}</span>
+                        <div key={n.id} onClick={() => setSelectedNode(prev => prev?.id === n.id ? null : n)} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg mb-0.5 cursor-pointer transition-all"
+                          style={{ background: selectedNode?.id === n.id ? '#F4F4F5' : 'transparent' }}>
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.fill }} />
+                          <span className="flex-1 text-xs truncate" style={{ fontFamily: "'DM Sans', sans-serif", color: '#27272A' }}>{n.label}</span>
                           <span className="text-[10px] font-semibold capitalize" style={{ color: c.fill }}>{n.status}</span>
                         </div>
                       );
@@ -594,23 +588,23 @@ export default function NotebookWorkspace() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto px-3 py-3">
+            <div className="flex-1 overflow-y-auto px-4 py-4">
               {doubtsLog.filter(d => d.pageIdx === currentPage).length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 text-center">
-                  <MessageCircle size={24} style={{ color: '#D4D4D8' }} className="mb-2" />
-                  <p className="text-xs leading-relaxed" style={{ color: '#A1A1AA', fontFamily: "'Manrope', sans-serif" }}>No doubts on page {currentPage + 1} yet.<br />Click <b>Ask a Doubt</b> to add one.</p>
+                  <MessageCircle size={22} style={{ color: '#D4D4D8' }} className="mb-2" />
+                  <p className="text-xs leading-relaxed" style={{ color: '#A1A1AA', fontFamily: "'DM Sans', sans-serif" }}>No doubts on this page yet.<br />Click <b>Ask a Doubt</b> to add one.</p>
                 </div>
               ) : (
                 doubtsLog.filter(d => d.pageIdx === currentPage).map(d => (
-                  <div key={d.id} className="mb-4">
-                    <div className="flex justify-end mb-1">
-                      <div className="max-w-[85%] px-3 py-2 rounded-xl rounded-br-sm text-xs leading-relaxed" style={{ background: '#8B5CF6', color: '#fff', fontFamily: "'Manrope', sans-serif" }}>
+                  <div key={d.id} className="mb-5">
+                    <div className="flex justify-end mb-1.5">
+                      <div className="max-w-[85%] px-3.5 py-2.5 rounded-xl rounded-br-sm text-xs leading-relaxed" style={{ background: '#000', color: '#fff', fontFamily: "'DM Sans', sans-serif" }}>
                         {d.doubt}
                       </div>
                     </div>
                     <div className="flex justify-start">
-                      <div className="max-w-[90%] px-3 py-2 rounded-xl rounded-bl-sm text-xs leading-relaxed" style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', color: '#4C1D95', fontFamily: "'Manrope', sans-serif" }}>
-                        <div className="text-[10px] font-bold mb-1" style={{ color: '#8B5CF6' }}>AuraGraph</div>
+                      <div className="max-w-[90%] px-3.5 py-2.5 rounded-xl rounded-bl-sm text-xs leading-relaxed" style={{ background: '#F4F4F5', color: '#27272A', fontFamily: "'DM Sans', sans-serif" }}>
+                        <div className="text-[10px] font-bold mb-1" style={{ color: '#A1A1AA' }}>AuraGraph</div>
                         {d.insight}
                       </div>
                     </div>
