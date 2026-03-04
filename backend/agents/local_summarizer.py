@@ -1,0 +1,303 @@
+import re
+from collections import Counter
+
+_NOISE_LINE = re.compile(
+    r"^\s*("
+    r"(lecture|lec|slide|unit|module|chapter|topic|week|part|session)\s*[\d\.\:]+.*"
+    r"|page\s+\d+"
+    r"|\d+\s*/\s*\d+"
+    r"|[A-Z]{2,10}\s*\d{3,}"
+    r"|copyright|all rights reserved|university|institute|dept\.|department"
+    r"|www\.|http|\.com|\.edu|\.org"
+    r"|\d{4}\s*[-]\s*\d{4}"
+    r")\s*$",
+    re.IGNORECASE
+)
+_NOISE_SHORT = re.compile(r"^\s*[\d\.\-\*\u2022]+\s*$")
+
+_MATH_SUBS = [
+    (r"\bomega_0\b", r"$\\omega_0$"),
+    (r"\bomega\b", r"$\\omega$"),
+    (r"\balpha\b(?!\w)", r"$\\alpha$"),
+    (r"\bbeta\b(?!\w)", r"$\\beta$"),
+    (r"\bgamma\b(?!\w)", r"$\\gamma$"),
+    (r"\bdelta\b(?!\w)", r"$\\delta$"),
+    (r"\btheta\b(?!\w)", r"$\\theta$"),
+    (r"\bphi\b(?!\w)", r"$\\phi$"),
+    (r"\blambda\b(?!\w)", r"$\\lambda$"),
+    (r"\bmu\b(?!\w)", r"$\\mu$"),
+    (r"\bsigma\b(?!\w)", r"$\\sigma$"),
+    (r"\btau\b(?!\w)", r"$\\tau$"),
+    (r"\bzeta\b(?!\w)", r"$\\zeta$"),
+    (r"\binfinity\b", r"$\\infty$"),
+    (r"\bpi\b(?!\w)", r"$\\pi$"),
+    (r"\bX\(z\)", r"$X(z)$"),
+    (r"\bH\(z\)", r"$H(z)$"),
+    (r"\bY\(z\)", r"$Y(z)$"),
+    (r"\bX\(s\)", r"$X(s)$"),
+    (r"\bH\(s\)", r"$H(s)$"),
+    (r"\bconvolution\b", r"convolution ($*$)"),
+    (r"\b([a-z])\[n\]", r"$\1[n]$"),
+    (r"\b([a-z])\[k\]", r"$\1[k]$"),
+    (r"\b([a-z])\[m\]", r"$\1[m]$"),
+    (r"\bx\(t\)", r"$x(t)$"),
+    (r"\by\(t\)", r"$y(t)$"),
+    (r"\bh\(t\)", r"$h(t)$"),
+    (r"\be\^(j[\w\\]+)", r"$e^{\1}$"),
+    (r"\b([A-Za-z])\^(-?\d+)", r"$\1^{\2}$"),
+]
+
+def _reconstruct_math(text):
+    if "$" in text:
+        return text
+    for pat, repl in _MATH_SUBS:
+        try:
+            text = re.sub(pat, repl, text)
+        except Exception:
+            pass
+    return text
+
+def _clean_text(text):
+    lines = text.split("\n")
+    cleaned = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            cleaned.append("")
+            continue
+        if _NOISE_LINE.match(stripped):
+            continue
+        if _NOISE_SHORT.match(stripped):
+            continue
+        if len(stripped) < 4:
+            continue
+        cleaned.append(line)
+    text2 = "\n".join(cleaned)
+    text2 = re.sub(r"\n{3,}", "\n\n", text2)
+    return text2.strip()
+
+def _split_sections(text):
+    heading_pat = re.compile(
+        r"^([A-Z][A-Z0-9 ,\-:\'&\/]{2,60}|[A-Z][a-z][A-Za-z0-9 ,\-:\'&\/]{3,55})$",
+        re.MULTILINE
+    )
+    matches = [m for m in heading_pat.finditer(text) if not _NOISE_LINE.match(m.group(0))]
+    sections = []
+    if len(matches) >= 2:
+        for i, m in enumerate(matches):
+            heading = m.group(0).strip().title()
+            start = m.end()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            body = text[start:end].strip()
+            if len(body) > 30:
+                sections.append((heading, body))
+        if sections:
+            return sections
+    chunks = [c.strip() for c in re.split(r"\n{2,}", text) if len(c.strip()) > 60]
+    merged, current = [], ""
+    for chunk in chunks:
+        if len(current) + len(chunk) < 800:
+            current += ("\n\n" if current else "") + chunk
+        else:
+            if current:
+                merged.append(current)
+            current = chunk
+    if current:
+        merged.append(current)
+    return [(f"Section {i+1}", c) for i, c in enumerate(merged)]
+
+def _has_math(text):
+    return bool(re.search(
+        r"[=\^\u222b\u2211\u220f\u221a\u00b1\u221e\u2202\u2207\u2264\u2265\u2200]|"
+        r"[A-Za-z]\s*[=<>]\s*[A-Za-z0-9(]|"
+        r"\b(sin|cos|tan|exp|log|lim|max|min|det|sum|integral)\b|"
+        r"\b[a-z][\(\[]\s*[nktmz]\s*[\)\]]",
+        text
+    ))
+
+def _classify_line(line):
+    l = line.strip().lower()
+    if _has_math(line): return "formula"
+    if re.search(r"\b(defined as|definition:|is called|referred to as|denoted by|means that)\b", l): return "definition"
+    if re.search(r"\b(proof:|derive|derivation|show that|we have|therefore|hence|thus|substituting)\b", l): return "derivation"
+    if re.search(r"\b(example:|e\.g\.|for instance|consider|suppose|case [0-9])\b", l): return "example"
+    if re.search(r"\b(note:|important:|recall:|key point:|remember:|caution:)\b", l): return "note"
+    if re.search(r"\b(theorem:|lemma:|corollary:|proposition:|property:)\b", l): return "theorem"
+    return "body"
+
+_STOP = set("a an the is are was were be been being have has had do does did will would shall should may might must can could to of in on at for by with from as it its this that these those and or but not so if then than when where which who what how all any each every no more most other some such into out up down over under also just only very well about after before during between through while i we they he she you".split())
+
+def _compress_body(body, max_words=320):
+    lines = [l.rstrip() for l in body.split("\n")]
+    formula_lines, prose_lines = [], []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped: continue
+        k = _classify_line(stripped)
+        if k in ("formula", "definition", "theorem", "derivation", "note", "example"):
+            formula_lines.append((stripped, k))
+        else:
+            prose_lines.append(stripped)
+    all_words = [w.lower() for s in prose_lines for w in re.findall(r"\b[a-zA-Z]{3,}\b", s) if w.lower() not in _STOP]
+    freq = Counter(all_words)
+    def score(s):
+        words = [w.lower() for w in re.findall(r"\b[a-zA-Z]{3,}\b", s) if w.lower() not in _STOP]
+        return sum(freq[w] for w in words) / (len(words) + 1)
+    top_prose = set(sorted(prose_lines, key=score, reverse=True)[:max(6, len(prose_lines) // 3)])
+    result = list(formula_lines)
+    word_count = sum(len(fl.split()) for fl, _ in formula_lines)
+    for sentence in prose_lines:
+        if sentence in top_prose:
+            wc = len(sentence.split())
+            if word_count + wc <= max_words:
+                result.append((sentence, "body"))
+                word_count += wc
+    line_order = {l.strip(): i for i, l in enumerate(lines) if l.strip()}
+    result.sort(key=lambda x: line_order.get(x[0], 9999))
+    return result
+
+def _to_latex_line(text: str) -> str:
+    """Best-effort conversion of a raw math line to LaTeX for KaTeX display."""
+    t = text.strip()
+    # Already has $$ wrapping — leave it
+    if t.startswith("$$") and t.endswith("$$"):
+        return t
+    # Remove stray $ if just one
+    t2 = t.replace("$", "").strip()
+    # Common signal-processing LaTeX rewrites on the raw text
+    replacements = [
+        (r"([A-Za-z])\^(-?\d+|{[^}]+})", r"\1^{\2}"),
+        (r"([A-Za-z])_(-?\d+|{[^}]+})", r"\1_{\2}"),
+        (r"\bsum\b", r"\\sum"),
+        (r"\bprod\b", r"\\prod"),
+        (r"\bint\b", r"\\int"),
+        (r"\binfty\b", r"\\infty"),
+        (r"\binfinity\b", r"\\infty"),
+        (r"\bomega_0\b", r"\\omega_0"),
+        (r"\bomega\b", r"\\omega"),
+        (r"\balpha\b", r"\\alpha"),
+        (r"\bbeta\b", r"\\beta"),
+        (r"\bgamma\b", r"\\gamma"),
+        (r"\bdelta\b", r"\\delta"),
+        (r"\btheta\b", r"\\theta"),
+        (r"\bphi\b", r"\\phi"),
+        (r"\blambda\b", r"\\lambda"),
+        (r"\bmu\b", r"\\mu"),
+        (r"\bsigma\b", r"\\sigma"),
+        (r"\btau\b", r"\\tau"),
+        (r"\bzeta\b", r"\\zeta"),
+        (r"\bpi\b", r"\\pi"),
+        (r"\bsin\b", r"\\sin"),
+        (r"\bcos\b", r"\\cos"),
+        (r"\btan\b", r"\\tan"),
+        (r"\bexp\b", r"\\exp"),
+        (r"\blog\b", r"\\log"),
+        (r"\blim\b", r"\\lim"),
+        (r"\bmax\b", r"\\max"),
+        (r"\bmin\b", r"\\min"),
+        (r"\bdet\b", r"\\det"),
+        (r"<=", r"\\leq"),
+        (r">=", r"\\geq"),
+        (r"!=", r"\\neq"),
+        (r"\*", r"\\cdot"),
+    ]
+    for pat, repl in replacements:
+        try:
+            t2 = re.sub(pat, repl, t2)
+        except Exception:
+            pass
+    return f"$$\n{t2}\n$$"
+
+
+def _format_compressed(compressed):
+    output = []
+    formula_buffer = []
+
+    def flush_formulas():
+        if formula_buffer:
+            for f in formula_buffer:
+                output.append(_to_latex_line(f))
+                output.append("")
+            formula_buffer.clear()
+
+    for line, kind in compressed:
+        stripped = line.strip()
+        if kind == "formula":
+            formula_buffer.append(stripped)
+        else:
+            flush_formulas()
+            # Apply inline math reconstruction to prose lines
+            stripped = _reconstruct_math(stripped)
+            if kind in ("definition", "theorem"):
+                output.append(f"**{stripped}**")
+            elif kind == "note":
+                output.append(f"> {stripped}")
+            elif kind == "example":
+                output.append(f"*{stripped}*")
+            else:
+                output.append(stripped)
+
+    flush_formulas()
+    return "\n".join(output).strip()
+
+def _exam_tips(heading, body):
+    b, h = body.lower(), heading.lower()
+    tips = []
+    if re.search(r"theorem|transform|law|property|series", h + " " + b):
+        tips.append("State the theorem/law precisely — examiners award marks for exact wording.")
+    if re.search(r"deriv|proof|show that|prove", b):
+        tips.append("Reproduce the derivation step-by-step — partial credit given for correct intermediate steps.")
+    if re.search(r"formula|equation|expression|given by", b) or _has_math(body):
+        tips.append("Memorise the formula and each variable — numerical application questions are very common.")
+    if re.search(r"condition|constraint|valid|converge|region|require", b):
+        tips.append("Know the conditions under which this applies.")
+    if re.search(r"application|used in|practical|real.world", b):
+        tips.append("Know at least 2 real-world applications — a common 2-mark question.")
+    return tips[:2] if tips else ["Write the definition first, then explain."]
+
+MAX_SECTIONS = 22
+
+def generate_local_note(slides_text, textbook_text, proficiency):
+    slides_text = _clean_text(slides_text)
+    textbook_text = _clean_text(textbook_text)
+    proficiency_desc = {
+        "Beginner": "Focus on understanding definitions and core concepts before formulas.",
+        "Intermediate": "Technical depth with formulas and worked examples.",
+        "Advanced": "Full depth: derivations, edge cases, and rigorous conditions.",
+    }.get(proficiency, "Technical depth with formulas and worked examples.")
+
+    output_sections = []
+    seen_headings = set()
+
+    if slides_text.strip():
+        for heading, body in _split_sections(slides_text):
+            if len(output_sections) >= MAX_SECTIONS: break
+            h_key = re.sub(r"\s+", " ", heading.lower().strip())
+            if h_key in seen_headings: continue
+            seen_headings.add(h_key)
+            formatted = _format_compressed(_compress_body(body, 320))
+            if not formatted.strip(): continue
+            tips = _exam_tips(heading, body)
+            tip_block = "\n".join(f"> \U0001f4dd **Exam Tip:** {t}" for t in tips)
+            output_sections.append(f"## {heading}\n\n{formatted}\n\n{tip_block}")
+
+    if textbook_text.strip():
+        for heading, body in _split_sections(textbook_text):
+            if len(output_sections) >= MAX_SECTIONS: break
+            h_key = re.sub(r"\s+", " ", heading.lower().strip())
+            if h_key in seen_headings: continue
+            seen_headings.add(h_key)
+            formatted = _format_compressed(_compress_body(body, 260))
+            if not formatted.strip(): continue
+            tips = _exam_tips(heading, body)
+            tip_block = "\n".join(f"> \U0001f4dd **Exam Tip:** {t}" for t in tips)
+            output_sections.append(f"## {heading} *(Textbook)*\n\n{formatted}\n\n{tip_block}")
+
+    if not output_sections:
+        return "## Note\n\nCould not extract text. Ensure PDFs are text-based (not scanned)."
+
+    header = (
+        f"# AuraGraph Study Notes\n"
+        f"*Proficiency: **{proficiency}*** — {proficiency_desc}\n"
+    )
+    return header + "\n\n---\n\n" + "\n\n---\n\n".join(output_sections)

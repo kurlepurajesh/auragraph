@@ -1,0 +1,16 @@
+[
+  {
+    "id": "40b0f450-2fe3-4f69-bda5-c0c5ca613c07",
+    "email": "demo@iitroorkee.ac.in",
+    "password_hash": "2a4cb3529fd3edef708fffec5377f7ed0cf148ed238978d4fd8e359d186bb4ba",
+    "token": "3ce069d7-e6b0-4139-af51-8e28b7eb6c76",
+    "name": "Demo"
+  },
+  {
+    "id": "f4452e08-7b0c-4bfd-abe9-4d9a945c2c04",
+    "email": "demo@test.com",
+    "password_hash": "d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791",
+    "token": "4ee4a726-96ed-42f8-9354-aedd364d9f15",
+    "name": "Demo"
+  }
+]
