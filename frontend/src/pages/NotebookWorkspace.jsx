@@ -36,9 +36,11 @@ function FileDrop({ label, icon, files, onFiles }) {
 
     const hasFiles = files.length > 0;
     const totalMB = (files.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1);
+    const DropIcon = icon || BookOpen;
 
     return (
         <div
+            data-testid={`file-drop-${label.toLowerCase().replace(/\s+/g, '-')}`}
             onDragOver={e => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={onDrop}
@@ -53,9 +55,11 @@ function FileDrop({ label, icon, files, onFiles }) {
                 onChange={e => addFiles(e.target.files)} />
             {!hasFiles ? (
                 <div onClick={() => ref.current.click()} style={{ textAlign: 'center', cursor: 'pointer', padding: '12px 0' }}>
-                    <div style={{ fontSize: 26, marginBottom: 8 }}>{icon}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>{label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Drag & drop multiple files or click</div>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+                        <DropIcon size={26} color="var(--text3)" />
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)', fontFamily: '"DM Sans", sans-serif' }}>{label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4, fontFamily: '"DM Sans", sans-serif' }}>Drag & drop multiple files or click</div>
                 </div>
             ) : (
                 <>
@@ -63,13 +67,13 @@ function FileDrop({ label, icon, files, onFiles }) {
                         {files.map((f, i) => (
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 6, padding: '6px 10px', border: '1px solid #d1fae5' }}>
                                 <FileText size={14} color="#10B981" style={{ flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: '#065f46', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                                <span style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0 }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
-                                <button onClick={e => removeFile(e, i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text3)', lineHeight: 1 }}>✕</button>
+                                <span style={{ fontSize: 12, color: '#065f46', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"DM Sans", sans-serif' }}>{f.name}</span>
+                                <span style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0, fontFamily: '"DM Sans", sans-serif' }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                                <button onClick={e => removeFile(e, i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text3)', lineHeight: 1, display: 'flex', alignItems: 'center' }}><X size={12} /></button>
                             </div>
                         ))}
                     </div>
-                    <button onClick={() => ref.current.click()} style={{ width: '100%', padding: '6px', background: 'transparent', border: '1px dashed #6ee7b7', borderRadius: 6, color: '#10B981', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+                    <button onClick={() => ref.current.click()} style={{ width: '100%', padding: '6px', background: 'transparent', border: '1px dashed #6ee7b7', borderRadius: 6, color: '#10B981', fontSize: 11, cursor: 'pointer', fontWeight: 600, fontFamily: '"DM Sans", sans-serif' }}>
                         + Add more PDFs · {files.length} file{files.length > 1 ? 's' : ''} · {totalMB} MB total
                     </button>
                 </>
@@ -386,44 +390,40 @@ function NoteRenderer({ content }) {
     const mkComponents = {
         h1({ children }) {
             return (
-                <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2240 100%)', color: '#fff', padding: '22px 28px', borderRadius: 10, marginBottom: 28, boxShadow: '0 4px 18px rgba(15,34,64,0.22)' }}>
-                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', opacity: 0.65, marginBottom: 6, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>AuraGraph · Study Notes</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.3, fontFamily: 'Inter, sans-serif' }}>{children}</div>
+                <div style={{ marginBottom: 28 }}>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#71717A', marginBottom: 6, fontFamily: '"DM Sans", sans-serif', fontWeight: 600 }}>AuraGraph · Study Notes</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#000', lineHeight: 1.25, fontFamily: '"Sora", sans-serif' }}>{children}</div>
                 </div>
             );
         },
         h2({ children }) {
             return (
-                <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginTop: 34, marginBottom: 14 }}>
-                    <div style={{ width: 5, borderRadius: 3, background: 'linear-gradient(180deg, #3B82F6, #6366F1)', flexShrink: 0, marginRight: 14 }} />
-                    <div>
-                        <div style={{ fontSize: 17, fontWeight: 800, color: '#1e3a5f', lineHeight: 1.3, fontFamily: 'Inter, sans-serif' }}>{children}</div>
-                        <div style={{ height: 1, background: 'linear-gradient(90deg, #DBEAFE, transparent)', marginTop: 6 }} />
-                    </div>
+                <div style={{ marginTop: 36, marginBottom: 14 }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: '#000', lineHeight: 1.3, fontFamily: '"Sora", sans-serif' }}>{children}</div>
+                    <div style={{ height: 1.5, background: '#E4E4E7', marginTop: 8 }} />
                 </div>
             );
         },
         h3({ children }) {
             return (
-                <div style={{ borderLeft: '3px solid #10B981', paddingLeft: 11, marginTop: 20, marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'Inter, sans-serif' }}>{children}</span>
+                <div style={{ marginTop: 20, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: '"DM Sans", sans-serif' }}>{children}</span>
                 </div>
             );
         },
         code({ className, children }) {
             const isBlock = !!className;
             if (!isBlock) return (
-                <code style={{ background: '#EFF6FF', color: '#1D4ED8', borderRadius: 4, padding: '1px 5px', fontSize: 13, fontFamily: '"Courier New", monospace', fontWeight: 600 }}>{children}</code>
+                <code style={{ background: '#F4F4F5', color: '#18181B', borderRadius: 4, padding: '1px 6px', fontSize: 13, fontFamily: '"JetBrains Mono", "Courier New", monospace', fontWeight: 500 }}>{children}</code>
             );
             return (
-                <pre style={{ background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: 8, padding: '14px 18px', margin: '14px 0', fontFamily: '"Courier New", Courier, monospace', fontSize: 13.5, lineHeight: 1.75, color: '#334155', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                <pre style={{ background: '#F4F4F5', border: '1px solid #E4E4E7', borderRadius: 8, padding: '14px 18px', margin: '14px 0', fontFamily: '"JetBrains Mono", "Courier New", monospace', fontSize: 13, lineHeight: 1.75, color: '#18181B', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
                     <code>{children}</code>
                 </pre>
             );
         },
         pre({ children }) { return <>{children}</>; },
         blockquote({ children }) {
-            // Safely extract text without serialising React fibers
             const extractText = (node) => {
                 if (!node) return '';
                 if (typeof node === 'string') return node;
@@ -433,44 +433,44 @@ function NoteRenderer({ content }) {
             };
             const flat = extractText(children);
             const isExamTip = flat.includes('Exam Tip');
-            const isIntuition = flat.includes('💡') || flat.includes('Intuition');
+            const isIntuition = flat.includes('💡') || flat.includes('Intuition') || flat.includes('mutation');
             const isWarning = flat.includes('⚠️') || flat.includes('warning') || flat.includes('offline mode');
-            if (isIntuition) return (
-                <div style={{ background: '#F5F3FF', border: '1.5px solid #C4B5FD', borderLeft: '5px solid #7C3AED', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>💡</span>
-                    <div style={{ fontSize: 13.5, color: '#4C1D95', lineHeight: 1.75, fontFamily: 'Inter, sans-serif' }}>{children}</div>
+            if (isExamTip) return (
+                <div style={{ background: '#F4F4F5', border: '1px solid #E4E4E7', borderLeft: '4px solid #000', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>🎯</span>
+                    <div style={{ fontSize: 13.5, color: '#18181B', lineHeight: 1.75, fontFamily: '"DM Sans", sans-serif' }}>{children}</div>
                 </div>
             );
-            if (isExamTip) return (
-                <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderLeft: '5px solid #F59E0B', borderRadius: 8, padding: '12px 16px', margin: '12px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>📝</span>
-                    <div style={{ fontSize: 13.5, color: '#78350F', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' }}>{children}</div>
+            if (isIntuition) return (
+                <div style={{ background: '#fff', border: '1px solid #E4E4E7', borderLeft: '4px solid #000', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>✨</span>
+                    <div style={{ fontSize: 13.5, color: '#18181B', lineHeight: 1.75, fontFamily: '"DM Sans", sans-serif' }}>{children}</div>
                 </div>
             );
             if (isWarning) return (
-                <div style={{ background: '#FFF7ED', border: '1.5px solid #FDBA74', borderLeft: '5px solid #F97316', borderRadius: 8, padding: '12px 16px', margin: '10px 0', fontSize: 13, color: '#7C2D12', lineHeight: 1.65, fontFamily: 'Inter, sans-serif' }}>{children}</div>
+                <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderLeft: '4px solid #F97316', borderRadius: 8, padding: '12px 16px', margin: '10px 0', fontSize: 13, color: '#7C2D12', lineHeight: 1.65, fontFamily: '"DM Sans", sans-serif' }}>{children}</div>
             );
             return (
-                <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderLeft: '5px solid #22C55E', borderRadius: 8, padding: '12px 16px', margin: '12px 0', fontSize: 13.5, color: '#14532D', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' }}>{children}</div>
+                <div style={{ background: '#F4F4F5', border: '1px solid #E4E4E7', borderLeft: '4px solid #000', borderRadius: 8, padding: '12px 16px', margin: '12px 0', fontSize: 13.5, color: '#18181B', lineHeight: 1.7, fontFamily: '"DM Sans", sans-serif' }}>{children}</div>
             );
         },
         strong({ children }) {
-            return <strong style={{ color: '#1e3a5f', background: '#EFF6FF', borderRadius: 3, padding: '0 3px', fontWeight: 700 }}>{children}</strong>;
+            return <strong style={{ fontWeight: 700, color: '#000' }}>{children}</strong>;
         },
         em({ children }) {
-            return <span style={{ color: '#6D28D9', fontStyle: 'italic' }}>{children}</span>;
+            return <span style={{ fontStyle: 'italic', color: '#3F3F46' }}>{children}</span>;
         },
         hr() {
-            return <div style={{ border: 'none', borderTop: '2px dashed #E5E7EB', margin: '28px 0' }} />;
+            return <div style={{ border: 'none', borderTop: '1.5px solid #E4E4E7', margin: '28px 0' }} />;
         },
         p({ children }) {
-            return <p style={{ marginBottom: 11, lineHeight: 1.95, color: '#1F2937', fontFamily: '"Computer Modern", "CMU Serif", Georgia, serif', fontSize: 15 }}>{children}</p>;
+            return <p style={{ marginBottom: 12, lineHeight: 1.9, color: '#18181B', fontFamily: '"Source Serif 4", Georgia, serif', fontSize: 16 }}>{children}</p>;
         },
         ul({ children }) {
-            return <ul style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Computer Modern", "CMU Serif", Georgia, serif', fontSize: 15, color: '#1F2937' }}>{children}</ul>;
+            return <ul style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4", Georgia, serif', fontSize: 16, color: '#18181B' }}>{children}</ul>;
         },
         ol({ children }) {
-            return <ol style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Computer Modern", "CMU Serif", Georgia, serif', fontSize: 15, color: '#1F2937' }}>{children}</ol>;
+            return <ol style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4", Georgia, serif', fontSize: 16, color: '#18181B' }}>{children}</ol>;
         },
         li({ children }) {
             return <li style={{ marginBottom: 5 }}>{children}</li>;
@@ -853,18 +853,18 @@ export default function NotebookWorkspace() {
                             <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)', fontWeight: 600 }}>{prof}</span>
                             {/* Page nav */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', padding: '4px 12px', borderRadius: 20, border: '1px solid var(--border)' }}>
-                                <button onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} style={{ background: 'none', border: 'none', color: currentPage === 0 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage === 0 ? 'not-allowed' : 'pointer' }}>
+                                <button data-testid="prev-page" onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} style={{ background: 'none', border: 'none', color: currentPage === 0 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage === 0 ? 'not-allowed' : 'pointer' }}>
                                     <ChevronLeft size={14} />
                                 </button>
                                 <span style={{ fontSize: 12, color: 'var(--text2)', minWidth: 60, textAlign: 'center' }}>
                                     {currentPage + 1} / {pages.length}
                                 </span>
-                                <button onClick={() => setCurrentPage(Math.min(pages.length - 1, currentPage + 1))} disabled={currentPage >= pages.length - 1} style={{ background: 'none', border: 'none', color: currentPage >= pages.length - 1 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage >= pages.length - 1 ? 'not-allowed' : 'pointer' }}>
+                                <button data-testid="next-page" onClick={() => setCurrentPage(Math.min(pages.length - 1, currentPage + 1))} disabled={currentPage >= pages.length - 1} style={{ background: 'none', border: 'none', color: currentPage >= pages.length - 1 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage >= pages.length - 1 ? 'not-allowed' : 'pointer' }}>
                                     <ChevronRight size={14} />
                                 </button>
                             </div>
                             {/* Mutate button */}
-                            <button className="btn btn-primary btn-sm" style={{ gap: 5 }} onClick={() => setMutating(true)}>
+                            <button data-testid="ask-doubt-btn" className="btn btn-primary btn-sm" style={{ gap: 5 }} onClick={() => setMutating(true)}>
                                 <MessageSquare size={13} /> Ask a Doubt
                             </button>
                         </>
@@ -889,8 +889,8 @@ export default function NotebookWorkspace() {
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-                                <FileDrop label="Professor's Slides" icon="🎓" files={slidesFiles} onFiles={setSlidesFiles} />
-                                <FileDrop label="Textbook" icon="📚" files={textbookFiles} onFiles={setTextbookFiles} />
+                                <FileDrop label="Professor's Slides" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />
+                                <FileDrop label="Textbook" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
                             </div>
 
                             <div style={{ marginBottom: 24 }}>
@@ -905,7 +905,7 @@ export default function NotebookWorkspace() {
                                 </div>
                             </div>
 
-                            <button className="btn btn-primary btn-lg" style={{ width: '100%', gap: 8 }} onClick={handleFuse} disabled={fusing || !slidesFiles.length || !textbookFiles.length}>
+                            <button data-testid="generate-notes-btn" className="btn btn-primary btn-lg" style={{ width: '100%', gap: 8 }} onClick={handleFuse} disabled={fusing || !slidesFiles.length || !textbookFiles.length}>
                                 {fusing ? <><Loader2 className="spin" size={16} /> {fuseProgress}</> : <><Sparkles size={16} /> Generate Digital Notes</>}
                             </button>
                         </div>
@@ -953,7 +953,7 @@ export default function NotebookWorkspace() {
                             </div>
                             {/* Re-upload link */}
                             <div style={{ marginTop: 16, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 10 }}>
-                                <button className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => setNote('')}>
+                                <button data-testid="re-upload-btn" className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => setNote('')}>
                                     <Upload size={12} /> Re-upload materials
                                 </button>
                                 <button className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => extractAndSaveGraph(note)}>
@@ -972,7 +972,7 @@ export default function NotebookWorkspace() {
                             { key: 'map', label: 'Concept Map', icon: <Brain size={12} /> },
                             { key: 'doubts', label: `Doubts${doubtsLog.length ? ` (${doubtsLog.length})` : ''}`, icon: <MessageCircle size={12} /> },
                         ].map(tab => (
-                            <button key={tab.key} onClick={() => setRightTab(tab.key)} style={{
+                            <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{
                                 flex: 1, padding: '10px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                                 fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s',
                                 borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent',

@@ -62,7 +62,13 @@ STRICT FORMAT RULES (apply to ALL proficiency levels):
 
 6. For ALL mathematical expressions, use EXACT LaTeX:
    - Inline: `$x = y^2$`
-   - Display: `$$\\sum_{i=1}^{n} x_i$$`
+   - Display: each `$$` MUST be on its OWN separate line:
+     ```
+     $$
+     \\sum_{i=1}^{n} x_i
+     $$
+     ```
+   - NEVER use `\\[`, `\\]`, `\\(`, `\\)` delimiters. ONLY `$` and `$$`.
    - NEVER use backticks for math. NEVER write raw "integral" or "sigma" — use \\int and \\sigma.
 
 7. Begin directly with the first `##` heading. NO preamble like "Here is your note" or "Sure!".

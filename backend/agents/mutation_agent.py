@@ -24,7 +24,7 @@ TASK:
 1. Diagnose the student's conceptual gap in one clear sentence.
 2. Rewrite the ORIGINAL NOTE SECTION so it directly resolves the doubt.
    - Add an intuition block (💡) explaining WHY it works using an analogy or concrete example.
-   - Keep all original formulas (in LaTeX $$...$$). Improve explanations around them.
+   - Keep all original formulas. Use ONLY `$...$` for inline math and `$$` on its own line for display math. NEVER use \\( \\) or \\[ \\] delimiters.
    - Preserve the Markdown heading if present.
    - Add a `> 📝 **Exam Tip:**` if the doubt reveals a commonly tested misconception.
 3. Output exactly TWO sections separated by `|||` (three pipe characters, no spaces around):

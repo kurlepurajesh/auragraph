@@ -24,6 +24,7 @@ from agents.local_summarizer import generate_local_note
 from agents.local_mutation import local_mutate
 from agents.local_examiner import local_examine
 from agents.concept_extractor import extract_concepts
+from agents.latex_utils import fix_latex_delimiters
 from agents.auth_utils import register_user, login_user, validate_token
 from agents.notebook_store import (
     create_notebook, get_notebooks, get_notebook,
@@ -236,7 +237,7 @@ async def fuse_knowledge(req: FusionRequest):
     if not fusion_agent:
         raise HTTPException(503, "Kernel not initialised")
     fused = await fusion_agent.fuse(req.slide_summary, req.textbook_paragraph, req.proficiency)
-    return FusionResponse(fused_note=fused)
+    return FusionResponse(fused_note=fix_latex_delimiters(fused))
 
 
 @app.post("/api/upload-fuse", response_model=FusionResponse)
@@ -261,7 +262,7 @@ async def upload_fuse(
     textbook_summary = summarise_chunks(chunk_text(textbook_text), max_summary_chars=6000)
 
     fused = await fusion_agent.fuse(slides_summary, textbook_summary, proficiency)
-    return FusionResponse(fused_note=fused)
+    return FusionResponse(fused_note=fix_latex_delimiters(fused))
 
 
 @app.post("/api/upload-fuse-multi", response_model=FusionResponse)
@@ -302,13 +303,13 @@ async def upload_fuse_multi(
             slides_summary = summarise_chunks(chunk_text(all_slides_text), max_summary_chars=10000)
             textbook_summary = summarise_chunks(chunk_text(all_textbook_text), max_summary_chars=10000)
             fused = await fusion_agent.fuse(slides_summary, textbook_summary, proficiency)
-            return FusionResponse(fused_note=fused)
+            return FusionResponse(fused_note=fix_latex_delimiters(fused))
         except Exception:
             pass  # Fall through to local summarizer
 
     # 2) Local extractive summarizer fallback (works without any API key)
     local_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
-    return FusionResponse(fused_note=local_note)
+    return FusionResponse(fused_note=fix_latex_delimiters(local_note))
 
 
 
@@ -319,12 +320,12 @@ async def mutate_note(req: MutationRequest):
         try:
             mutated, gap = await mutation_agent.mutate(req.original_paragraph, req.student_doubt)
             update_node_status("Convolution Theorem", "partial")
-            return MutationResponse(mutated_paragraph=mutated, concept_gap=gap)
+            return MutationResponse(mutated_paragraph=fix_latex_delimiters(mutated), concept_gap=gap)
         except Exception:
             pass  # fall through to local fallback
     # Local offline fallback
     mutated, gap = local_mutate(req.original_paragraph, req.student_doubt)
-    return MutationResponse(mutated_paragraph=mutated, concept_gap=gap)
+    return MutationResponse(mutated_paragraph=fix_latex_delimiters(mutated), concept_gap=gap)
 
 
 @app.post("/api/examine", response_model=ExaminerResponse)
@@ -332,12 +333,12 @@ async def examine_concept(req: ExaminerRequest):
     if examiner_agent:
         try:
             questions = await examiner_agent.examine(req.concept_name)
-            return ExaminerResponse(practice_questions=questions)
+            return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
         except Exception:
             pass  # fall through to local fallback
     # Local offline fallback
     questions = local_examine(req.concept_name)
-    return ExaminerResponse(practice_questions=questions)
+    return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
 
 
 @app.get("/api/graph")

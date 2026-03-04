@@ -28,6 +28,7 @@ D) [Option]
 💡 Explanation: [One clear sentence explaining why]
 
 Cover: definition, formula/derivation, application, comparison, and one tricky edge case.
+Use ONLY `$...$` for inline math and `$$` on its own line for display math. NEVER use \\( \\) or \\[ \\] delimiters.
 """
 
 
