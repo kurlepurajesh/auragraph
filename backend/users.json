@@ -12,5 +12,19 @@
     "password_hash": "d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791",
     "token": "4ee4a726-96ed-42f8-9354-aedd364d9f15",
     "name": "Demo"
+  },
+  {
+    "id": "9197d7f9-8a89-48d1-a8e4-558b15852fd8",
+    "email": "rajesh_test",
+    "password_hash": "b5692500175fad6bb2b306aa20ff58423c79b130ef310fb3caa924e0f28bc61d",
+    "token": "0a4181ed-fb41-4293-8ac9-0bcb99a3fcbd",
+    "name": "Rajesh_test"
+  },
+  {
+    "id": "5159a599-64c5-4f27-8175-878ff49400a2",
+    "email": "test@example.com",
+    "password_hash": "b5692500175fad6bb2b306aa20ff58423c79b130ef310fb3caa924e0f28bc61d",
+    "token": "dc7c20a6-a9fa-4c4f-84ac-c8ed0c65e3d4",
+    "name": "Test"
   }
 ]

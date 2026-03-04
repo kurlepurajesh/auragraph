@@ -106,8 +106,14 @@ def get_current_user(authorization: Optional[str] = Header(None)):
 # Schemas
 # ---------------------------------------------------------------------------
 class AuthRequest(BaseModel):
-    email: str
+    email: Optional[str] = None
+    username: Optional[str] = None
     password: str
+
+    @property
+    def identifier(self) -> str:
+        """Returns email if provided, else username. Allows both flows."""
+        return (self.email or self.username or "").strip()
 
 class FusionRequest(BaseModel):
     slide_summary: str
@@ -159,17 +165,21 @@ async def health():
 
 @app.post("/auth/register")
 async def auth_register(req: AuthRequest):
-    user = register_user(req.email, req.password)
+    if not req.identifier:
+        raise HTTPException(422, "email or username is required")
+    user = register_user(req.identifier, req.password)
     if not user:
-        raise HTTPException(409, "Email already registered")
+        raise HTTPException(409, "Account already exists")
     return user
 
 
 @app.post("/auth/login")
 async def auth_login(req: AuthRequest):
-    user = login_user(req.email, req.password)
+    if not req.identifier:
+        raise HTTPException(422, "email or username is required")
+    user = login_user(req.identifier, req.password)
     if not user:
-        raise HTTPException(401, "Invalid email or password")
+        raise HTTPException(401, "Invalid credentials")
     return user
 
 

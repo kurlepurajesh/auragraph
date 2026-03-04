@@ -33,10 +33,30 @@ _CONFUSION_KEYWORDS = {
 
 def _diagnose_gap(doubt: str) -> str:
     doubt_lower = doubt.lower()
+    # Check topic-specific concepts first (before generic question words)
+    topic_keywords = {
+        "convolution": "The student needs an intuitive explanation of what convolution computes.",
+        "fourier": "The student needs to understand frequency decomposition conceptually.",
+        "laplace": "The student needs to understand why/how Laplace generalises Fourier.",
+        "z-transform": "The student needs to understand the discrete-time analogue of Laplace.",
+        "binomial": "The student cannot distinguish between Binomial's parameters and meaning.",
+        "bernoulli": "The student needs a clearer definition of a Bernoulli trial.",
+        "poisson": "The student doesn't know when to apply Poisson vs Binomial.",
+        "variance": "The student confuses variance with standard deviation or mean.",
+        "eigenvalue": "The student needs a geometric intuition for eigenvalues.",
+        "matrix": "The student needs to understand the matrix operation conceptually.",
+        "integral": "The student needs a geometric interpretation of integration.",
+        "derivative": "The student needs the instantaneous-rate-of-change intuition.",
+    }
+    for keyword, diagnosis in topic_keywords.items():
+        if keyword in doubt_lower:
+            return diagnosis
+    # Fall back to generic question words
     for keyword, diagnosis in _CONFUSION_KEYWORDS.items():
         if keyword in doubt_lower:
             return diagnosis
     return "The student requires additional context and an intuitive explanation of this concept."
+
 
 
 # ── Simple paragraph rewriter ─────────────────────────────────────────────────
