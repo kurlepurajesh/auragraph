@@ -10,9 +10,9 @@
     "id": "f4452e08-7b0c-4bfd-abe9-4d9a945c2c04",
     "email": "demo@test.com",
     "password_hash": "d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791",
-    "token": "99284231-c3b4-46bb-b837-949399643ee2",
+    "token": "e7ea4cf3-3b03-49ac-a732-dc56df25eac3",
     "name": "Demo",
-    "token_issued_at": 1772720275.9088871
+    "token_issued_at": 1772722374.045197
   },
   {
     "id": "9197d7f9-8a89-48d1-a8e4-558b15852fd8",

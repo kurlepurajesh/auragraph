@@ -236,8 +236,13 @@ async def remove_notebook(nb_id: str, authorization: Optional[str] = Header(None
 async def fuse_knowledge(req: FusionRequest):
     if not fusion_agent:
         raise HTTPException(503, "Kernel not initialised")
-    fused = await fusion_agent.fuse(req.slide_summary, req.textbook_paragraph, req.proficiency)
-    return FusionResponse(fused_note=fix_latex_delimiters(fused))
+    try:
+        fused = await fusion_agent.fuse(req.slide_summary, req.textbook_paragraph, req.proficiency)
+        return FusionResponse(fused_note=fix_latex_delimiters(fused))
+    except Exception:
+        # LLM unavailable — fall back to local extractive summariser
+        local_note = generate_local_note(req.slide_summary, req.textbook_paragraph, req.proficiency)
+        return FusionResponse(fused_note=fix_latex_delimiters(local_note))
 
 
 @app.post("/api/upload-fuse", response_model=FusionResponse)

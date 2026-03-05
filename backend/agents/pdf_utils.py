@@ -127,16 +127,27 @@ def _extract_shape_text(shape) -> str:
     return ""
 
 
-# Regex to detect lines that are metadata, not teaching content
+# Regex to detect lines that are metadata, not teaching content.
+# Rules:
+#   - email addresses
+#   - lines starting with an honorific (Dr/Prof/Mr/Mrs/Ms) + name(s)
+#   - numeric dates: dd/mm/yyyy, dd-mm-yyyy
+#   - month + year: May 2024
+# Deliberately does NOT match bare "First Last" to avoid stripping topic names
+# like "Fourier Transform", "Convolution Theorem", etc.
 _METADATA_LINE_RE = re.compile(
     r'^\s*('
-    r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}'   # email
-    r'|(?:Dr|Prof|Mr|Mrs|Ms|Er)\.?\s+[A-Z][a-z]+'            # Dr./Prof. Name
-    r'|[A-Z][a-z]+ [A-Z][a-z]+(\s[A-Z][a-z]+)?'              # First Last / First M Last
-    r'|(?:Department|School|College|Institute|University|Faculty)\b.*'
-    r'|\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4}'                   # date 01/01/2024
-    r'|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{4}'  # May 2024
+    r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}'           # email
+    r'|(?:Dr|Prof|Mr|Mrs|Ms|Er)\.?\s+[A-Z][a-z]+(\s[A-Z][a-z]+)*'  # Dr./Prof. A B C
+    r'|\d{1,4}[-\/]\d{1,2}[-\/]\d{2,4}'                            # 01/03/2026
+    r'|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}'  # May 2024
     r')\s*$',
+    re.IGNORECASE,
+)
+
+# Lines that contain an institution keyword are almost always metadata
+_INSTITUTION_RE = re.compile(
+    r'\b(?:Department|School|College|Institute|University|Faculty|IIT|NIT|BITS)\b',
     re.IGNORECASE,
 )
 
@@ -155,14 +166,16 @@ def _strip_metadata_lines(text: str) -> str:
         if not stripped:
             kept.append(line)
             continue
-        # Keep lines that have likely teaching content
+        # Keep lines that have likely teaching content.
+        # NOTE: '/' intentionally excluded from has_math — dates also contain '/'
         has_colon   = ':' in stripped
-        has_math    = any(c in stripped for c in ['=', '+', '/', '$', '\\', '∫', 'Σ'])
-        has_bullet  = stripped.startswith(('•', '-', '*', '–', '1.', '2.', '3.'))
+        has_math    = any(c in stripped for c in ['=', '+', '$', '\\', '\u222b', '\u03a3'])
+        has_bullet  = stripped.startswith(('\u2022', '-', '*', '\u2013', '1.', '2.', '3.'))
         is_sentence = len(stripped.split()) > 6
+        is_institution = bool(_INSTITUTION_RE.search(stripped))
         if has_colon or has_math or has_bullet or is_sentence:
             kept.append(line)
-        elif _METADATA_LINE_RE.match(stripped):
+        elif _METADATA_LINE_RE.match(stripped) or is_institution:
             continue  # drop metadata
         else:
             kept.append(line)
