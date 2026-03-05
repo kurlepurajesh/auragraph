@@ -127,6 +127,48 @@ def _extract_shape_text(shape) -> str:
     return ""
 
 
+# Regex to detect lines that are metadata, not teaching content
+_METADATA_LINE_RE = re.compile(
+    r'^\s*('
+    r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}'   # email
+    r'|(?:Dr|Prof|Mr|Mrs|Ms|Er)\.?\s+[A-Z][a-z]+'            # Dr./Prof. Name
+    r'|[A-Z][a-z]+ [A-Z][a-z]+(\s[A-Z][a-z]+)?'              # First Last / First M Last
+    r'|(?:Department|School|College|Institute|University|Faculty)\b.*'
+    r'|\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4}'                   # date 01/01/2024
+    r'|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{4}'  # May 2024
+    r')\s*$',
+    re.IGNORECASE,
+)
+
+
+def _strip_metadata_lines(text: str) -> str:
+    """
+    Remove lines that are almost certainly author/institution metadata
+    (emails, honorifics, plain person names, dates).
+    Only strips lines that match metadata patterns exactly — mathematical
+    or sentence-like lines are always kept.
+    """
+    kept: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        # Keep empty lines and any line with teaching content indicators
+        if not stripped:
+            kept.append(line)
+            continue
+        # Keep lines that have likely teaching content
+        has_colon   = ':' in stripped
+        has_math    = any(c in stripped for c in ['=', '+', '/', '$', '\\', '∫', 'Σ'])
+        has_bullet  = stripped.startswith(('•', '-', '*', '–', '1.', '2.', '3.'))
+        is_sentence = len(stripped.split()) > 6
+        if has_colon or has_math or has_bullet or is_sentence:
+            kept.append(line)
+        elif _METADATA_LINE_RE.match(stripped):
+            continue  # drop metadata
+        else:
+            kept.append(line)
+    return '\n'.join(kept)
+
+
 def extract_text_from_pptx(file_bytes: bytes) -> str:
     """
     Extract text from a PPTX file with slide-boundary markers.
@@ -157,7 +199,7 @@ def extract_text_from_pptx(file_bytes: bytes) -> str:
                 if txt:
                     body_parts.append(txt)
 
-            body = "\n".join(body_parts).strip()
+            body = _strip_metadata_lines("\n".join(body_parts)).strip()
 
             # Build slide block
             if title_text:

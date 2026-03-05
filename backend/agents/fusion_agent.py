@@ -98,6 +98,8 @@ CONCISENESS (most important):
 13. Do NOT repeat a concept already explained in an earlier section.
 14. No placeholder text like "[formula here]" or "…".
 15. No acknowledgement phrases ("Sure, here are your notes").
+16. IGNORE any presenter name, author name, email address, institution, department,
+    or date that appears in the slide text — these are document metadata, not content.
 """
 
 
