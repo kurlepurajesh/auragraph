@@ -635,17 +635,17 @@ def _build_section(heading: str, body: str, prose_k: int, proficiency: str) -> s
 _PROF = {
     "Beginner": {
         "prose_k": 99,         # effectively "use all sentences"
-        "max_sec": 20,
+        "max_sec": 999,        # cover EVERY topic the professor taught — no cap
         "label":   "Full conceptual depth — every idea explained from scratch with analogies",
     },
     "Intermediate": {
         "prose_k": 8,
-        "max_sec": 16,
+        "max_sec": 999,        # cover EVERY topic the professor taught — no cap
         "label":   "Balanced depth — key formulas with intuition and application",
     },
     "Advanced": {
         "prose_k": 6,          # dense: fewer but heavier sentences
-        "max_sec": 24,
+        "max_sec": 999,        # cover EVERY topic the professor taught — no cap
         "label":   "Full rigour — formal definitions, derivations, edge cases",
     },
 }

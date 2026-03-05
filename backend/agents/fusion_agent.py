@@ -29,6 +29,14 @@ TARGET PROFICIENCY: {{$proficiency}}
 PROFICIENCY RULES
 ════════════════════════════════════════════════════════
 
+COVERAGE RULE (applies to ALL proficiency levels — read this first):
+  The slides represent EVERYTHING the professor chose to teach. Your notes must cover
+  EVERY distinct topic, concept, theorem, formula, and example present in the slides.
+  Do NOT stop early. Do NOT skip a topic because you think the notes are "long enough".
+  The length of the output is determined entirely by the content — not by any word target.
+  A professor who taught 10 topics gets 10 sections. One who taught 3 gets 3 sections, written deeply.
+  If the slides contain a formula, it MUST appear in the notes. No exceptions.
+
 BEGINNER — The student has NEVER seen this topic before. Your job is to TEACH it from scratch.
   • Open every `##` section with 2–3 plain-English sentences: "Simply put, X is ..."
   • Give a concrete real-world analogy in a `>` blockquote (e.g. "Convolution is like sliding a weighing window").
@@ -36,7 +44,6 @@ BEGINNER — The student has NEVER seen this topic before. Your job is to TEACH 
   • Introduce formulas ONLY after intuition is built. After every display formula, add a bullet list:
     "Where: $x$ = ..., $y$ = ..., $n$ = ..." explaining every symbol.
   • Include at least one fully worked numerical or symbolic example per major concept.
-  • NEVER truncate. If in doubt, write more. Target: 2500–4000 words.
   • Every `##` section MUST contain: plain-English opening → analogy → how it works → formula with symbol glossary → worked example → exam tip.
 
 INTERMEDIATE — The student has seen this but needs consolidation.
@@ -45,7 +52,6 @@ INTERMEDIATE — The student has seen this but needs consolidation.
   • All key formulas in display LaTeX.
   • One short worked application or example (even a single-line calculation).
   • Conditions and edge cases as a brief bullet list.
-  • Target: 1800–2500 words.
 
 ADVANCED — Studying at depth. Skip basics entirely.
   • Formal mathematical definition with all conditions stated explicitly.
@@ -54,7 +60,6 @@ ADVANCED — Studying at depth. Skip basics entirely.
   • Discuss edge cases, degenerate cases, and common theorem variants.
   • Compare with related concepts (e.g. DFT vs DTFT vs Laplace).
   • No analogies. Dense, information-rich prose.
-  • Target: 2000–3000 words.
 
 ════════════════════════════════════════════════════════
 STRICT QUALITY RULES (apply to ALL proficiency levels)
@@ -66,7 +71,7 @@ STRUCTURE:
 3. Do NOT repeat the same content across sections. Each `##` section covers exactly one concept.
 4. Do NOT include a preamble. Start directly with the first `##` heading.
 5. Do NOT write concluding summaries like "In conclusion..." or "We have seen...".
-6. If the source material covers multiple distinct topics, create one `##` section per topic.
+6. Create one `##` section for EVERY distinct topic in the slides. Missing a slide topic is a failure.
 
 MATHEMATICS:
 7. ALL math MUST use LaTeX. NEVER write raw words like "integral", "sigma", "omega" — use \\int, \\sigma, \\omega.
