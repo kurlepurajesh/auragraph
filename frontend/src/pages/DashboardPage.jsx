@@ -5,7 +5,7 @@ import { setUser } from '../store';
 import { ls_getNotebooks, ls_createNotebook, ls_deleteNotebook } from '../localNotebooks';
 import { BookOpen, Plus, Trash2, ChevronRight, LogOut, Loader2, BookMarked, Calendar } from 'lucide-react';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function authHeaders() {
     const token = localStorage.getItem('ag_token') || 'demo-token';
@@ -83,12 +83,22 @@ function NotebookCard({ nb, onOpen, onDelete }) {
             </div>
 
             <div style={{ fontSize: 12, color: 'var(--text3)', background: 'var(--surface)', borderRadius: 6, padding: '8px 10px', minHeight: 36, lineHeight: 1.6, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                {hasNote ? nb.note.replace(/[#*]/g, '').slice(0, 130) + '…' : 'No notes yet — open to upload slides & textbook'}
+                {hasNote ? nb.note.replace(/[#*`\\]/g, '').replace(/\$[^$]*\$/g, '').replace(/\$\$[\s\S]*?\$\$/g, '[formula]').slice(0, 130) + '…' : 'No notes yet — open to upload slides & textbook'}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text3)' }}>
-                    <Calendar size={11} /> {dateStr}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text3)' }}>
+                        <Calendar size={11} /> {dateStr}
+                    </div>
+                    {nb.proficiency && (
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 10, background: nb.proficiency === 'Beginner' ? '#ECFDF5' : nb.proficiency === 'Advanced' ? '#EFF6FF' : '#F5F3FF', color: nb.proficiency === 'Beginner' ? '#059669' : nb.proficiency === 'Advanced' ? '#2563EB' : '#7C3AED', border: `1px solid ${nb.proficiency === 'Beginner' ? '#A7F3D0' : nb.proficiency === 'Advanced' ? '#BFDBFE' : '#DDD6FE'}` }}>
+                            {nb.proficiency}
+                        </span>
+                    )}
+                    {nb.graph?.nodes?.length > 0 && (
+                        <span style={{ fontSize: 10, color: 'var(--text3)' }}>· {nb.graph.nodes.length} concepts</span>
+                    )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>
                     Open <ChevronRight size={14} />
@@ -138,12 +148,19 @@ export default function DashboardPage() {
             });
             if (res.ok) { nb = await res.json(); }
         } catch { }
-        // 2) Always persist in localStorage (ensures survival on refresh)
+        // 2) If backend failed, create locally; if backend succeeded, mirror only the
+        //    metadata (not a second full entry) so offline fallback works on reload
         if (!nb) {
             nb = ls_createNotebook(userId, name, course);
         } else {
-            // Mirror backend notebook into localStorage for offline resilience
-            ls_createNotebook(userId, name, course);
+            // Store a lightweight mirror — same id so ls_getNotebook(id) finds it
+            const local = { ...nb, user_id: userId };
+            const existing = ls_getNotebooks(userId);
+            if (!existing.find(e => e.id === nb.id)) {
+                const stored = JSON.parse(localStorage.getItem('ag_notebooks') || '[]');
+                stored.unshift(local);
+                localStorage.setItem('ag_notebooks', JSON.stringify(stored));
+            }
         }
         setNotebooks(prev => [nb, ...prev]);
     };
@@ -165,6 +182,13 @@ export default function DashboardPage() {
 
     return (
         <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
+            {/* Demo mode banner */}
+            {localStorage.getItem('ag_token') === 'demo-token' && (
+                <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FDE68A', padding: '8px 32px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#92400E' }}>
+                    <span style={{ fontSize: 14 }}>⚠️</span>
+                    <span><b>Demo mode:</b> Backend is offline. Notes and notebooks are stored in your browser only and will be lost if you clear site data. <a href="https://github.com/your-repo" style={{ color: '#78350F', fontWeight: 600 }} onClick={e => e.preventDefault()}>Start the backend</a> to enable full AI features.</span>
+                </div>
+            )}
             {/* Header */}
             <header style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

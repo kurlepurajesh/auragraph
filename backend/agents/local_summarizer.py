@@ -82,32 +82,32 @@ _MATH_SUBS = [
     # ── Calculus / analysis operators ─────────────────────────────────────────
     (r'\bintegral\b',         r'\\int'),
     (r'\bpartial\b',          r'\\partial'),
-    (r'\bsqrt\b',             r'\\sqrt'),
+    (r'\bsqrt(?=\b|_|\^|\{)',             r'\\sqrt'),
     (r'\bgrad\b',             r'\\nabla'),
 
     # ── Summation / product ───────────────────────────────────────────────────
-    (r'\bsum\b',              r'\\sum'),
-    (r'\bprod\b',             r'\\prod'),
+    (r'\bsum(?=\b|_|\^|\{)',              r'\\sum'),
+    (r'\bprod(?=\b|_|\^|\{)',             r'\\prod'),
 
     # ── Limits / standard functions ───────────────────────────────────────────
-    (r'\blim\b',              r'\\lim'),
-    (r'\bmax\b',              r'\\max'),
-    (r'\bmin\b',              r'\\min'),
-    (r'\bsup\b',              r'\\sup'),
-    (r'\binf\b',              r'\\inf'),
-    (r'\bsin\b',              r'\\sin'),
-    (r'\bcos\b',              r'\\cos'),
-    (r'\btan\b',              r'\\tan'),
-    (r'\bcot\b',              r'\\cot'),
-    (r'\bsec\b',              r'\\sec'),
-    (r'\bcsc\b',              r'\\csc'),
-    (r'\bsinh\b',             r'\\sinh'),
-    (r'\bcosh\b',             r'\\cosh'),
-    (r'\btanh\b',             r'\\tanh'),
-    (r'\blog\b',              r'\\log'),
-    (r'\bln\b',               r'\\ln'),
-    (r'\bexp\b',              r'\\exp'),
-    (r'\bdet\b',              r'\\det'),
+    (r'\blim(?=\b|_|\^|\{)',              r'\\lim'),
+    (r'\bmax(?=\b|_|\^|\{)',              r'\\max'),
+    (r'\bmin(?=\b|_|\^|\{)',              r'\\min'),
+    (r'\bsup(?=\b|_|\^|\{)',              r'\\sup'),
+    (r'\binf(?=\b|_|\^|\{)',              r'\\inf'),
+    (r'\bsin(?=\b|_|\^|\{)',              r'\\sin'),
+    (r'\bcos(?=\b|_|\^|\{)',              r'\\cos'),
+    (r'\btan(?=\b|_|\^|\{)',              r'\\tan'),
+    (r'\bcot(?=\b|_|\^|\{)',              r'\\cot'),
+    (r'\bsec(?=\b|_|\^|\{)',              r'\\sec'),
+    (r'\bcsc(?=\b|_|\^|\{)',              r'\\csc'),
+    (r'\bsinh(?=\b|_|\^|\{)',             r'\\sinh'),
+    (r'\bcosh(?=\b|_|\^|\{)',             r'\\cosh'),
+    (r'\btanh(?=\b|_|\^|\{)',             r'\\tanh'),
+    (r'\blog(?=\b|_|\^|\{)',              r'\\log'),
+    (r'\bln(?=\b|_|\^|\{)',               r'\\ln'),
+    (r'\bexp(?=\b|_|\^|\{)',              r'\\exp'),
+    (r'\bdet(?=\b|_|\^|\{)',              r'\\det'),
     (r'\btr\b',               r'\\text{tr}'),
 
     # ── Arrows ────────────────────────────────────────────────────────────────
@@ -125,6 +125,11 @@ _MATH_SUBS = [
     (r'\bpm\b',               r'\\pm'),
     (r'\btimes\b',            r'\\times'),
     (r'\bcdot\b',             r'\\cdot'),
+    # Differentials
+    (r'\bdtau\b',               r'd\\tau'),
+    (r'\bdomega\b',             r'd\\omega'),
+    (r'\bdtheta\b',             r'd\\theta'),
+
 ]
 
 

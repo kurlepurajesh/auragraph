@@ -4,7 +4,7 @@ import { useDispatch } from 'react-redux';
 import { setUser } from '../store';
 import { BookOpen, Loader2, Sparkles } from 'lucide-react';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function LoginPage() {
     const navigate = useNavigate();
