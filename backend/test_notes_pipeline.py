@@ -573,14 +573,15 @@ for concept in EXAMINE_CASES:
 # =========================================================
 sec("11 . Page splitter  (JS useMemo logic mirrored)")
 
-def js_page_splitter(note: str, target: int = 2200) -> list:
+def js_page_splitter(note: str, target: int = 3000, min_buf: int = 200) -> list:
+    """Mirror of NotebookWorkspace.jsx useMemo page splitter (TARGET=3000, minBuf=200)."""
     if not note:
         return []
     by_h2 = [s.strip() for s in re.split(r"(?=^## )", note, flags=re.MULTILINE) if s.strip()]
     if by_h2:
         merged, buf = [], ""
         for s in by_h2:
-            if buf and len(buf) + len(s) + 2 > target and len(buf) > 500:
+            if buf and len(buf) + len(s) + 2 > target and len(buf) > min_buf:
                 merged.append(buf.strip()); buf = s
             else:
                 buf = (buf + "\n\n" + s) if buf else s
@@ -594,10 +595,10 @@ note15 = "\n\n".join(
     f"## Topic {i}\n" + "Content sentence here. " * 30 for i in range(1, 16)
 )
 pages15 = js_page_splitter(note15)
-if 3 <= len(pages15) <= 7:
-    ok(f"15 sections grouped into {len(pages15)} pages (expected 3-7)")
+if 2 <= len(pages15) <= 6:
+    ok(f"15 sections grouped into {len(pages15)} pages (expected 2-6)")
 else:
-    fail(f"15 sections -> {len(pages15)} pages", "Expected 3-7")
+    fail(f"15 sections -> {len(pages15)} pages", "Expected 2-6")
 
 # 11b: $$ blocks not orphaned
 math_note = (
@@ -628,7 +629,7 @@ else:
 boundary_note = "\n\n".join(
     f"## T{i}\n" + "x " * 100 for i in range(1, 12)
 )
-pages_b = js_page_splitter(boundary_note, target=2200)
+pages_b = js_page_splitter(boundary_note, target=3000)
 if 1 <= len(pages_b) <= 11:
     ok(f"Boundary split: {len(pages_b)} pages (1-11 acceptable)")
 else:
@@ -1172,6 +1173,510 @@ for cond, desc in assertions_14k:
         all_ok_14k = False
 if all_ok_14k:
     ok("_clean_pdf_text: combined artifact barrage → only real content survives")
+
+
+# =========================================================
+# 15.  extract_concepts (deep)
+# =========================================================
+sec("15 . extract_concepts  (deep graph extraction)")
+from agents.concept_extractor import extract_concepts
+
+DSP_NOTE = (
+    "## Fourier Transform\nThe Fourier Transform converts a time-domain signal to frequency domain.\n\n"
+    "## Convolution Theorem\nTime-domain convolution equals frequency-domain multiplication.\n\n"
+    "## LTI Systems\nLinear time-invariant systems are fully characterised by convolution with h(t).\n\n"
+    "## Z-Transform\nThe Z-Transform is the discrete-time generalisation of the Laplace Transform."
+)
+ML_NOTE = (
+    "## Neural Networks\nNeural networks are layers of interconnected neurons.\n\n"
+    "## Gradient Descent\nGradient descent minimises the loss function iteratively.\n\n"
+    "## Backpropagation\nBackpropagation computes gradients via the chain rule.\n\n"
+    "## Loss Functions\nCross-entropy and MSE are common loss functions."
+)
+PROB_NOTE = (
+    "## Random Variables\nA random variable maps outcomes to real numbers.\n\n"
+    "## Expected Value\nExpected value is the probability-weighted mean.\n\n"
+    "## Bayes Theorem\nBayes theorem relates conditional probabilities.\n\n"
+    "## Normal Distribution\nThe Gaussian (normal distribution) is fully defined by mean and variance."
+)
+MIXED_NOTE = DSP_NOTE + "\n\n" + "## Binomial Distribution\nBinomial distribution models n Bernoulli trials."
+GENERIC_NOTE = "## Wavelet Packets\nWavelet packets extend the standard wavelet transform.\n\n## Scattering Transform\nThe scattering transform is stable to deformations."
+EMPTY_LIKE_NOTE = "Just some prose with no recognisable concept keywords at all."
+
+# ── 15a: DSP concepts detected ────────────────────────────────────────────
+g = extract_concepts(DSP_NOTE)
+expected_dsp = {'Fourier Transform', 'Convolution Theorem', 'LTI Systems', 'Z-Transform'}
+found_labels_dsp = {n['label'] for n in g['nodes']}
+missing_dsp = expected_dsp - found_labels_dsp
+if not missing_dsp:
+    ok("extract_concepts: DSP note — all 4 key concepts detected")
+else:
+    fail("extract_concepts: DSP note missing concepts", str(missing_dsp))
+
+# ── 15b: ML concepts detected ─────────────────────────────────────────────
+g_ml = extract_concepts(ML_NOTE)
+found_ml = {n['label'] for n in g_ml['nodes']}
+expected_ml = {'Neural Networks', 'Gradient Descent', 'Backpropagation', 'Loss Functions'}
+missing_ml = expected_ml - found_ml
+if not missing_ml:
+    ok("extract_concepts: ML note — all 4 key concepts detected")
+else:
+    fail("extract_concepts: ML note missing concepts", str(missing_ml))
+
+# ── 15c: Probability concepts detected ────────────────────────────────────
+g_prob = extract_concepts(PROB_NOTE)
+found_prob = {n['label'] for n in g_prob['nodes']}
+expected_prob = {'Random Variables', 'Expected Value', "Bayes' Theorem", 'Normal Distribution'}
+missing_prob = expected_prob - found_prob
+if not missing_prob:
+    ok("extract_concepts: Probability note — all 4 key concepts detected")
+else:
+    fail("extract_concepts: Probability note missing concepts", str(missing_prob))
+
+# ── 15d: All nodes have status='partial' ──────────────────────────────────
+non_partial = [n for n in g['nodes'] if n.get('status') != 'partial']
+if not non_partial:
+    ok("extract_concepts: all nodes have status='partial'")
+else:
+    fail("extract_concepts: nodes with wrong status", str(non_partial[:3]))
+
+# ── 15e: All node positions in 0-100 range ────────────────────────────────
+out_of_range = [n for n in g['nodes'] if not (0 <= n.get('x', -1) <= 100 and 0 <= n.get('y', -1) <= 100)]
+if not out_of_range:
+    ok("extract_concepts: all node (x,y) positions in [0,100] range")
+else:
+    fail("extract_concepts: nodes with out-of-range positions", str(out_of_range[:3]))
+
+# ── 15f: Node IDs sequential from 1 ──────────────────────────────────────
+ids = [n['id'] for n in g['nodes']]
+if ids == list(range(1, len(ids) + 1)):
+    ok("extract_concepts: node IDs sequential from 1")
+else:
+    fail("extract_concepts: non-sequential IDs", str(ids[:10]))
+
+# ── 15g: Edges only reference found node IDs ──────────────────────────────
+node_ids = {n['id'] for n in g['nodes']}
+bad_edges = [e for e in g['edges'] if e[0] not in node_ids or e[1] not in node_ids]
+if not bad_edges:
+    ok("extract_concepts: all edges reference existing node IDs")
+else:
+    fail("extract_concepts: edges referencing non-existent nodes", str(bad_edges[:5]))
+
+# ── 15h: Mixed-domain note → concepts from both domains ───────────────────
+g_mix = extract_concepts(MIXED_NOTE)
+mix_labels = {n['label'] for n in g_mix['nodes']}
+has_dsp_mix  = bool({'Fourier Transform', 'LTI Systems'} & mix_labels)
+has_prob_mix = bool({'Binomial Dist.'} & mix_labels)
+if has_dsp_mix and has_prob_mix:
+    ok("extract_concepts: mixed-domain note → DSP + probability concepts both found")
+else:
+    fail("extract_concepts: mixed-domain concept detection incomplete",
+         f"DSP found: {has_dsp_mix}, Prob found: {has_prob_mix}, labels: {mix_labels}")
+
+# ── 15i: Generic note → heading fallback triggered ────────────────────────
+g_gen = extract_concepts(GENERIC_NOTE)
+if g_gen['nodes']:
+    ok(f"extract_concepts: unknown-concept note → fallback produces {len(g_gen['nodes'])} nodes")
+else:
+    fail("extract_concepts: unknown note produced no nodes", "")
+
+# ── 15j: Heading fallback → sequential edges ──────────────────────────────
+if len(g_gen['nodes']) >= 2:
+    edge_targets = {e[1] for e in g_gen['edges']}
+    if edge_targets:
+        ok("extract_concepts: heading-fallback nodes linked by edges")
+    else:
+        fail("extract_concepts: heading-fallback created no edges", "")
+else:
+    ok("extract_concepts: only 1 node from fallback — no edges needed")
+
+# ── 15k: No-match at all → 'Core Concept' node ────────────────────────────
+g_bare = extract_concepts(EMPTY_LIKE_NOTE)
+if g_bare['nodes']:
+    ok(f"extract_concepts: featureless text → {len(g_bare['nodes'])} fallback node(s) returned (no crash)")
+else:
+    fail("extract_concepts: featureless text returned empty nodes", "")
+
+# ── 15l: No duplicate labels in output ────────────────────────────────────
+all_labels = [n['label'] for n in g_ml['nodes']]
+if len(all_labels) == len(set(all_labels)):
+    ok("extract_concepts: no duplicate labels in output")
+else:
+    dupes = [l for l in all_labels if all_labels.count(l) > 1]
+    fail("extract_concepts: duplicate labels", str(set(dupes)))
+
+# ── 15m: Known edge: Fourier Transform → Convolution Theorem ──────────────
+label_to_id = {n['label']: n['id'] for n in g['nodes']}
+ft_id  = label_to_id.get('Fourier Transform')
+ct_id  = label_to_id.get('Convolution Theorem')
+if ft_id and ct_id and [ft_id, ct_id] in g['edges']:
+    ok("extract_concepts: Fourier Transform → Convolution Theorem edge present")
+else:
+    fail("extract_concepts: expected dependency edge missing",
+         f"FT={ft_id}, CT={ct_id}, edges={g['edges'][:8]}")
+
+
+# =========================================================
+# 16.  knowledge_store (deep)
+# =========================================================
+sec("16 . knowledge_store  (chunk storage + retrieval)")
+import uuid as _uuid
+from agents.knowledge_store import (
+    store_source_chunks, retrieve_relevant_chunks, get_all_chunks,
+    get_chunk_stats, store_note_pages, get_note_page, get_all_note_pages,
+    update_note_page, delete_notebook_store,
+)
+
+TEST_NB = f"_test_{_uuid.uuid4().hex[:8]}"
+
+SLIDE_CHUNKS = [
+    "--- Slide 1: Fourier Transform ---\nThe Fourier Transform X(ω) = ∫x(t)e^{-jωt}dt decomposes a time signal.",
+    "--- Slide 2: Convolution ---\nConvolution y(t) = x(t)*h(t) computes the weighted overlap of two signals.",
+    "--- Slide 3: LTI Systems ---\nAn LTI system is fully described by its impulse response h(t).",
+]
+TEXT_CHUNKS = [
+    "The discrete Fourier transform (DFT) is the discrete-time version of the Fourier Transform.",
+    "Z-Transform is the discrete-time equivalent of the Laplace Transform.",
+    "Sampling theorem: a bandlimited signal must be sampled at at least twice its maximum frequency.",
+]
+
+try:
+    # ── 16a: store_source_chunks returns correct counts ────────────────────
+    stats = store_source_chunks(TEST_NB, SLIDE_CHUNKS, TEXT_CHUNKS)
+    if stats["slides"] == 3 and stats["textbook"] == 3 and stats["total"] == 6:
+        ok("knowledge_store: store_source_chunks returns correct slide/textbook/total counts")
+    else:
+        fail("knowledge_store: store_source_chunks wrong counts", str(stats))
+
+    # ── 16b: get_chunk_stats reflects stored chunks ────────────────────────
+    cs = get_chunk_stats(TEST_NB)
+    if cs["total_chunks"] == 6 and cs["slide_chunks"] == 3 and cs["textbook_chunks"] == 3:
+        ok("knowledge_store: get_chunk_stats matches stored counts")
+    else:
+        fail("knowledge_store: get_chunk_stats mismatch", str(cs))
+
+    if cs["total_chars"] > 0:
+        ok("knowledge_store: total_chars > 0")
+    else:
+        fail("knowledge_store: total_chars = 0", "")
+
+    # ── 16c: retrieve_relevant_chunks returns scored results ──────────────
+    results = retrieve_relevant_chunks(TEST_NB, "fourier transform frequency")
+    if results:
+        ok(f"knowledge_store: retrieve returns {len(results)} results for Fourier query")
+    else:
+        fail("knowledge_store: retrieve returned empty results", "")
+
+    # ── 16d: Top result is most relevant ──────────────────────────────────
+    if results and results[0]["score"] >= results[-1]["score"]:
+        ok("knowledge_store: results sorted by descending score")
+    else:
+        fail("knowledge_store: results not sorted by score",
+             str([(r["heading"][:30], r["score"]) for r in results]))
+
+    # Check that the top chunk is the Fourier-related one
+    if results and "fourier" in results[0]["text"].lower():
+        ok("knowledge_store: top result is Fourier-related chunk (highest keyword overlap)")
+    else:
+        top_text = results[0]["text"][:60] if results else "none"
+        fail("knowledge_store: top result is not Fourier chunk", top_text)
+
+    # ── 16e: source_filter='slides' ───────────────────────────────────────
+    slide_only = retrieve_relevant_chunks(TEST_NB, "LTI", source_filter="slides")
+    if all(r["source"] == "slides" for r in slide_only):
+        ok("knowledge_store: source_filter='slides' returns only slide chunks")
+    else:
+        fail("knowledge_store: source_filter='slides' leaked textbook chunks",
+             str([r["source"] for r in slide_only]))
+
+    # ── 16f: source_filter='textbook' ─────────────────────────────────────
+    text_only = retrieve_relevant_chunks(TEST_NB, "Z-Transform", source_filter="textbook")
+    if all(r["source"] == "textbook" for r in text_only):
+        ok("knowledge_store: source_filter='textbook' returns only textbook chunks")
+    else:
+        fail("knowledge_store: source_filter='textbook' leaked slide chunks",
+             str([r["source"] for r in text_only]))
+
+    # ── 16g: empty query → returns first top_k without crashing ──────────
+    fallback = retrieve_relevant_chunks(TEST_NB, "")
+    if isinstance(fallback, list):
+        ok(f"knowledge_store: empty query → returns list ({len(fallback)} chunks, no crash)")
+    else:
+        fail("knowledge_store: empty query crashed or returned non-list", str(type(fallback)))
+
+    # ── 16h: non-existent notebook → empty list ───────────────────────────
+    ghost = retrieve_relevant_chunks(f"_ghost_{_uuid.uuid4().hex[:6]}", "fourier")
+    if ghost == []:
+        ok("knowledge_store: non-existent notebook → empty list")
+    else:
+        fail("knowledge_store: ghost notebook returned non-empty", str(ghost))
+
+    # ── 16i: store_note_pages + get_all_note_pages roundtrip ──────────────
+    pages_in = ["## Page 1\n\nContent A.", "## Page 2\n\nContent B.", "## Page 3\n\nContent C."]
+    store_note_pages(TEST_NB, pages_in)
+    pages_out = get_all_note_pages(TEST_NB)
+    if pages_out == pages_in:
+        ok("knowledge_store: store/get_all_note_pages roundtrip correct")
+    else:
+        fail("knowledge_store: note page roundtrip mismatch", str(pages_out))
+
+    # ── 16j: get_note_page by index ───────────────────────────────────────
+    p1 = get_note_page(TEST_NB, 1)
+    if p1 == pages_in[1]:
+        ok("knowledge_store: get_note_page(idx=1) returns correct page")
+    else:
+        fail("knowledge_store: get_note_page(1) wrong value", repr(p1))
+
+    # ── 16k: get_note_page out of range → None ────────────────────────────
+    if get_note_page(TEST_NB, 99) is None:
+        ok("knowledge_store: get_note_page(out-of-range) returns None")
+    else:
+        fail("knowledge_store: get_note_page(99) should return None", "")
+
+    # ── 16l: update_note_page success ─────────────────────────────────────
+    new_text = "## Page 2 (UPDATED)\n\nUpdated content after mutation."
+    updated = update_note_page(TEST_NB, 1, new_text)
+    if updated is True and get_note_page(TEST_NB, 1) == new_text:
+        ok("knowledge_store: update_note_page returns True and persists new text")
+    else:
+        fail("knowledge_store: update_note_page failed", str(updated))
+
+    # ── 16m: update_note_page out of range → False ────────────────────────
+    bad_update = update_note_page(TEST_NB, 99, "x")
+    if bad_update is False:
+        ok("knowledge_store: update_note_page(out-of-range) returns False")
+    else:
+        fail("knowledge_store: update_note_page(99) should return False", str(bad_update))
+
+    # ── 16n: re-upload replaces chunks ────────────────────────────────────
+    new_stats = store_source_chunks(TEST_NB, SLIDE_CHUNKS[:1], [])
+    cs2 = get_chunk_stats(TEST_NB)
+    if cs2["total_chunks"] == 1:
+        ok("knowledge_store: re-upload replaces previous chunks (total=1)")
+    else:
+        fail("knowledge_store: re-upload did not replace chunks", str(cs2))
+
+    # ── 16o: get_all_chunks with filter ───────────────────────────────────
+    # Re-store with both sources first
+    store_source_chunks(TEST_NB, SLIDE_CHUNKS, TEXT_CHUNKS)
+    all_s = get_all_chunks(TEST_NB, source_filter="slides")
+    all_t = get_all_chunks(TEST_NB, source_filter="textbook")
+    if len(all_s) == 3 and len(all_t) == 3:
+        ok("knowledge_store: get_all_chunks with source_filter returns correct partition")
+    else:
+        fail("knowledge_store: get_all_chunks filter wrong", f"slides={len(all_s)}, text={len(all_t)}")
+
+except Exception as e:
+    fail("knowledge_store test suite", traceback.format_exc())
+finally:
+    # Always clean up the test notebook file
+    try:
+        delete_notebook_store(TEST_NB)
+    except Exception:
+        pass
+
+
+# =========================================================
+# 17.  local_examine (deep)
+# =========================================================
+sec("17 . local_examine  (deep MCQ validation)")
+from agents.local_examiner import local_examine, _QUESTION_BANK, _GENERIC_QUESTIONS
+
+EXAMINE_DEEP_CASES = [
+    ("fourier transform",      "fourier",     3),
+    ("convolution theorem",    "convolution", 3),
+    ("laplace transform",      "laplace",     3),
+    ("z-transform stability",  "z-transform", 3),
+    ("lti system",             "lti",         2),
+]
+
+for concept, key, expected_q in EXAMINE_DEEP_CASES:
+    try:
+        result = local_examine(concept)
+
+        # ── 17a: number of questions matches bank ─────────────────────────
+        q_count = result.count("**Q")
+        if q_count == expected_q:
+            ok(f"examine deep [{concept}]: correct question count ({q_count})")
+        else:
+            fail(f"examine deep [{concept}]: wrong question count",
+                 f"Expected {expected_q}, got {q_count}")
+
+        # ── 17b: ✅ marker appears exactly once per question ──────────────
+        checkmark_count = result.count("✅")
+        if checkmark_count == expected_q:
+            ok(f"examine deep [{concept}]: ✅ appears exactly once per question ({checkmark_count})")
+        else:
+            fail(f"examine deep [{concept}]: ✅ count wrong",
+                 f"Expected {expected_q}, got {checkmark_count}")
+
+        # ── 17c: 💡 explanation present for every question ────────────────
+        explain_count = result.count("💡")
+        if explain_count == expected_q:
+            ok(f"examine deep [{concept}]: 💡 explanation present for all {expected_q} questions")
+        else:
+            fail(f"examine deep [{concept}]: 💡 count wrong",
+                 f"Expected {expected_q}, got {explain_count}")
+
+        # ── 17d: Q1/Q2/... labels present ────────────────────────────────
+        q_labels = [f"**Q{i}.**" for i in range(1, expected_q + 1)]
+        if all(lbl in result for lbl in q_labels):
+            ok(f"examine deep [{concept}]: Q-labels Q1..Q{expected_q} all present")
+        else:
+            missing_q = [l for l in q_labels if l not in result]
+            fail(f"examine deep [{concept}]: missing Q-labels", str(missing_q))
+
+        # ── 17e: no two questions are identical ───────────────────────────
+        q_texts = re.findall(r'\*\*Q\d+\.\*\* (.+)', result)
+        if len(q_texts) == len(set(q_texts)):
+            ok(f"examine deep [{concept}]: all question texts are unique")
+        else:
+            fail(f"examine deep [{concept}]: duplicate question text", str(q_texts))
+
+    except Exception as e:
+        fail(f"examine deep [{concept}]", traceback.format_exc())
+
+# ── 17f: generic fallback for unknown concept ─────────────────────────────
+unknown_result = local_examine("xyzzy_totally_unknown_concept_99")
+if _GENERIC_QUESTIONS[0][0] in unknown_result:
+    ok("examine deep: unknown concept uses _GENERIC_QUESTIONS fallback")
+else:
+    fail("examine deep: unknown concept didn't use generic fallback", unknown_result[:200])
+
+# ── 17g: return type is always str ───────────────────────────────────────
+for c in ["fourier", "probability", "quantum_field_theory"]:
+    r = local_examine(c)
+    if not isinstance(r, str):
+        fail(f"examine deep [{c}]: return type not str", str(type(r)))
+ok("examine deep: all concept lookups return str")
+
+# ── 17h: A/B/C/D options all present in every result ─────────────────────
+for c in list(_QUESTION_BANK.keys()) + ["unknown_generic_concept"]:
+    r = local_examine(c)
+    if not all(f"{x})" in r for x in "ABCD"):
+        fail(f"examine deep [{c}]: missing A/B/C/D options", r[:150])
+ok("examine deep: A/B/C/D options present in all concept outputs")
+
+
+# =========================================================
+# 18.  local_mutate (deep — probability/stats + signal doubts)
+# =========================================================
+sec("18 . local_mutate  (deep doubt coverage)")
+from agents.local_mutation import local_mutate, _diagnose_gap, _build_analogy_hint
+
+PROB_PARA = (
+    "## Random Variables and Distributions\n\n"
+    "A random variable X maps sample space outcomes to real numbers. "
+    "Discrete distributions include Binomial, Bernoulli, and Poisson."
+)
+
+# ── 18a-18h: Probability-specific analogy hits ────────────────────────────
+PROB_DOUBT_CASES = [
+    ("the bernoulli and binomial relation",  "Binomial is just n independent Bernoulli"),
+    ("what is a bernoulli trial exactly",    "simplest random experiment"),
+    ("how does binomial distribution work",  "Binomial(n,p) counts"),
+    ("why use poisson distribution",         "Poisson(λ) models rare events"),
+    ("difference between variance and std",  "Var(X) = E[X²]"),
+    ("what does cdf mean cumulative",        "CDF F(x) = P(X ≤ x)"),
+    ("explain mgf moment generating",        "M(t) = E[e"),
+    ("memoryless property",                  "P(X>m+n"),
+]
+
+for doubt, expected_snippet in PROB_DOUBT_CASES:
+    try:
+        analogy = _build_analogy_hint(doubt)
+        if expected_snippet in analogy:
+            ok(f"local_mutate analogy [{doubt[:35]}]: correct specific hint")
+        else:
+            fail(f"local_mutate analogy [{doubt[:35]}]: wrong hint",
+                 f"Expected '{expected_snippet}' in: {repr(analogy[:150])}")
+    except Exception as e:
+        fail(f"local_mutate analogy [{doubt[:35]}]", traceback.format_exc())
+
+# ── 18i: concept_gap for 'prove' doubt ────────────────────────────────────
+gap_prove = _diagnose_gap("please prove this result")
+if "derivation" in gap_prove.lower() or "proof" in gap_prove.lower():
+    ok("local_mutate _diagnose_gap: 'prove' → derivation/proof gap")
+else:
+    fail("local_mutate _diagnose_gap: 'prove' gap diagnosis wrong", gap_prove)
+
+# ── 18j: concept_gap for 'example' doubt ─────────────────────────────────
+gap_example = _diagnose_gap("can you give me an example")
+if "example" in gap_example.lower():
+    ok("local_mutate _diagnose_gap: 'example' → example gap")
+else:
+    fail("local_mutate _diagnose_gap: 'example' gap diagnosis wrong", gap_example)
+
+# ── 18k: paragraph without heading → insight prepended without blank heading
+no_heading_para = "This is just body text with no heading above it."
+mutated_nh, _ = local_mutate(no_heading_para, "what does this mean?")
+if "##" not in mutated_nh.split("\n")[0]:
+    ok("local_mutate: no-heading paragraph — insight block prepended cleanly")
+else:
+    fail("local_mutate: no-heading paragraph has stray heading on line 1", mutated_nh[:100])
+
+# ── 18l: Z-transform doubt → z-transform hint ────────────────────────────
+zt_analogy = _build_analogy_hint("explain z-transform intuitively")
+if "z-transform" in zt_analogy.lower() or "discrete" in zt_analogy.lower():
+    ok("local_mutate analogy: z-transform doubt → z-transform/discrete hint")
+else:
+    fail("local_mutate analogy: z-transform hint wrong", zt_analogy)
+
+# ── 18m: convolution doubt → sliding window hint ─────────────────────────
+conv_analogy = _build_analogy_hint("I don't understand convolution")
+if "sliding" in conv_analogy.lower() or "window" in conv_analogy.lower() or "overlap" in conv_analogy.lower():
+    ok("local_mutate analogy: convolution doubt → sliding/window/overlap hint")
+else:
+    fail("local_mutate analogy: convolution hint wrong", conv_analogy)
+
+# ── 18n: eigenvalue doubt → correct linear algebra hint ──────────────────
+eig_analogy = _build_analogy_hint("what is an eigenvector intuitively matrix")
+if "eigenvector" in eig_analogy.lower() or "eigenvalue" in eig_analogy.lower():
+    ok("local_mutate analogy: eigenvalue/matrix doubt → eigenvalue hint")
+else:
+    fail("local_mutate analogy: eigenvalue hint wrong", eig_analogy)
+
+# ── 18o: very long doubt → no crash, correct return types ────────────────
+long_doubt = "I want to understand " + ("the concept " * 50) + "much better please."
+try:
+    mutated_long, gap_long = local_mutate(PROB_PARA, long_doubt)
+    if isinstance(mutated_long, str) and isinstance(gap_long, str) and mutated_long.strip():
+        ok(f"local_mutate: very long doubt ({len(long_doubt)} chars) → no crash, returns strings")
+    else:
+        fail("local_mutate: very long doubt → bad return types", str(type(mutated_long)))
+except Exception as e:
+    fail("local_mutate: very long doubt → exception", traceback.format_exc())
+
+# ── 18p: signals doubts use domain-specific hints ────────────────────────
+SIGNAL_DOUBT_CASES = [
+    ("why does fourier show frequencies",    "frequenc",        "fourier / spectrum"),
+    ("what is laplace transform",            "laplace",         "laplace"),
+    ("convolution vs direct multiplication", "sliding",         "convolution sliding-window"),
+    ("derivative and instantaneous rate",    "instantaneous",   "derivative"),
+    ("integral geometric interpretation",    "area",            "integration area"),
+]
+for doubt, expected_kw, label in SIGNAL_DOUBT_CASES:
+    analogy = _build_analogy_hint(doubt)
+    if expected_kw in analogy.lower():
+        ok(f"local_mutate analogy [{label}]: '{expected_kw}' present")
+    else:
+        fail(f"local_mutate analogy [{label}]: '{expected_kw}' missing",
+             f"Got: {repr(analogy[:150])}")
+
+# ── 18q: mutated paragraph preserves heading + insight block + rest ───────
+for doubt, tag in [
+    ("why does convolution become multiplication?", "why"),
+    ("prove the convolution theorem",               "prove"),
+]:
+    mutated_q, gap_q = local_mutate(PROB_PARA, doubt)
+    has_heading = "## Random Variables" in mutated_q
+    has_insight = "💡" in mutated_q and "Intuition" in mutated_q
+    has_body    = "random variable" in mutated_q.lower()
+    if has_heading and has_insight and has_body:
+        ok(f"local_mutate [{tag}]: heading + insight block + body all present")
+    else:
+        fail(f"local_mutate [{tag}]: structure incomplete",
+             f"heading={has_heading}, insight={has_insight}, body={has_body}\n{mutated_q[:200]}")
 
 
 # =========================================================
