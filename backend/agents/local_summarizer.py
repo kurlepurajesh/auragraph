@@ -125,11 +125,6 @@ _MATH_SUBS = [
     (r'\bpm\b',               r'\\pm'),
     (r'\btimes\b',            r'\\times'),
     (r'\bcdot\b',             r'\\cdot'),
-    # Differentials
-    (r'\bdtau\b',               r'd\\tau'),
-    (r'\bdomega\b',             r'd\\omega'),
-    (r'\bdtheta\b',             r'd\\theta'),
-
 ]
 
 
@@ -144,7 +139,7 @@ def _raw_to_latex(raw: str) -> str:
 # ─── Math line detection ──────────────────────────────────────────────────────
 # A line is treated as a formula if it looks like math, not prose.
 _GREEK_RAW = re.compile(
-    r'\b(alpha|beta|gamma|delta|epsilon|zeta|eta|theta|lambda|mu|nu|xi|rho|sigma|tau|'
+    r'\b(alpha|beta|gamma|delta|epsilon|zeta|theta|lambda|mu|nu|xi|rho|sigma|tau|'
     r'phi|psi|omega|nabla|infty|infinity|integral|partial|sqrt)\b',
     re.I
 )
@@ -203,7 +198,14 @@ def _clean_pdf_text(text: str) -> str:
 # ─── Section detection ────────────────────────────────────────────────────────
 def _split_sections(text: str) -> list[tuple[str, str]]:
     heading_pat = re.compile(
-        r"^([A-Z][A-Z0-9 ,\-:\'&\/]{2,50}|[A-Z][a-z][A-Za-z0-9 ,\-:\'&\/]{3,50})$",
+        r"^("
+        # All-caps headings: "FOURIER TRANSFORM", "LTI SYSTEMS"
+        r"[A-Z][A-Z0-9 ,\-:\'&\/]{2,50}"
+        # Title-case headings: "Fourier Transform", "Z-Transform Properties"
+        r"|[A-Z][a-zA-Z0-9\-]+(?:\s+[A-Z][a-zA-Z0-9\-]+){1,6}"
+        # Numbered headings: "1. Introduction", "2.3 Convergence"
+        r"|\d+[\.\d]*\s+[A-Z][A-Za-z0-9 ,\-:\'&\/]{3,50}"
+        r")$",
         re.MULTILINE
     )
     noise_h = re.compile(r"(lecture|slide|page|copyright|university|institute)", re.I)
@@ -237,10 +239,17 @@ def _split_sections(text: str) -> list[tuple[str, str]]:
 
 # ─── Sentence scoring ─────────────────────────────────────────────────────────
 def _split_sentences(text: str) -> list[str]:
-    raw = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text)
+    # Don't split after common abbreviations (Fig., Eq., vs., e.g., i.e., no. etc.)
+    protected = re.sub(
+        r'\b(Fig|Eq|No|Vol|Ch|Sec|Ref|est|approx|vs|etc|e\.g|i\.e|Dr|Prof|St|Mr|Mrs|Ms)\.',
+        lambda m: m.group(0).replace('.', '\x00'),
+        text
+    )
+    raw = re.split(r'(?<=[.!?])\s+(?=[A-Z])', protected)
+    restored = [s.replace('\x00', '.').strip() for s in raw]
     # Filter out sentences that are actually math lines misclassified as prose
-    return [s.strip() for s in raw
-            if len(s.strip().split()) >= 5 and not _is_math_line(s.strip())]
+    return [s for s in restored
+            if len(s.split()) >= 5 and not _is_math_line(s)]
 
 
 def _score_and_pick(sentences: list[str], k: int) -> list[str]:
@@ -497,32 +506,92 @@ def _build_beginner_section(heading: str, body: str, all_sentences: list[str], m
     return f"## {heading}\n\n" + "\n\n".join(parts) + f"\n\n> 📝 **Exam Tip:** {tip}"
 
 
-# ─── Intermediate / Advanced section builder ──────────────────────────────────
-def _build_standard_section(
-    heading: str, body: str, top_prose: list[str], math_lines: list[str], proficiency: str
+# ─── Intermediate section builder ───────────────────────────────────────────
+def _build_intermediate_section(
+    heading: str, body: str, top_prose: list[str], math_lines: list[str]
 ) -> str | None:
     if not top_prose:
         return None
 
     parts = []
 
-    if proficiency == "Intermediate":
-        defn = [s for s in top_prose if re.search(r'\b(is|are|defined|means|represents|describes)\b', s, re.I)]
-        rest = [s for s in top_prose if s not in defn]
-        if defn:
-            parts.append("**Definition:** " + " ".join(defn[:2]))
-        if rest:
-            parts.append("\n\n".join(rest))
-        analogy = _get_analogy(heading, body)
-        if analogy:
-            parts.append(f"> {analogy}")
-        for ml in math_lines[:4]:
-            parts.append(f"$$\n{_raw_to_latex(ml)}\n$$")
+    # 1. Definition
+    defn = [s for s in top_prose if re.search(
+        r'\b(is|are|defined as|defined by|means|represents|refers to|describes|known as|called)\b', s, re.I)]
+    if defn:
+        parts.append("### 📖 Definition\n\n" + " ".join(defn[:2]))
 
-    else:  # Advanced
-        parts.append("\n\n".join(top_prose))
-        for ml in math_lines[:6]:
-            parts.append(f"$$\n{_raw_to_latex(ml)}\n$$")
+    # 2. Intuition / mechanism
+    how = [s for s in top_prose if s not in defn and re.search(
+        r'\b(given by|calculated|computes|maps|transforms|yields|produces|allows|enables|because|therefore|hence|since|which means)\b', s, re.I)]
+    if not how:
+        how = [s for s in top_prose if s not in defn]
+    if how:
+        parts.append("### 💡 Intuition\n\n" + "\n\n".join(how[:3]))
+
+    # 3. Analogy (if we have one)
+    analogy = _get_analogy(heading, body)
+    if analogy:
+        parts.append(f"> {analogy}")
+
+    # 4. Key conditions / properties (bullet list from remaining sentences)
+    cond = [s for s in top_prose if s not in defn and s not in how and re.search(
+        r'\b(condition|constraint|requirement|valid|converge|exist|property|must|only if|if and only|assume)\b', s, re.I)]
+    if cond:
+        bullets = "\n".join(f"- {s}" for s in cond[:4])
+        parts.append(f"### 📋 Key Conditions\n\n{bullets}")
+
+    # 5. Formulas
+    if math_lines:
+        formula_parts = ["### 🔢 Formulas\n"]
+        for ml in math_lines[:5]:
+            latex = _raw_to_latex(ml)
+            formula_parts.append(f"$$\n{latex}\n$$")
+        parts.append("\n\n".join(formula_parts))
+
+    if not parts:
+        return None
+
+    tip = _exam_tip(heading, body)
+    return f"## {heading}\n\n" + "\n\n".join(parts) + f"\n\n> 📝 **Exam Tip:** {tip}"
+
+
+# ─── Advanced section builder ─────────────────────────────────────────────────
+def _build_advanced_section(
+    heading: str, body: str, top_prose: list[str], math_lines: list[str]
+) -> str | None:
+    if not top_prose:
+        return None
+
+    parts = []
+
+    # 1. Formal definition (definition sentences first)
+    defn = [s for s in top_prose if re.search(
+        r'\b(is defined|defined as|formally|let|suppose|assume|denote|given|theorem|states that)\b', s, re.I)]
+    rest = [s for s in top_prose if s not in defn]
+
+    if defn:
+        parts.append("### Formal Definition\n\n" + " ".join(defn[:3]))
+    if rest:
+        # Group into flowing paragraphs of ~3 sentences
+        paras = []
+        for i in range(0, len(rest), 3):
+            paras.append(" ".join(rest[i:i+3]))
+        parts.append("\n\n".join(paras))
+
+    # 2. All extracted formulas (advanced gets more)
+    if math_lines:
+        formula_block = []
+        for ml in math_lines[:8]:
+            formula_block.append(f"$$\n{_raw_to_latex(ml)}\n$$")
+        parts.append("\n\n".join(formula_block))
+
+    # 3. Conditions / edge cases
+    cond = [s for s in top_prose if re.search(
+        r'\b(condition|constraint|converge|exist|valid|boundary|special case|edge case|degenerate|when|if and only)\b', s, re.I)]
+    if cond:
+        bullets = "\n".join(f"- {s}" for s in cond[:6])
+        parts.append(f"### Conditions & Edge Cases\n\n{bullets}")
 
     if not parts:
         return None
@@ -554,7 +623,10 @@ def _build_section(heading: str, body: str, prose_k: int, proficiency: str) -> s
         return _build_beginner_section(heading, body, sentences, math_lines)
     else:
         top_prose = _score_and_pick(sentences, prose_k) if len(sentences) > prose_k else sentences
-        return _build_standard_section(heading, body, top_prose, math_lines, proficiency)
+        if proficiency == "Intermediate":
+            return _build_intermediate_section(heading, body, top_prose, math_lines)
+        else:
+            return _build_advanced_section(heading, body, top_prose, math_lines)
 
 
 # ─── Proficiency config ───────────────────────────────────────────────────────
@@ -629,9 +701,7 @@ def generate_local_note(slides_text: str, textbook_text: str, proficiency: str) 
     header = (
         f"# AuraGraph Study Notes\n\n"
         f"**Proficiency: {proficiency}** — {cfg['label']}\n\n"
-        f"> {level_banner}\n\n"
-        f"> ⚠️ **Offline mode:** notes generated without AI. "
-        f"Add Azure OpenAI keys to `backend/.env` for true AI-fused notes.\n"
+        f"> {level_banner}\n"
     )
     return header + "\n\n---\n\n" + "\n\n---\n\n".join(sections)
 

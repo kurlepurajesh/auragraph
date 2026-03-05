@@ -45,11 +45,25 @@ def chunk_text(text: str, max_chars: int = 8000) -> list[str]:
 
 def summarise_chunks(chunks: list[str], max_summary_chars: int = 10000) -> str:
     """
-    Collapse chunks into one compressed summary string up to max_summary_chars.
-    Used when the source is too large to send to LLM in a single prompt.
+    Collapse chunks into one string up to max_summary_chars.
+    Instead of hard-truncating (which silently drops whole sections),
+    we sample proportionally from ALL chunks so every topic is represented.
     """
     combined = "\n\n---\n\n".join(chunks)
     if len(combined) <= max_summary_chars:
         return combined
-    # Hard truncate with a note
-    return combined[:max_summary_chars] + "\n\n[...truncated for length...]"
+
+    # Each chunk gets a proportional share of the budget
+    per_chunk = max(200, max_summary_chars // max(len(chunks), 1))
+    parts = []
+    for chunk in chunks:
+        if len(chunk) <= per_chunk:
+            parts.append(chunk)
+        else:
+            # Trim at the last sentence boundary within the budget
+            trimmed = chunk[:per_chunk]
+            last_stop = max(trimmed.rfind('. '), trimmed.rfind('.\n'), trimmed.rfind('\n\n'))
+            if last_stop > per_chunk // 2:
+                trimmed = trimmed[:last_stop + 1]
+            parts.append(trimmed)
+    return "\n\n---\n\n".join(parts)
