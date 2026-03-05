@@ -181,7 +181,7 @@ function ExaminerModal({ concept, onClose }) {
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
                     {loading ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text3)', fontSize: 13 }}><Loader2 className="spin" size={16} /> Generating questions…</div>
-                        : <div style={{ fontSize: 13, lineHeight: 1.8 }}><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{questions}</ReactMarkdown></div>}
+                        : <div style={{ fontSize: 13, lineHeight: 1.8 }}><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{questions}</ReactMarkdown></div>}
                 </div>
                 <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}><button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button></div>
             </div>
@@ -329,7 +329,7 @@ function NoteRenderer({ content }) {
         ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize: 16, color: '#18181B' }}>{children}</ol>; },
         li({ children }) { return <li style={{ marginBottom: 5 }}>{children}</li>; },
     };
-    return <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={mk}>{content || ''}</ReactMarkdown>;
+    return <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{content || ''}</ReactMarkdown>;
 }
 
 // ─── Doubts Panel ─────────────────────────────────────────────────────────────
@@ -339,7 +339,7 @@ function DoubtsPanel({ doubts, currentPage }) {
     const pageDiagnostics = doubts.filter(d => d.pageIdx === currentPage);
     const otherPages = [...new Set(doubts.filter(d => d.pageIdx !== currentPage).map(d => d.pageIdx))];
     const IM = ({ text }) => (
-        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]} components={{ p: ({ children }) => <span style={{ display: 'block', marginBottom: 4 }}>{children}</span>, strong: ({ children }) => <strong style={{ color: '#5B21B6', fontWeight: 700 }}>{children}</strong>, em: ({ children }) => <em style={{ color: '#6D28D9' }}>{children}</em>, code: ({ children }) => <code style={{ background: '#EDE9FE', color: '#5B21B6', borderRadius: 3, padding: '1px 4px', fontSize: 11, fontFamily: 'monospace' }}>{children}</code>, a: ({ children }) => <span>{children}</span> }}>{text || ''}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={{ p: ({ children }) => <span style={{ display: 'block', marginBottom: 4 }}>{children}</span>, strong: ({ children }) => <strong style={{ color: '#5B21B6', fontWeight: 700 }}>{children}</strong>, em: ({ children }) => <em style={{ color: '#6D28D9' }}>{children}</em>, code: ({ children }) => <code style={{ background: '#EDE9FE', color: '#5B21B6', borderRadius: 3, padding: '1px 4px', fontSize: 11, fontFamily: 'monospace' }}>{children}</code>, a: ({ children }) => <span>{children}</span> }}>{text || ''}</ReactMarkdown>
     );
     if (pageDiagnostics.length === 0) return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -445,7 +445,21 @@ export default function NotebookWorkspace() {
         }
         const byH3 = note.split(/(?=^### )/m).map(s => s.trim()).filter(Boolean);
         if (byH3.length > 1) return byH3;
-        const paras = note.split(/\n\n+/).filter(p => p.trim().length > 40);
+        // Math-aware paragraph split — never cuts inside a $$ block
+        const mathAwareSplit = (text) => {
+            const segments = []; let inMath = false; let buf = [];
+            for (const line of text.split('\n')) {
+                if (line.trim() === '$$') inMath = !inMath;
+                if (!inMath && line === '' && buf.length > 0) {
+                    const seg = buf.join('\n').trim();
+                    if (seg.length > 40) segments.push(seg);
+                    buf = [];
+                } else { buf.push(line); }
+            }
+            if (buf.length > 0) { const seg = buf.join('\n').trim(); if (seg.length > 40) segments.push(seg); }
+            return segments;
+        };
+        const paras = mathAwareSplit(note);
         const chunks = []; let cur = '';
         for (const p of paras) {
             if (cur.length + p.length > 700 && cur.length > 150) { chunks.push(cur.trim()); cur = p; }

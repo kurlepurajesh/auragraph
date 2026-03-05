@@ -2,8 +2,14 @@
 agents/latex_utils.py
 Utility: normalize all LaTeX delimiter variants to $ / $$ (rehype-katex friendly).
 
-Taken from the emergent branch and extended for our codebase.
-Any AI-generated text may use \\[ \\] or \\( \\) — this converter normalizes them.
+Any AI-generated text may use \\[ \\] or \\( \\) — this converter normalises them
+so that remark-math + rehype-katex renders them correctly.
+
+remark-math rules:
+  • Inline math  : $expression$   (no spaces between $ and content)
+  • Display math : a paragraph that contains ONLY $$\n…\n$$ — the opening $$
+    must be preceded by a blank line (or start-of-document) and the closing $$
+    must be followed by a blank line (or end-of-document).
 """
 
 import re
@@ -11,40 +17,75 @@ import re
 
 def fix_latex_delimiters(text: str) -> str:
     """
-    Convert all LaTeX delimiter variants to $ / $$ that rehype-katex understands.
+    Normalise all LaTeX delimiter variants to $ / $$ for rehype-katex.
 
-    Handles:
-      - \\[ ... \\]  →  $$\\n...\\n$$
-      - \\( ... \\)  →  $ ... $
-      - [ formula ]  at start of a line → $$ formula $$
-      - Cleans up blank lines inside $$ blocks
+    Steps applied in order
+    ──────────────────────
+    1. \\( … \\)  (inline)  →  $…$          (DOTALL: handles multi-line)
+    2. \\[ … \\]  (display) →  block $$…$$  (DOTALL: handles multi-line)
+    3. Inline $$content$$ (no newlines in content) → block form
+    4. Ensure every standalone $$ line has a blank line before it (opener)
+       and a blank line after it (closer)  so remark-math parses them as
+       block-level math nodes.
+    5. Collapse 3+ consecutive blank lines → 2
     """
-    # Fix display math: \\[ ... \\] -> $$ ... $$
-    text = re.sub(r'\\\[\s*', '\n$$\n', text)
-    text = re.sub(r'\s*\\\]', '\n$$\n', text)
 
-    # Fix inline math: \\( ... \\) -> $ ... $
-    text = re.sub(r'\\\(\s*', ' $', text)
-    text = re.sub(r'\s*\\\)', '$ ', text)
+    # ── 1. \\(...\\) → $...$  ────────────────────────────────────────────────
+    # DOTALL so \(\n formula \n\) still matches; strip internal whitespace.
+    text = re.sub(
+        r'\\\(\s*(.*?)\s*\\\)',
+        lambda m: '$' + m.group(1).strip() + '$',
+        text,
+        flags=re.DOTALL,
+    )
 
-    # Fix bare bracket math: [ formula ] at start of line (common AI output)
-    text = re.sub(r'^\[\s*(.+?)\s*\]\s*$', r'$$ \1 $$', text, flags=re.MULTILINE)
+    # ── 2. \\[...\\] → block $$...$$ ─────────────────────────────────────────
+    text = re.sub(
+        r'\\\[\s*(.*?)\s*\\\]',
+        lambda m: '\n\n$$\n' + m.group(1).strip() + '\n$$\n\n',
+        text,
+        flags=re.DOTALL,
+    )
 
-    # Clean up doubled $$ on same line
-    text = re.sub(r'\$\$\s*\$\$', '$$', text)
+    # ── 3. Inline $$content$$ (single line, no embedded newlines) → block ────
+    # Matches $$X$$ where X contains no newlines and no lone $.
+    # Lookbehind/lookahead prevent matching things that are already on their
+    # own lines (those start/end with \n$$).
+    text = re.sub(
+        r'(?<!\$)\$\$([^$\n]+?)\$\$(?!\$)',
+        lambda m: '\n\n$$\n' + m.group(1).strip() + '\n$$\n\n',
+        text,
+    )
 
-    # Remove blank lines inside $$ display blocks
+    # ── 4. Ensure blank lines around standalone $$ delimiters ─────────────────
+    # We track opener/closer state so we only add blanks in the right places:
+    #   • opener $$ — needs blank line BEFORE it; formula follows immediately
+    #   • closer $$ — formula ends immediately before it; needs blank line AFTER
     lines = text.split('\n')
-    result = []
+    out: list[str] = []
     in_display = False
-    for line in lines:
-        stripped = line.strip()
-        if stripped == '$$':
-            in_display = not in_display
-            result.append(line)
-        elif in_display and stripped == '':
-            continue  # skip blank lines inside display math
-        else:
-            result.append(line)
 
-    return '\n'.join(result)
+    for i, line in enumerate(lines):
+        if line.strip() == '$$':
+            if not in_display:
+                # Opening delimiter
+                if out and out[-1].strip():   # no blank line before → add one
+                    out.append('')
+                out.append(line)
+                in_display = True
+                # Do NOT insert blank after opener — formula follows immediately
+            else:
+                # Closing delimiter
+                out.append(line)
+                in_display = False
+                # Add blank line after closer if next line has content
+                if i + 1 < len(lines) and lines[i + 1].strip():
+                    out.append('')
+        else:
+            out.append(line)
+
+    # ── 5. Collapse excessive blank lines ────────────────────────────────────
+    text = '\n'.join(out)
+    text = re.sub(r'\n{4,}', '\n\n\n', text)
+
+    return text
