@@ -816,8 +816,9 @@ try:
 
     # 12l: /api/mutate
     r = requests.post(f"{BASE}/api/mutate",
-                      json={"original_paragraph": "## Fourier Transform\n\nConverts time to frequency.",
-                            "student_doubt": "why does it decompose into frequencies?"},
+                      json={"notebook_id": "test-notebook",
+                            "doubt": "why does it decompose into frequencies?",
+                            "original_paragraph": "## Fourier Transform\n\nConverts time to frequency."},
                       timeout=20)
     if r.status_code == 200:
         body = r.json()

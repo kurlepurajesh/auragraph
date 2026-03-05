@@ -116,41 +116,94 @@ function FileDrop({ label, icon, files, onFiles }) {
     );
 }
 
-// ─── Mutation Modal ───────────────────────────────────────────────────────────
-function MutateModal({ page, onClose, onMutate }) {
+// ─── Mutation / Doubt Modal ───────────────────────────────────────────────────
+function MutateModal({ page, notebookId, pageIdx, onClose, onMutate }) {
     const [doubt, setDoubt] = useState('');
     const [busy, setBusy] = useState(false);
-    const go = async () => {
+    const [answer, setAnswer] = useState('');
+    const [answerSource, setAnswerSource] = useState('');
+    const [mode, setMode] = useState('idle'); // 'idle' | 'answering' | 'answered' | 'mutating'
+
+    const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    function authHeaders() {
+        const token = localStorage.getItem('ag_token') || 'demo-token';
+        return { Authorization: `Bearer ${token}` };
+    }
+
+    const askDoubt = async () => {
         if (!doubt.trim()) return;
-        setBusy(true);
+        setBusy(true); setMode('answering'); setAnswer('');
+        try {
+            const res = await fetch(`${API}/api/doubt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({ notebook_id: notebookId, doubt, page_idx: pageIdx })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setAnswer(data.answer || '');
+                setAnswerSource(data.source || 'local');
+            } else {
+                setAnswer('Could not get an answer. Try again or use Mutate to rewrite this page.');
+            }
+            setMode('answered');
+        } catch {
+            setAnswer('Backend unreachable. Your doubt has been logged.');
+            setMode('answered');
+        }
+        setBusy(false);
+    };
+
+    const doMutate = async () => {
+        if (!doubt.trim()) return;
+        setBusy(true); setMode('mutating');
         await onMutate(page, doubt);
         setBusy(false);
         onClose();
     };
+
     return (
         <div className="modal-backdrop" onClick={onClose}>
-            <div className="modal fade-in" onClick={e => e.stopPropagation()}>
+            <div className="modal fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: 560, width: '100%' }}>
                 <h3 style={{ marginBottom: 4 }}>Ask a Doubt</h3>
                 <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16, lineHeight: 1.6 }}>
-                    Describe what's confusing. AuraGraph will permanently rewrite this page to resolve it.
+                    Get an instant answer, or permanently rewrite this page to resolve it.
                 </p>
                 <div style={{ background: 'var(--surface)', borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 14, maxHeight: 80, overflow: 'hidden', border: '1px solid var(--border)' }}>
                     {page ? (page.length > 200 ? page.slice(0, page.lastIndexOf(' ', 200)) + '…' : page) : ''}
                 </div>
-                <textarea className="input" rows={4} autoFocus value={doubt}
+                <textarea className="input" rows={3} autoFocus value={doubt}
                     onChange={e => setDoubt(e.target.value)}
-                    onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') go(); if (e.key === 'Escape') onClose(); }}
-                    placeholder="e.g. Why does convolution in time domain become multiplication in frequency domain?"
+                    onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') askDoubt(); if (e.key === 'Escape') onClose(); }}
+                    placeholder="e.g. Why does convolution become multiplication in the frequency domain?"
                     style={{ resize: 'vertical', fontFamily: 'inherit', marginBottom: 8 }}
                 />
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 14 }}>
-                    <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 5px', fontSize: 10 }}>Ctrl+Enter</kbd> to submit
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>
+                    <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 5px', fontSize: 10 }}>Ctrl+Enter</kbd> to ask
                 </div>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                    <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary btn-sm" onClick={go} disabled={busy || !doubt.trim()} style={{ gap: 6 }}>
-                        {busy ? <Loader2 className="spin" size={14} /> : <Sparkles size={14} />}
-                        {busy ? 'Mutating…' : 'Mutate This Page'}
+
+                {/* Answer panel */}
+                {(mode === 'answering' || mode === 'answered') && (
+                    <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: 14, marginBottom: 14, maxHeight: 260, overflowY: 'auto' }}>
+                        <div style={{ fontSize: 11, color: '#0369A1', fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Brain size={12} /> AuraGraph Answer {answerSource === 'azure' ? '(GPT-4o + your notes + textbook)' : '(offline)'}
+                        </div>
+                        {mode === 'answering'
+                            ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0369A1', fontSize: 13 }}><Loader2 className="spin" size={14} /> Searching your slides, textbook and notes…</div>
+                            : <div style={{ fontSize: 13, lineHeight: 1.7, color: '#0C4A6E', whiteSpace: 'pre-wrap' }}>{answer}</div>
+                        }
+                    </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button>
+                    <button className="btn btn-ghost btn-sm" onClick={askDoubt} disabled={busy || !doubt.trim()} style={{ gap: 6, borderColor: '#0369A1', color: '#0369A1' }}>
+                        {mode === 'answering' ? <Loader2 className="spin" size={14} /> : <MessageCircle size={14} />}
+                        {mode === 'answering' ? 'Searching…' : 'Ask (get answer)'}
+                    </button>
+                    <button className="btn btn-primary btn-sm" onClick={doMutate} disabled={busy || !doubt.trim()} style={{ gap: 6 }}>
+                        {mode === 'mutating' ? <Loader2 className="spin" size={14} /> : <Sparkles size={14} />}
+                        {mode === 'mutating' ? 'Rewriting…' : 'Mutate This Page'}
                     </button>
                 </div>
             </div>
@@ -436,6 +489,8 @@ export default function NotebookWorkspace() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [graphNodes, setGraphNodes] = useState([]);
     const [graphEdges, setGraphEdges] = useState([]);
+    const [noteSource, setNoteSource] = useState('azure');      // 'azure' | 'local'
+    const [fallbackWarning, setFallbackWarning] = useState(''); // non-empty = show banner
     const noteScrollRef = useRef();
 
     const pages = useMemo(() => {
@@ -527,6 +582,7 @@ export default function NotebookWorkspace() {
             slidesFiles.forEach(f => form.append('slides_pdfs', f));
             textbookFiles.forEach(f => form.append('textbook_pdfs', f));
             form.append('proficiency', prof);
+            if (id) form.append('notebook_id', id);
             setFuseProgress('Running Fusion Agent…');
             const res = await fetch(`${API}/api/upload-fuse-multi`, { method: 'POST', headers: authHeaders(), body: form });
             if (!res.ok) {
@@ -536,6 +592,16 @@ export default function NotebookWorkspace() {
             }
             const data = await res.json();
             setNote(data.fused_note); setCurrentPage(0);
+            setNoteSource(data.source || 'azure');
+            setFallbackWarning(data.source === 'local'
+                ? (data.fallback_reason
+                    ? `⚠️ Azure OpenAI was unavailable — notes were generated using the offline summariser. (${data.fallback_reason})`
+                    : '⚠️ Azure OpenAI is not configured — notes were generated using the offline summariser.')
+                : ''
+            );
+            if (data.chunks_stored) {
+                console.info(`📚 Knowledge store: ${data.chunks_stored.slides} slide chunks + ${data.chunks_stored.textbook} textbook chunks stored`);
+            }
             await saveNote(data.fused_note, prof);
             setFuseProgress('Extracting concept map…');
             await extractAndSaveGraph(data.fused_note);
@@ -553,32 +619,32 @@ export default function NotebookWorkspace() {
         const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const lid = Date.now();
         try {
-            const res = await fetch(`${API}/api/mutate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ original_paragraph: page, student_doubt: doubt }) });
+            // New API: send notebook_id + page_idx so backend can retrieve full context
+            const res = await fetch(`${API}/api/mutate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({
+                    notebook_id: id,
+                    doubt,
+                    page_idx: currentPage,
+                    original_paragraph: page,  // kept as fallback
+                })
+            });
             const data = await res.json();
 
-            // ── Safe splice: replace the current page text in the full note ──────
-            // Strategy: find the verbatim page text inside the full note and replace it.
-            // This works regardless of how pages were split (H2/H3/paragraph chunks),
-            // and avoids the destructive idx=-1 fallback that wiped the entire note.
-            const pageText = pages[currentPage];
-            // Find the page's leading heading (if any) to anchor the search position,
-            // then do a trimmed substring replacement.
-            const trimmedPage = pageText.trim();
+            // Backend now returns the rewritten page — replace it in the full note
+            const trimmedPage = (pages[currentPage] || page).trim();
             const noteIdx = note.indexOf(trimmedPage);
             let newNote;
             if (noteIdx !== -1) {
-                // Replace exactly this page's content in the note
                 newNote = note.slice(0, noteIdx) + data.mutated_paragraph + note.slice(noteIdx + trimmedPage.length);
             } else {
-                // Fallback: page content not found verbatim (can happen if note was
-                // modified between page split and mutation). Append as a note amendment.
                 newNote = note + '\n\n---\n\n**Amendment (page ' + (currentPage + 1) + '):**\n\n' + data.mutated_paragraph;
             }
 
             setNote(newNote); setGapText(data.concept_gap);
             setMutatedPages(prev => new Set([...prev, currentPage]));
             await saveNote(newNote, prof);
-            // Use .then() to avoid setState-after-unmount; don't block UI on this
             extractAndSaveGraph(newNote).catch(() => {});
 
             const pl = data.mutated_paragraph.split('\n');
@@ -698,6 +764,13 @@ export default function NotebookWorkspace() {
                 ) : (
                     <div ref={noteScrollRef} style={{ flex: 1, overflowY: 'auto', display: 'flex', justifyContent: 'center', background: '#F0F2F5', padding: '28px 24px' }}>
                         <div style={{ maxWidth: 760, width: '100%' }}>
+                            {fallbackWarning && (
+                                <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                    <span style={{ flexShrink: 0 }}>⚠️</span>
+                                    <div style={{ flex: 1 }}><b>Offline notes:</b> {fallbackWarning.replace(/^⚠️\s*/, '')}</div>
+                                    <button onClick={() => setFallbackWarning('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', padding: 0, marginLeft: 'auto', flexShrink: 0 }}><X size={13} /></button>
+                                </div>
+                            )}
                             {gapText && (
                                 <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                                     <Brain size={14} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -757,7 +830,7 @@ export default function NotebookWorkspace() {
                 </aside>
             </div>
 
-            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} onClose={() => setMutating(false)} onMutate={handleMutate} />}
+            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => setMutating(false)} onMutate={handleMutate} />}
         </div>
     );
 }

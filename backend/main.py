@@ -1,8 +1,24 @@
 """
-AuraGraph - FastAPI + Semantic Kernel Backend
+AuraGraph - FastAPI + Semantic Kernel Backend  v4
 Team: Wowffulls | IIT Roorkee | Challenge: AI Study Buddy
+
+New in v4: Knowledge Store Architecture
+────────────────────────────────────────
+Every upload now stores ALL source material verbatim in a per-notebook
+knowledge store (JSON files in knowledge_store/).
+
+Pipeline:
+  1. Upload  → extract text → chunk → store ALL chunks
+  2. Generate → retrieve relevant chunks → GPT generates notes by proficiency
+  3. Doubt   → retrieve relevant chunks + get exact note page → GPT answers
+  4. Mutate  → retrieve relevant chunks + exact note page → GPT rewrites page
+
+This gives every agent full context: what the professor taught, what the
+textbook says, and exactly what the student is reading — combined with
+OpenAI's own knowledge.
 """
 
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -16,10 +32,15 @@ import semantic_kernel as sk
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 
 from agents.fusion_agent import FusionAgent
-from agents.mutation_agent import MutationAgent
 from agents.examiner_agent import ExaminerAgent
 from agents.mock_cosmos import get_db, update_node_status
-from agents.pdf_utils import extract_text_from_pdf, extract_text_from_file, summarise_chunks, chunk_text
+from agents.pdf_utils import extract_text_from_file, chunk_text
+from agents.knowledge_store import (
+    store_source_chunks, retrieve_relevant_chunks,
+    get_chunk_stats, get_all_chunks,
+    store_note_pages, get_note_page, get_all_note_pages, update_note_page,
+    delete_notebook_store,
+)
 from agents.local_summarizer import generate_local_note
 from agents.local_mutation import local_mutate
 from agents.local_examiner import local_examine
@@ -28,23 +49,31 @@ from agents.latex_utils import fix_latex_delimiters
 from agents.auth_utils import register_user, login_user, validate_token
 from agents.notebook_store import (
     create_notebook, get_notebooks, get_notebook,
-    update_notebook_note, update_notebook_graph, delete_notebook
+    update_notebook_note, update_notebook_graph, delete_notebook,
 )
 
 load_dotenv()
 
-# ---------------------------------------------------------------------------
-# Kernel Singleton
-# ---------------------------------------------------------------------------
-kernel = None
-fusion_agent = None
-mutation_agent = None
+logger = logging.getLogger("auragraph")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
+
+# ── Context budget ─────────────────────────────────────────────────────────────
+# How many chars of retrieved chunks to pass to GPT per source per call.
+# Retrieval selects the most relevant chunks first so this is not a hard limit
+# on what's STORED — it only limits what goes into the prompt.
+_PROMPT_SLIDES_BUDGET   = 24_000   # chars
+_PROMPT_TEXTBOOK_BUDGET = 24_000   # chars
+
+
+# ── Kernel singleton ───────────────────────────────────────────────────────────
+kernel        = None
+fusion_agent  = None
 examiner_agent = None
 
 
 @asynccontextmanager
 async def lifespan(app):
-    global kernel, fusion_agent, mutation_agent, examiner_agent
+    global kernel, fusion_agent, examiner_agent
 
     kernel = sk.Kernel()
     kernel.add_service(
@@ -58,21 +87,18 @@ async def lifespan(app):
     )
 
     fusion_agent   = FusionAgent(kernel)
-    mutation_agent = MutationAgent(kernel)
     examiner_agent = ExaminerAgent(kernel)
 
-    print("✅  AuraGraph – Azure OpenAI kernel ready")
+    logger.info("✅  AuraGraph v4 – Knowledge Store + Azure kernel ready")
     yield
-    print("⏹  AuraGraph shutting down")
+    logger.info("⏹  AuraGraph shutting down")
 
 
-# ---------------------------------------------------------------------------
-# App
-# ---------------------------------------------------------------------------
+# ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="AuraGraph API",
-    version="0.2.0",
-    description="Digital Knowledge Twin – Multi-Notebook, Auth + Knowledge Fusion",
+    version="0.4.0",
+    description="Digital Knowledge Twin – Knowledge Store + Context-Aware Agents",
     lifespan=lifespan,
 )
 
@@ -90,78 +116,148 @@ app.add_middleware(
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# ── Helpers ────────────────────────────────────────────────────────────────────
 def get_current_user(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Missing or invalid token")
     token = authorization.split(" ", 1)[1]
-    user = validate_token(token)
+    user  = validate_token(token)
     if not user:
         raise HTTPException(401, "Invalid or expired token")
     return user
 
 
-# ---------------------------------------------------------------------------
-# Schemas
-# ---------------------------------------------------------------------------
+def _is_azure_available() -> bool:
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+    api_key  = os.environ.get("AZURE_OPENAI_API_KEY", "")
+    return (
+        bool(fusion_agent)
+        and "mock-endpoint" not in endpoint
+        and api_key not in ("", "mock-key")
+    )
+
+
+def _format_chunks_for_prompt(chunks: list[dict], budget: int) -> str:
+    """
+    Format retrieved chunks into a compact string for GPT.
+    Respects char budget — most-relevant chunks go first.
+    """
+    parts = []
+    used  = 0
+    for c in chunks:
+        header = f"[{c['source'].upper()} — {c.get('heading','') or 'chunk'}]\n"
+        body   = c["text"]
+        block  = header + body + "\n"
+        if used + len(block) > budget:
+            # Try to fit a truncated version
+            remaining = budget - used - len(header) - 10
+            if remaining > 100:
+                block = header + body[:remaining].rsplit(" ", 1)[0] + " …\n"
+            else:
+                break
+        parts.append(block)
+        used += len(block)
+    return "\n---\n".join(parts) if parts else "(no relevant content found)"
+
+
+def _note_to_pages(note: str) -> list[str]:
+    """Split a note string into pages the same way the frontend does."""
+    by_h2 = note.split("\n## ")
+    if len(by_h2) > 1:
+        pages = [by_h2[0]] + ["## " + s for s in by_h2[1:]]
+        # Merge very short pages (< 200 chars) into previous
+        merged, buf = [], ""
+        for p in pages:
+            if buf and len(p) < 200:
+                buf += "\n\n" + p
+            else:
+                if buf:
+                    merged.append(buf.strip())
+                buf = p
+        if buf:
+            merged.append(buf.strip())
+        return [p for p in merged if p.strip()]
+    return [note] if note.strip() else []
+
+
+# ── Schemas ────────────────────────────────────────────────────────────────────
 class AuthRequest(BaseModel):
-    email: Optional[str] = None
+    email:    Optional[str] = None
     username: Optional[str] = None
     password: str
 
     @property
     def identifier(self) -> str:
-        """Returns email if provided, else username. Allows both flows."""
         return (self.email or self.username or "").strip()
 
-class FusionRequest(BaseModel):
-    slide_summary: str
-    textbook_paragraph: str
-    proficiency: str = "Intermediate"
 
 class FusionResponse(BaseModel):
-    fused_note: str
+    fused_note:      str
+    source:          str = "azure"
+    fallback_reason: Optional[str] = None
+    chunks_stored:   Optional[dict] = None   # {"slides": N, "textbook": M}
+
+
+class DoubtRequest(BaseModel):
+    notebook_id: str
+    doubt:       str
+    page_idx:    int = 0   # which note page the student is viewing
+
+
+class DoubtResponse(BaseModel):
+    answer:      str
+    source:      str = "azure"   # "azure" | "local"
+
 
 class MutationRequest(BaseModel):
-    original_paragraph: str
-    student_doubt: str
+    notebook_id:        str
+    doubt:              str
+    page_idx:           int = 0
+    original_paragraph: Optional[str] = None   # kept for backward compat
+
 
 class MutationResponse(BaseModel):
     mutated_paragraph: str
-    concept_gap: str
+    concept_gap:       str
+    page_idx:          int
+
 
 class ExaminerRequest(BaseModel):
     concept_name: str
 
+
 class ExaminerResponse(BaseModel):
     practice_questions: str
 
+
 class NodeUpdateRequest(BaseModel):
     concept_name: str
-    status: str
+    status:       str
 
 
 class ConceptExtractRequest(BaseModel):
-    note: str
+    note:        str
     notebook_id: Optional[str] = None
 
+
 class NotebookCreateRequest(BaseModel):
-    name: str
+    name:   str
     course: str
 
+
 class NotebookUpdateRequest(BaseModel):
-    note: str
+    note:        str
     proficiency: Optional[str] = None
 
 
-# ---------------------------------------------------------------------------
-# Auth Routes
-# ---------------------------------------------------------------------------
+# ── Auth Routes ────────────────────────────────────────────────────────────────
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "AuraGraph v0.2"}
+    return {
+        "status": "ok",
+        "service": "AuraGraph v0.4",
+        "azure_configured": _is_azure_available(),
+    }
 
 
 @app.post("/auth/register")
@@ -184,14 +280,11 @@ async def auth_login(req: AuthRequest):
     return user
 
 
-# ---------------------------------------------------------------------------
-# Notebook Routes
-# ---------------------------------------------------------------------------
+# ── Notebook Routes ────────────────────────────────────────────────────────────
 @app.post("/notebooks")
 async def new_notebook(req: NotebookCreateRequest, authorization: Optional[str] = Header(None)):
     user = get_current_user(authorization)
-    nb = create_notebook(user["id"], req.name, req.course)
-    return nb
+    return create_notebook(user["id"], req.name, req.course)
 
 
 @app.get("/notebooks")
@@ -203,7 +296,7 @@ async def list_notebooks(authorization: Optional[str] = Header(None)):
 @app.get("/notebooks/{nb_id}")
 async def fetch_notebook(nb_id: str, authorization: Optional[str] = Header(None)):
     user = get_current_user(authorization)
-    nb = get_notebook(nb_id)
+    nb   = get_notebook(nb_id)
     if not nb or nb["user_id"] != user["id"]:
         raise HTTPException(404, "Notebook not found")
     return nb
@@ -212,143 +305,306 @@ async def fetch_notebook(nb_id: str, authorization: Optional[str] = Header(None)
 @app.patch("/notebooks/{nb_id}/note")
 async def save_notebook_note(nb_id: str, req: NotebookUpdateRequest, authorization: Optional[str] = Header(None)):
     user = get_current_user(authorization)
-    nb = get_notebook(nb_id)
+    nb   = get_notebook(nb_id)
     if not nb or nb["user_id"] != user["id"]:
         raise HTTPException(404, "Notebook not found")
-    updated = update_notebook_note(nb_id, req.note, req.proficiency)
-    return updated
+    return update_notebook_note(nb_id, req.note, req.proficiency)
 
 
 @app.delete("/notebooks/{nb_id}")
 async def remove_notebook(nb_id: str, authorization: Optional[str] = Header(None)):
     user = get_current_user(authorization)
-    nb = get_notebook(nb_id)
+    nb   = get_notebook(nb_id)
     if not nb or nb["user_id"] != user["id"]:
         raise HTTPException(404, "Notebook not found")
     delete_notebook(nb_id)
+    delete_notebook_store(nb_id)   # also wipe the knowledge store
     return {"status": "deleted"}
 
 
-# ---------------------------------------------------------------------------
-# AI Routes
-# ---------------------------------------------------------------------------
-@app.post("/api/fuse", response_model=FusionResponse)
-async def fuse_knowledge(req: FusionRequest):
-    if not fusion_agent:
-        raise HTTPException(503, "Kernel not initialised")
-    try:
-        fused = await fusion_agent.fuse(req.slide_summary, req.textbook_paragraph, req.proficiency)
-        return FusionResponse(fused_note=fix_latex_delimiters(fused))
-    except Exception:
-        # LLM unavailable — fall back to local extractive summariser
-        local_note = generate_local_note(req.slide_summary, req.textbook_paragraph, req.proficiency)
-        return FusionResponse(fused_note=fix_latex_delimiters(local_note))
+@app.get("/notebooks/{nb_id}/knowledge-stats")
+async def get_knowledge_stats(nb_id: str, authorization: Optional[str] = Header(None)):
+    """Return stats about what's stored in the knowledge store for this notebook."""
+    nb = get_notebook(nb_id)
+    if not nb:
+        raise HTTPException(404, "Notebook not found")
+    return get_chunk_stats(nb_id)
 
 
-@app.post("/api/upload-fuse", response_model=FusionResponse)
-async def upload_fuse(
-    slides_pdf: UploadFile = File(...),
-    textbook_pdf: UploadFile = File(...),
-    proficiency: str = Form("Intermediate"),
-):
-    """Single-file fusion — accepts PDF or PPTX for slides, PDF for textbook."""
-    if not fusion_agent:
-        raise HTTPException(503, "Kernel not initialised")
-
-    slides_bytes = await slides_pdf.read()
-    textbook_bytes = await textbook_pdf.read()
-
-    try:
-        slides_text = extract_text_from_file(slides_bytes, slides_pdf.filename or "slides.pdf")
-        textbook_text = extract_text_from_file(textbook_bytes, textbook_pdf.filename or "textbook.pdf")
-    except ValueError as e:
-        raise HTTPException(422, str(e))
-
-    slides_summary = summarise_chunks(chunk_text(slides_text), max_summary_chars=6000)
-    textbook_summary = summarise_chunks(chunk_text(textbook_text), max_summary_chars=6000)
-
-    fused = await fusion_agent.fuse(slides_summary, textbook_summary, proficiency)
-    return FusionResponse(fused_note=fix_latex_delimiters(fused))
-
-
+# ── Upload + Generate Notes ────────────────────────────────────────────────────
 @app.post("/api/upload-fuse-multi", response_model=FusionResponse)
 async def upload_fuse_multi(
-    slides_pdfs: List[UploadFile] = File(...),
+    slides_pdfs:   List[UploadFile] = File(...),
     textbook_pdfs: List[UploadFile] = File(...),
-    proficiency: str = Form("Intermediate"),
+    proficiency:   str = Form("Intermediate"),
+    notebook_id:   str = Form(""),
 ):
     """
-    Multi-file Fusion Endpoint
-    Accepts any number of slide files (PDF or PPTX) and textbook PDFs.
-    Tries Azure OpenAI fusion first; falls back to local extractive summarizer.
+    Main upload-and-generate endpoint.
+
+    Steps:
+      1. Extract text from all uploaded PDFs/PPTXs
+      2. Chunk everything and store ALL chunks verbatim in the knowledge store
+      3. Retrieve the most relevant chunks for note generation
+      4. Generate notes via Azure GPT (or local fallback)
+      5. Split notes into pages and store the page index
+      6. Return the full note + storage stats
     """
-    # Extract and concatenate text from all slide files (PDF or PPTX)
-    all_slides_text = ""
+    # ── Step 1: Extract ──────────────────────────────────────────────────────
+    all_slides_text   = ""
+    all_textbook_text = ""
+    extraction_errors: list[str] = []
+
     for upload in slides_pdfs:
-        raw = await upload.read()
+        raw   = await upload.read()
         fname = upload.filename or "slides.pdf"
         try:
             all_slides_text += extract_text_from_file(raw, fname) + "\n\n"
         except ValueError as e:
-            pass  # skip unreadable files, don't crash the whole request
+            extraction_errors.append(f"{fname}: {e}")
+            logger.warning("Slides extraction failed %s: %s", fname, e)
 
-    # Extract and concatenate text from all textbook files
-    all_textbook_text = ""
     for upload in textbook_pdfs:
-        raw = await upload.read()
+        raw   = await upload.read()
         fname = upload.filename or "textbook.pdf"
         try:
             all_textbook_text += extract_text_from_file(raw, fname) + "\n\n"
-        except ValueError:
-            pass
+        except ValueError as e:
+            extraction_errors.append(f"{fname}: {e}")
+            logger.warning("Textbook extraction failed %s: %s", fname, e)
 
     if not all_slides_text.strip() and not all_textbook_text.strip():
-        raise HTTPException(422, "Could not extract text from any uploaded PDFs.")
+        detail = "Could not extract text from any uploaded files."
+        if extraction_errors:
+            detail += " Errors: " + "; ".join(extraction_errors)
+        raise HTTPException(422, detail)
 
-    # 1) Try Azure OpenAI fusion
-    if fusion_agent:
+    # ── Step 2: Chunk and STORE EVERYTHING ───────────────────────────────────
+    slide_chunks    = chunk_text(all_slides_text,   max_chars=4000)
+    textbook_chunks = chunk_text(all_textbook_text, max_chars=4000)
+
+    chunks_stored = None
+    if notebook_id:
         try:
-            slides_summary = summarise_chunks(chunk_text(all_slides_text), max_summary_chars=10000)
-            textbook_summary = summarise_chunks(chunk_text(all_textbook_text), max_summary_chars=10000)
-            fused = await fusion_agent.fuse(slides_summary, textbook_summary, proficiency)
-            return FusionResponse(fused_note=fix_latex_delimiters(fused))
+            chunks_stored = store_source_chunks(nb_id=notebook_id,
+                                                slide_chunks=slide_chunks,
+                                                textbook_chunks=textbook_chunks)
+            logger.info("Stored %d chunks for notebook %s", chunks_stored["total"], notebook_id)
+        except Exception as e:
+            logger.warning("Knowledge store write failed: %s", e)
+
+    # ── Step 3: Build prompt content ─────────────────────────────────────────
+    # If we stored chunks, retrieve the best ones; otherwise use full text
+    if notebook_id and chunks_stored:
+        # Use a broad query covering the whole note to get representative coverage
+        coverage_query = all_slides_text[:500]  # first 500 chars as proxy for topic
+        slide_hits    = retrieve_relevant_chunks(notebook_id, coverage_query,
+                                                 top_k=20, source_filter="slides")
+        textbook_hits = retrieve_relevant_chunks(notebook_id, coverage_query,
+                                                 top_k=15, source_filter="textbook")
+        slide_content    = _format_chunks_for_prompt(slide_hits,    _PROMPT_SLIDES_BUDGET)
+        textbook_content = _format_chunks_for_prompt(textbook_hits, _PROMPT_TEXTBOOK_BUDGET)
+    else:
+        # No notebook_id (legacy path) — use raw text with budget cap
+        slide_content    = all_slides_text[:_PROMPT_SLIDES_BUDGET]
+        textbook_content = all_textbook_text[:_PROMPT_TEXTBOOK_BUDGET]
+
+    # ── Step 4: Generate notes ────────────────────────────────────────────────
+    fused_note    = None
+    source        = "local"
+    azure_error   = None
+
+    if _is_azure_available():
+        try:
+            logger.info("Azure fusion: slides=%d chars, textbook=%d chars",
+                        len(slide_content), len(textbook_content))
+            fused_note = await fusion_agent.fuse(slide_content, textbook_content, proficiency)
+            source     = "azure"
+        except Exception as exc:
+            azure_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("Azure fusion failed: %s", azure_error)
+
+    if fused_note is None:
+        fused_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
+
+    fused_note = fix_latex_delimiters(fused_note)
+
+    # ── Step 5: Store note pages ──────────────────────────────────────────────
+    if notebook_id:
+        try:
+            pages = _note_to_pages(fused_note)
+            store_note_pages(notebook_id, pages)
+            logger.info("Stored %d note pages for notebook %s", len(pages), notebook_id)
+        except Exception as e:
+            logger.warning("Note page store failed: %s", e)
+
+    # ── Step 6: Persist note in notebook store ────────────────────────────────
+    if notebook_id:
+        try:
+            update_notebook_note(notebook_id, fused_note, proficiency)
         except Exception:
-            pass  # Fall through to local summarizer
+            pass
 
-    # 2) Local extractive summarizer fallback (works without any API key)
-    local_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
-    return FusionResponse(fused_note=fix_latex_delimiters(local_note))
+    fallback_warning = None
+    if source == "local" and azure_error:
+        fallback_warning = f"Azure unavailable ({azure_error}) — offline notes used."
+    elif source == "local":
+        fallback_warning = "Azure not configured — offline notes used."
+
+    return FusionResponse(
+        fused_note=fused_note,
+        source=source,
+        fallback_reason=fallback_warning,
+        chunks_stored=chunks_stored,
+    )
 
 
+# Backward-compat alias
+@app.post("/api/upload-fuse", response_model=FusionResponse)
+async def upload_fuse(
+    slides_pdf:   UploadFile = File(...),
+    textbook_pdf: UploadFile = File(...),
+    proficiency:  str = Form("Intermediate"),
+    notebook_id:  str = Form(""),
+):
+    """Single-file version — delegates to upload_fuse_multi."""
+    slides_pdf.filename   = slides_pdf.filename   or "slides.pdf"
+    textbook_pdf.filename = textbook_pdf.filename or "textbook.pdf"
+    return await upload_fuse_multi(
+        slides_pdfs=[slides_pdf],
+        textbook_pdfs=[textbook_pdf],
+        proficiency=proficiency,
+        notebook_id=notebook_id,
+    )
 
 
+# ── Doubt Answering ────────────────────────────────────────────────────────────
+@app.post("/api/doubt", response_model=DoubtResponse)
+async def answer_doubt(req: DoubtRequest):
+    """
+    Answer a student's doubt using:
+    - Relevant slide chunks from the knowledge store
+    - Relevant textbook chunks from the knowledge store
+    - The exact note page the student is reading
+    - OpenAI's own knowledge (via the prompt context)
+    """
+    nb_id    = req.notebook_id
+    doubt    = req.doubt
+    page_idx = req.page_idx
+
+    # Retrieve relevant source chunks
+    slide_hits    = retrieve_relevant_chunks(nb_id, doubt, top_k=6, source_filter="slides")
+    textbook_hits = retrieve_relevant_chunks(nb_id, doubt, top_k=6, source_filter="textbook")
+    slide_context    = _format_chunks_for_prompt(slide_hits,    8_000)
+    textbook_context = _format_chunks_for_prompt(textbook_hits, 8_000)
+
+    # Get the exact note page
+    note_page = get_note_page(nb_id, page_idx) or ""
+
+    if _is_azure_available():
+        try:
+            answer = await fusion_agent.answer_doubt(
+                doubt=doubt,
+                slide_context=slide_context,
+                textbook_context=textbook_context,
+                note_page=note_page,
+            )
+            return DoubtResponse(answer=fix_latex_delimiters(answer), source="azure")
+        except Exception as exc:
+            logger.warning("Azure doubt failed: %s", exc)
+
+    # Local fallback: combine contexts into a simple response
+    from agents.local_mutation import _diagnose_gap, _build_analogy_hint
+    gap     = _diagnose_gap(doubt)
+    analogy = _build_analogy_hint(doubt)
+    answer  = f"**{gap}**\n\n{analogy}"
+    if note_page:
+        answer += f"\n\n*From your notes:* {note_page[:300]}…"
+    return DoubtResponse(answer=fix_latex_delimiters(answer), source="local")
+
+
+# ── Mutation ───────────────────────────────────────────────────────────────────
 @app.post("/api/mutate", response_model=MutationResponse)
 async def mutate_note(req: MutationRequest):
-    if mutation_agent:
+    """
+    Rewrite a note page using full source context.
+    Uses:
+    - The exact note page from the knowledge store (by page_idx)
+    - Relevant slide chunks about the doubted topic
+    - Relevant textbook chunks about the doubted topic
+    - The student's doubt
+    """
+    nb_id    = req.notebook_id
+    doubt    = req.doubt
+    page_idx = req.page_idx
+
+    # Get exact note page from store (more reliable than what frontend sends)
+    note_page = get_note_page(nb_id, page_idx)
+    if note_page is None:
+        # Fallback: use original_paragraph from request if page not in store
+        note_page = req.original_paragraph or ""
+
+    # Retrieve relevant source chunks for this doubt
+    slide_hits    = retrieve_relevant_chunks(nb_id, doubt + " " + note_page[:200], top_k=6, source_filter="slides")
+    textbook_hits = retrieve_relevant_chunks(nb_id, doubt + " " + note_page[:200], top_k=6, source_filter="textbook")
+    slide_context    = _format_chunks_for_prompt(slide_hits,    8_000)
+    textbook_context = _format_chunks_for_prompt(textbook_hits, 8_000)
+
+    mutated = None
+    gap     = ""
+
+    if _is_azure_available():
         try:
-            mutated, gap = await mutation_agent.mutate(req.original_paragraph, req.student_doubt)
-            update_node_status("Convolution Theorem", "partial")
-            return MutationResponse(mutated_paragraph=fix_latex_delimiters(mutated), concept_gap=gap)
-        except Exception:
-            pass  # fall through to local fallback
-    # Local offline fallback
-    mutated, gap = local_mutate(req.original_paragraph, req.student_doubt)
-    return MutationResponse(mutated_paragraph=fix_latex_delimiters(mutated), concept_gap=gap)
+            mutated, gap = await fusion_agent.mutate(
+                note_page=note_page,
+                doubt=doubt,
+                slide_context=slide_context,
+                textbook_context=textbook_context,
+            )
+        except Exception as exc:
+            logger.warning("Azure mutation failed: %s", exc)
+
+    if mutated is None:
+        mutated, gap = local_mutate(note_page, doubt)
+
+    mutated = fix_latex_delimiters(mutated)
+
+    # Update the stored note page
+    if nb_id:
+        try:
+            updated = update_note_page(nb_id, page_idx, mutated)
+            if updated:
+                # Rebuild full note from pages and persist
+                pages = get_all_note_pages(nb_id)
+                full_note = "\n\n".join(pages)
+                update_notebook_note(nb_id, full_note)
+                logger.info("Mutated page %d for notebook %s", page_idx, nb_id)
+        except Exception as e:
+            logger.warning("Page update failed: %s", e)
+
+    update_node_status("Convolution Theorem", "partial")
+
+    return MutationResponse(
+        mutated_paragraph=mutated,
+        concept_gap=gap,
+        page_idx=page_idx,
+    )
 
 
+# ── Examiner ───────────────────────────────────────────────────────────────────
 @app.post("/api/examine", response_model=ExaminerResponse)
 async def examine_concept(req: ExaminerRequest):
-    if examiner_agent:
+    if examiner_agent and _is_azure_available():
         try:
             questions = await examiner_agent.examine(req.concept_name)
             return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
-        except Exception:
-            pass  # fall through to local fallback
-    # Local offline fallback
+        except Exception as exc:
+            logger.warning("Azure examiner failed: %s", exc)
     questions = local_examine(req.concept_name)
     return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
 
 
+# ── Graph Routes ───────────────────────────────────────────────────────────────
 @app.get("/api/graph")
 async def get_graph():
     return get_db()
@@ -356,15 +612,14 @@ async def get_graph():
 
 @app.post("/api/graph/update")
 async def update_graph(req: NodeUpdateRequest):
-    updated_node = update_node_status(req.concept_name, req.status)
-    if not updated_node:
+    updated = update_node_status(req.concept_name, req.status)
+    if not updated:
         raise HTTPException(404, "Node not found")
-    return {"status": "success", "node": updated_node}
+    return {"status": "success", "node": updated}
 
 
 @app.post("/api/extract-concepts")
 async def extract_concepts_endpoint(req: ConceptExtractRequest):
-    """Extract concept graph nodes from a fused note."""
     graph = extract_concepts(req.note)
     if req.notebook_id:
         update_notebook_graph(req.notebook_id, graph)
@@ -383,7 +638,7 @@ async def get_notebook_graph(nb_id: str, authorization: Optional[str] = Header(N
 async def update_notebook_graph_node(
     nb_id: str,
     req: NodeUpdateRequest,
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str] = Header(None),
 ):
     nb = get_notebook(nb_id)
     if not nb:
@@ -395,3 +650,46 @@ async def update_notebook_graph_node(
             update_notebook_graph(nb_id, graph)
             return {"status": "success", "node": node}
     raise HTTPException(404, "Concept node not found")
+
+
+# ── Legacy /api/fuse (text-based) kept for compat ─────────────────────────────
+class FusionRequest(BaseModel):
+    slide_summary:       str
+    textbook_paragraph:  str
+    proficiency:         str = "Intermediate"
+    notebook_id:         Optional[str] = None
+
+
+@app.post("/api/fuse", response_model=FusionResponse)
+async def fuse_knowledge(req: FusionRequest):
+    slide_content    = req.slide_summary[:_PROMPT_SLIDES_BUDGET]
+    textbook_content = req.textbook_paragraph[:_PROMPT_TEXTBOOK_BUDGET]
+
+    fused_note  = None
+    source      = "local"
+    azure_error = None
+
+    if _is_azure_available():
+        try:
+            fused_note = await fusion_agent.fuse(slide_content, textbook_content, req.proficiency)
+            source     = "azure"
+        except Exception as exc:
+            azure_error = str(exc)
+
+    if fused_note is None:
+        fused_note = generate_local_note(req.slide_summary, req.textbook_paragraph, req.proficiency)
+
+    fused_note = fix_latex_delimiters(fused_note)
+
+    if req.notebook_id:
+        try:
+            pages = _note_to_pages(fused_note)
+            store_note_pages(req.notebook_id, pages)
+        except Exception:
+            pass
+
+    return FusionResponse(
+        fused_note=fused_note,
+        source=source,
+        fallback_reason=azure_error,
+    )

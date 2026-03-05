@@ -2,14 +2,20 @@
 agents/latex_utils.py
 Utility: normalize all LaTeX delimiter variants to $ / $$ (rehype-katex friendly).
 
-Any AI-generated text may use \\[ \\] or \\( \\) — this converter normalises them
+Any AI-generated text may use \[ \] or \( \) — this converter normalises them
 so that remark-math + rehype-katex renders them correctly.
 
 remark-math rules:
   • Inline math  : $expression$   (no spaces between $ and content)
-  • Display math : a paragraph that contains ONLY $$\n…\n$$ — the opening $$
-    must be preceded by a blank line (or start-of-document) and the closing $$
-    must be followed by a blank line (or end-of-document).
+  • Display math : paragraph containing ONLY $$\n…\n$$ with a blank line before
+    the opening $$ and a blank line after the closing $$.
+
+v2 fixes vs v1:
+  • Step 3 (inline $$…$$) now guards against converting mid-sentence math
+    that is already correctly formatted — it only converts when the $$ pair
+    is NOT already on its own line.
+  • Step 5 collapses to 2 blank lines (not 3), matching Markdown convention.
+  • Added Step 6: strip stray zero-width / non-breaking spaces that break KaTeX.
 """
 
 import re
@@ -21,17 +27,25 @@ def fix_latex_delimiters(text: str) -> str:
 
     Steps applied in order
     ──────────────────────
-    1. \\( … \\)  (inline)  →  $…$          (DOTALL: handles multi-line)
-    2. \\[ … \\]  (display) →  block $$…$$  (DOTALL: handles multi-line)
-    3. Inline $$content$$ (no newlines in content) → block form
-    4. Ensure every standalone $$ line has a blank line before it (opener)
-       and a blank line after it (closer)  so remark-math parses them as
-       block-level math nodes.
-    5. Collapse 3+ consecutive blank lines → 2
+    1. \\( … \\)  (inline)  →  $…$
+    2. \\[ … \\]  (display) →  block $$…$$
+    3. Inline $$content$$ (genuinely on the same text line, no newlines) → block
+       BUT only when the $$ pair is embedded inside other text (not already a
+       standalone $$ line). This avoids double-converting properly-formatted blocks.
+    4. Ensure every standalone $$ delimiter line has a blank line before it
+       (opener) and a blank line after it (closer).
+    5. Collapse 3+ consecutive blank lines → 2 (standard Markdown).
+    6. Strip zero-width spaces and non-breaking spaces that confuse KaTeX.
     """
 
-    # ── 1. \\(...\\) → $...$  ────────────────────────────────────────────────
-    # DOTALL so \(\n formula \n\) still matches; strip internal whitespace.
+    # ── 1. \\(…\\) → $…$ ────────────────────────────────────────────────────
+    text = re.sub(
+        r'\\\\\(\s*(.*?)\s*\\\\\)',
+        lambda m: '$' + m.group(1).strip() + '$',
+        text,
+        flags=re.DOTALL,
+    )
+    # Also handle single-backslash variants (from some LLM outputs)
     text = re.sub(
         r'\\\(\s*(.*?)\s*\\\)',
         lambda m: '$' + m.group(1).strip() + '$',
@@ -39,7 +53,13 @@ def fix_latex_delimiters(text: str) -> str:
         flags=re.DOTALL,
     )
 
-    # ── 2. \\[...\\] → block $$...$$ ─────────────────────────────────────────
+    # ── 2. \\[…\\] → block $$…$$ ─────────────────────────────────────────────
+    text = re.sub(
+        r'\\\\\[\s*(.*?)\s*\\\\\]',
+        lambda m: '\n\n$$\n' + m.group(1).strip() + '\n$$\n\n',
+        text,
+        flags=re.DOTALL,
+    )
     text = re.sub(
         r'\\\[\s*(.*?)\s*\\\]',
         lambda m: '\n\n$$\n' + m.group(1).strip() + '\n$$\n\n',
@@ -47,20 +67,27 @@ def fix_latex_delimiters(text: str) -> str:
         flags=re.DOTALL,
     )
 
-    # ── 3. Inline $$content$$ (single line, no embedded newlines) → block ────
-    # Matches $$X$$ where X contains no newlines and no lone $.
-    # Lookbehind/lookahead prevent matching things that are already on their
-    # own lines (those start/end with \n$$).
+    # ── 3. Inline $$content$$ → block ─────────────────────────────────────────
+    # Only convert when the $$ pair appears mid-line (surrounded by other text
+    # OR at start/end of a line that has other content).
+    # Do NOT convert if the line is already a standalone $$ delimiter.
+    #
+    # Pattern: $$<content>$$ where content has no newlines.
+    # Guard: line must not be ONLY "$$" (that's already a delimiter).
+    def _inline_dd_to_block(m: re.Match) -> str:
+        content = m.group(1).strip()
+        # If the content itself contains $$ it was likely already a block — skip
+        if '$$' in content:
+            return m.group(0)
+        return '\n\n$$\n' + content + '\n$$\n\n'
+
     text = re.sub(
-        r'(?<!\$)\$\$([^$\n]+?)\$\$(?!\$)',
-        lambda m: '\n\n$$\n' + m.group(1).strip() + '\n$$\n\n',
+        r'(?<!\n)\$\$([^$\n]{1,300}?)\$\$(?!\$)',
+        _inline_dd_to_block,
         text,
     )
 
-    # ── 4. Ensure blank lines around standalone $$ delimiters ─────────────────
-    # We track opener/closer state so we only add blanks in the right places:
-    #   • opener $$ — needs blank line BEFORE it; formula follows immediately
-    #   • closer $$ — formula ends immediately before it; needs blank line AFTER
+    # ── 4. Ensure blank lines around standalone $$ delimiter lines ─────────────
     lines = text.split('\n')
     out: list[str] = []
     in_display = False
@@ -68,24 +95,26 @@ def fix_latex_delimiters(text: str) -> str:
     for i, line in enumerate(lines):
         if line.strip() == '$$':
             if not in_display:
-                # Opening delimiter
-                if out and out[-1].strip():   # no blank line before → add one
+                # Opening $$: needs blank line before it
+                if out and out[-1].strip():
                     out.append('')
                 out.append(line)
                 in_display = True
-                # Do NOT insert blank after opener — formula follows immediately
             else:
-                # Closing delimiter
+                # Closing $$
                 out.append(line)
                 in_display = False
-                # Add blank line after closer if next line has content
+                # Needs blank line after it if next line has content
                 if i + 1 < len(lines) and lines[i + 1].strip():
                     out.append('')
         else:
             out.append(line)
 
-    # ── 5. Collapse excessive blank lines ────────────────────────────────────
+    # ── 5. Collapse excessive blank lines → max 2 ────────────────────────────
     text = '\n'.join(out)
-    text = re.sub(r'\n{4,}', '\n\n\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
 
-    return text
+    # ── 6. Strip zero-width / non-breaking spaces ─────────────────────────────
+    text = text.replace('\u200b', '').replace('\u00a0', ' ').replace('\ufeff', '')
+
+    return text.strip()

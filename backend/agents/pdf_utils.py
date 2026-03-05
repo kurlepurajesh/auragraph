@@ -370,34 +370,63 @@ def chunk_text(text: str, max_chars: int = 8000) -> list[str]:
     return chunks or [text]
 
 
-def summarise_chunks(chunks: list[str], max_summary_chars: int = 10000) -> str:
+def summarise_chunks(chunks: list[str], max_summary_chars: int = 32000) -> str:
     """
     Collapse chunks into one string up to max_summary_chars.
 
-    RAGFlow insight: proportional sampling rather than hard truncation ensures
-    every slide/topic is represented — the model sees every section, even if
-    each is slightly trimmed, rather than seeing only the first N slides in full.
+    Design principles:
+    1. GPT-4o has a 128k token context. 32k chars ≈ 8k tokens — well within
+       budget for typical lecture material. The old default of 6k-10k chars
+       was far too aggressive and starved the model of content.
+    2. Proportional sampling: every chunk (slide/page) gets a fair share of
+       the budget so no topic is completely dropped.
+    3. Sentence-boundary trimming: never cut mid-sentence; find the last
+       sentence-ending punctuation within the budget window.
+    4. Slide markers are always preserved (never trimmed away) so GPT-4o
+       can see the section structure even in a trimmed chunk.
     """
     combined = "\n\n---\n\n".join(chunks)
     if len(combined) <= max_summary_chars:
         return combined
 
-    # Each chunk gets a proportional share of the budget
-    per_chunk = max(300, max_summary_chars // max(len(chunks), 1))
+    # Each chunk gets a proportional share of the budget.
+    # Floor at 500 chars so every slide gets at least its title + first sentence.
+    per_chunk = max(500, max_summary_chars // max(len(chunks), 1))
     parts: list[str] = []
+
     for chunk in chunks:
         if len(chunk) <= per_chunk:
             parts.append(chunk)
+            continue
+
+        # Always preserve the slide/page header line (first line of the chunk)
+        lines = chunk.split("\n")
+        header = lines[0] if lines and lines[0].startswith("---") else ""
+        body   = chunk[len(header):].strip() if header else chunk
+
+        budget = per_chunk - len(header) - 2  # 2 for "\n\n"
+        if budget <= 0:
+            parts.append(header)
+            continue
+
+        trimmed = body[:budget]
+
+        # Find the last clean sentence boundary: ". ", ".\n", or "\n\n"
+        last_stop = max(
+            trimmed.rfind(". "),
+            trimmed.rfind(".\n"),
+            trimmed.rfind("\n\n"),
+            trimmed.rfind("! "),
+            trimmed.rfind("? "),
+        )
+        # Only use the boundary if it's in the second half of the window
+        # (avoids cutting to just the first sentence of a long section)
+        if last_stop > budget // 3:
+            trimmed = trimmed[: last_stop + 1].rstrip()
+
+        if header:
+            parts.append(f"{header}\n\n{trimmed}")
         else:
-            # Trim at the last sentence boundary within the budget
-            trimmed = chunk[:per_chunk]
-            last_stop = max(
-                trimmed.rfind(". "),
-                trimmed.rfind(".\n"),
-                trimmed.rfind("\n\n"),
-            )
-            if last_stop > per_chunk // 2:
-                trimmed = trimmed[: last_stop + 1]
             parts.append(trimmed)
 
     return "\n\n---\n\n".join(parts)
