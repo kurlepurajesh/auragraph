@@ -19,7 +19,7 @@ from agents.fusion_agent import FusionAgent
 from agents.mutation_agent import MutationAgent
 from agents.examiner_agent import ExaminerAgent
 from agents.mock_cosmos import get_db, update_node_status
-from agents.pdf_utils import extract_text_from_pdf, summarise_chunks, chunk_text
+from agents.pdf_utils import extract_text_from_pdf, extract_text_from_file, summarise_chunks, chunk_text
 from agents.local_summarizer import generate_local_note
 from agents.local_mutation import local_mutate
 from agents.local_examiner import local_examine
@@ -246,6 +246,7 @@ async def upload_fuse(
     textbook_pdf: UploadFile = File(...),
     proficiency: str = Form("Intermediate"),
 ):
+    """Single-file fusion — accepts PDF or PPTX for slides, PDF for textbook."""
     if not fusion_agent:
         raise HTTPException(503, "Kernel not initialised")
 
@@ -253,8 +254,8 @@ async def upload_fuse(
     textbook_bytes = await textbook_pdf.read()
 
     try:
-        slides_text = extract_text_from_pdf(slides_bytes)
-        textbook_text = extract_text_from_pdf(textbook_bytes)
+        slides_text = extract_text_from_file(slides_bytes, slides_pdf.filename or "slides.pdf")
+        textbook_text = extract_text_from_file(textbook_bytes, textbook_pdf.filename or "textbook.pdf")
     except ValueError as e:
         raise HTTPException(422, str(e))
 
@@ -273,24 +274,26 @@ async def upload_fuse_multi(
 ):
     """
     Multi-file Fusion Endpoint
-    Accepts any number of slide PDFs and textbook PDFs.
+    Accepts any number of slide files (PDF or PPTX) and textbook PDFs.
     Tries Azure OpenAI fusion first; falls back to local extractive summarizer.
     """
-    # Extract and concatenate text from all slide files
+    # Extract and concatenate text from all slide files (PDF or PPTX)
     all_slides_text = ""
     for upload in slides_pdfs:
         raw = await upload.read()
+        fname = upload.filename or "slides.pdf"
         try:
-            all_slides_text += extract_text_from_pdf(raw) + "\n\n"
-        except ValueError:
-            pass
+            all_slides_text += extract_text_from_file(raw, fname) + "\n\n"
+        except ValueError as e:
+            pass  # skip unreadable files, don't crash the whole request
 
     # Extract and concatenate text from all textbook files
     all_textbook_text = ""
     for upload in textbook_pdfs:
         raw = await upload.read()
+        fname = upload.filename or "textbook.pdf"
         try:
-            all_textbook_text += extract_text_from_pdf(raw) + "\n\n"
+            all_textbook_text += extract_text_from_file(raw, fname) + "\n\n"
         except ValueError:
             pass
 

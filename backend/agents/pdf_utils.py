@@ -1,69 +1,280 @@
 """
-PDF Extraction Utility
-Extracts and intelligently chunks text from uploaded PDF files.
+PDF / PPTX Extraction Utility  (RAGFlow-inspired)
+--------------------------------------------------
+Key improvements over the previous PyPDF2-only version:
+  • pdfplumber for PDF — preserves reading order and avoids the
+    column-merging artefacts that PyPDF2 produces on two-column slides.
+  • python-pptx for native PPTX — extracts slide text in reading order
+    (top-to-bottom, left-to-right), preserving bullet hierarchy.
+  • Slide-boundary-aware chunking — each slide / page becomes its own
+    unit so the summariser can see topic boundaries instead of a wall of text.
+  • Proportional budget allocation in summarise_chunks() ensures every
+    topic is represented even when the combined text exceeds the LLM window.
 """
-import io
-import PyPDF2
 
+from __future__ import annotations
+
+import io
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PDF extraction (pdfplumber)
+# ──────────────────────────────────────────────────────────────────────────────
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extract full text from a PDF file given as bytes."""
+    """
+    Extract full text from a PDF file.
+
+    Strategy (RAGFlow-inspired):
+      1. Try pdfplumber first — it uses pdfminer under the hood and correctly
+         handles multi-column layouts, preserving reading order.
+      2. Fall back to PyPDF2 if pdfplumber fails (e.g. heavily encrypted PDFs).
+    Returns one string with pages separated by '\\n\\n--- Page N ---\\n\\n'.
+    """
     try:
+        import pdfplumber
+        pages_text: list[str] = []
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            for i, page in enumerate(pdf.pages, start=1):
+                text = page.extract_text(x_tolerance=3, y_tolerance=3)
+                if text and text.strip():
+                    pages_text.append(f"--- Page {i} ---\n{text.strip()}")
+        if pages_text:
+            return "\n\n".join(pages_text)
+    except Exception as e:
+        logger.warning("pdfplumber failed (%s), falling back to PyPDF2", e)
+
+    # Fallback: PyPDF2
+    try:
+        import PyPDF2
         reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
         pages_text = []
-        for page in reader.pages:
+        for i, page in enumerate(reader.pages, start=1):
             text = page.extract_text()
             if text and text.strip():
-                pages_text.append(text.strip())
-        return "\n\n".join(pages_text)
+                pages_text.append(f"--- Page {i} ---\n{text.strip()}")
+        if pages_text:
+            return "\n\n".join(pages_text)
     except Exception as e:
-        raise ValueError(f"Failed to parse PDF: {str(e)}")
+        raise ValueError(f"Failed to parse PDF: {e}") from e
+
+    raise ValueError("No text could be extracted from the PDF.")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PPTX extraction  (RAGFlow ppt_parser.py approach)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _sort_shapes(shapes):
+    """
+    Sort shapes top-to-bottom, left-to-right (RAGFlow's shape-order heuristic).
+    Shapes without position attributes are placed last.
+    """
+    def _key(s):
+        top  = s.top  if s.top  is not None else 9_999_999
+        left = s.left if s.left is not None else 9_999_999
+        return (top, left)
+    return sorted(shapes, key=_key)
+
+
+def _extract_shape_text(shape) -> str:
+    """Recursively extract text from a PPTX shape, preserving bullet hierarchy."""
+    try:
+        from pptx.util import Pt
+        # Text frames (most common)
+        if hasattr(shape, "has_text_frame") and shape.has_text_frame:
+            lines: list[str] = []
+            for para in shape.text_frame.paragraphs:
+                raw = para.text.strip()
+                if not raw:
+                    continue
+                # Detect bullet / numbered list
+                is_bullet = (
+                    bool(para._p.xpath("./a:pPr/a:buChar"))
+                    or bool(para._p.xpath("./a:pPr/a:buAutoNum"))
+                    or bool(para._p.xpath("./a:pPr/a:buBlip"))
+                )
+                indent = "  " * max(0, para.level)
+                prefix = "• " if is_bullet else ""
+                lines.append(f"{indent}{prefix}{raw}")
+            return "\n".join(lines)
+
+        # Tables
+        shape_type = None
+        try:
+            shape_type = shape.shape_type
+        except Exception:
+            pass
+
+        if shape_type == 19:  # MSO_SHAPE_TYPE.TABLE
+            rows = []
+            for row in shape.table.rows:
+                cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                if cells:
+                    rows.append(" | ".join(cells))
+            return "\n".join(rows)
+
+        # Group shapes — recurse
+        if shape_type == 6:  # MSO_SHAPE_TYPE.GROUP
+            texts = [_extract_shape_text(s) for s in _sort_shapes(shape.shapes)]
+            return "\n".join(t for t in texts if t)
+
+    except Exception as e:
+        logger.debug("Shape extraction error: %s", e)
+    return ""
+
+
+def extract_text_from_pptx(file_bytes: bytes) -> str:
+    """
+    Extract text from a PPTX file with slide-boundary markers.
+
+    Each slide becomes:
+        --- Slide N: <Title> ---
+        <body text in reading order>
+
+    This mirrors RAGFlow's RAGFlowPptParser.__call__ but adds title detection.
+    """
+    try:
+        from pptx import Presentation
+        prs = Presentation(io.BytesIO(file_bytes))
+        slides_text: list[str] = []
+
+        for i, slide in enumerate(prs.slides, start=1):
+            # Try to get slide title
+            title_text = ""
+            if slide.shapes.title and slide.shapes.title.has_text_frame:
+                title_text = slide.shapes.title.text.strip()
+
+            body_parts: list[str] = []
+            for shape in _sort_shapes(slide.shapes):
+                # Skip the title shape — it's already captured
+                if slide.shapes.title and shape == slide.shapes.title:
+                    continue
+                txt = _extract_shape_text(shape)
+                if txt:
+                    body_parts.append(txt)
+
+            body = "\n".join(body_parts).strip()
+
+            # Build slide block
+            if title_text:
+                header = f"--- Slide {i}: {title_text} ---"
+            else:
+                header = f"--- Slide {i} ---"
+
+            if body or title_text:
+                content = f"{header}\n{body}" if body else header
+                slides_text.append(content)
+
+        return "\n\n".join(slides_text) if slides_text else ""
+    except Exception as e:
+        raise ValueError(f"Failed to parse PPTX: {e}") from e
+
+
+def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
+    """
+    Unified entry point: routes to the right extractor based on file extension.
+    Supports .pdf, .pptx, .ppt (pptx fallback).
+    """
+    fname = filename.lower()
+    if fname.endswith(".pptx") or fname.endswith(".ppt"):
+        return extract_text_from_pptx(file_bytes)
+    return extract_text_from_pdf(file_bytes)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Slide-boundary-aware chunking
+# ──────────────────────────────────────────────────────────────────────────────
+
+_SLIDE_BOUNDARY = re.compile(r"^--- Slide \d+", re.MULTILINE)
+_PAGE_BOUNDARY  = re.compile(r"^--- Page \d+",  re.MULTILINE)
 
 
 def chunk_text(text: str, max_chars: int = 8000) -> list[str]:
     """
-    Split long text into chunks suitable for a single LLM prompt.
-    Splits on double newlines first, then hard-cuts if needed.
+    Split text into chunks, respecting slide/page boundaries first.
+
+    RAGFlow insight: each slide is a self-contained teaching unit — don't
+    split mid-slide.  We group whole slides into chunks up to max_chars,
+    then fall back to paragraph splitting for oversized individual slides.
     """
-    paragraphs = text.split("\n\n")
-    chunks = []
+    # Detect whether the text has slide or page markers
+    has_slides = bool(_SLIDE_BOUNDARY.search(text))
+    has_pages  = bool(_PAGE_BOUNDARY.search(text))
+    boundary   = _SLIDE_BOUNDARY if has_slides else _PAGE_BOUNDARY
+
+    if has_slides or has_pages:
+        # Split on the boundary markers, keep the marker with its content
+        parts = re.split(r"(?=^--- (?:Slide|Page) )", text, flags=re.MULTILINE)
+        parts = [p.strip() for p in parts if p.strip()]
+    else:
+        # Plain paragraph splitting
+        parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+
+    chunks: list[str] = []
     current = ""
 
-    for para in paragraphs:
-        if len(current) + len(para) + 2 < max_chars:
-            current += para + "\n\n"
+    for part in parts:
+        if len(current) + len(part) + 2 <= max_chars:
+            current += ("\n\n" if current else "") + part
         else:
             if current:
-                chunks.append(current.strip())
-            current = para + "\n\n"
+                chunks.append(current)
+            # Part itself is larger than max_chars — split at paragraph boundary
+            if len(part) > max_chars:
+                sub_paras = part.split("\n\n")
+                sub_buf = ""
+                for sp in sub_paras:
+                    if len(sub_buf) + len(sp) + 2 <= max_chars:
+                        sub_buf += ("\n\n" if sub_buf else "") + sp
+                    else:
+                        if sub_buf:
+                            chunks.append(sub_buf)
+                        sub_buf = sp
+                if sub_buf:
+                    current = sub_buf
+                else:
+                    current = ""
+            else:
+                current = part
 
-    if current.strip():
-        chunks.append(current.strip())
+    if current:
+        chunks.append(current)
 
-    return chunks
+    return chunks or [text]
 
 
 def summarise_chunks(chunks: list[str], max_summary_chars: int = 10000) -> str:
     """
     Collapse chunks into one string up to max_summary_chars.
-    Instead of hard-truncating (which silently drops whole sections),
-    we sample proportionally from ALL chunks so every topic is represented.
+
+    RAGFlow insight: proportional sampling rather than hard truncation ensures
+    every slide/topic is represented — the model sees every section, even if
+    each is slightly trimmed, rather than seeing only the first N slides in full.
     """
     combined = "\n\n---\n\n".join(chunks)
     if len(combined) <= max_summary_chars:
         return combined
 
     # Each chunk gets a proportional share of the budget
-    per_chunk = max(200, max_summary_chars // max(len(chunks), 1))
-    parts = []
+    per_chunk = max(300, max_summary_chars // max(len(chunks), 1))
+    parts: list[str] = []
     for chunk in chunks:
         if len(chunk) <= per_chunk:
             parts.append(chunk)
         else:
             # Trim at the last sentence boundary within the budget
             trimmed = chunk[:per_chunk]
-            last_stop = max(trimmed.rfind('. '), trimmed.rfind('.\n'), trimmed.rfind('\n\n'))
+            last_stop = max(
+                trimmed.rfind(". "),
+                trimmed.rfind(".\n"),
+                trimmed.rfind("\n\n"),
+            )
             if last_stop > per_chunk // 2:
-                trimmed = trimmed[:last_stop + 1]
+                trimmed = trimmed[: last_stop + 1]
             parts.append(trimmed)
+
     return "\n\n---\n\n".join(parts)
