@@ -144,7 +144,7 @@ def _raw_to_latex(raw: str) -> str:
 # ─── Math line detection ──────────────────────────────────────────────────────
 # A line is treated as a formula if it looks like math, not prose.
 _GREEK_RAW = re.compile(
-    r'\b(alpha|beta|gamma|delta|epsilon|zeta|theta|lambda|mu|nu|xi|rho|sigma|tau|'
+    r'\b(alpha|beta|gamma|delta|epsilon|zeta|eta|theta|lambda|mu|nu|xi|rho|sigma|tau|'
     r'phi|psi|omega|nabla|infty|infinity|integral|partial|sqrt)\b',
     re.I
 )

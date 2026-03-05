@@ -246,6 +246,7 @@ label {
   min-width: 0;
   opacity: 0;
   border-left: none;
+  pointer-events: none;
 }
 
 /* ─── Page dot tooltips ─────────────────────────────────────────────────── */

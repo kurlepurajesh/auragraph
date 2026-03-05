@@ -135,7 +135,7 @@ function MutateModal({ page, onClose, onMutate }) {
                     Describe what's confusing. AuraGraph will permanently rewrite this page to resolve it.
                 </p>
                 <div style={{ background: 'var(--surface)', borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 14, maxHeight: 80, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                    {page?.slice(0, 200)}…
+                    {page ? (page.length > 200 ? page.slice(0, page.lastIndexOf(' ', 200)) + '…' : page) : ''}
                 </div>
                 <textarea className="input" rows={4} autoFocus value={doubt}
                     onChange={e => setDoubt(e.target.value)}
@@ -165,7 +165,7 @@ function ExaminerModal({ concept, onClose }) {
     useEffect(() => {
         (async () => {
             try {
-                const res = await fetch(`${API}/api/examine`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ concept_name: concept }) });
+                const res = await fetch(`${API}/api/examine`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ concept_name: concept }) });
                 const data = await res.json();
                 setQuestions(data.practice_questions);
             } catch { setQuestions(`## Practice Questions: ${concept}\n\nBackend not reachable.`); }
@@ -403,7 +403,7 @@ function CopyNoteButton({ note }) {
 }
 
 function DownloadNoteButton({ note, name }) {
-    const dl = () => { const b = new Blob([note], { type: 'text/markdown' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${name||'notes'}.md`; a.click(); URL.revokeObjectURL(u); };
+    const dl = () => { const b = new Blob([note], { type: 'text/markdown' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${name||'notes'}.md`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); };
     return <button className="btn btn-ghost btn-sm" onClick={dl} title="Download as .md" style={{ fontSize: 12, gap: 5 }}><Download size={12}/> Export</button>;
 }
 
@@ -494,13 +494,14 @@ export default function NotebookWorkspace() {
     const handleFuse = async () => {
         if (!slidesFiles.length || !textbookFiles.length) return;
         setFusing(true); setFuseProgress('Uploading PDFs…');
+        setMutatedPages(new Set()); setGraphNodes([]); setGraphEdges([]);
         try {
             const form = new FormData();
             slidesFiles.forEach(f => form.append('slides_pdfs', f));
             textbookFiles.forEach(f => form.append('textbook_pdfs', f));
             form.append('proficiency', prof);
             setFuseProgress('Running Fusion Agent…');
-            const res = await fetch(`${API}/api/upload-fuse-multi`, { method: 'POST', body: form });
+            const res = await fetch(`${API}/api/upload-fuse-multi`, { method: 'POST', headers: authHeaders(), body: form });
             if (!res.ok) {
                 let detail = `Server error (${res.status})`;
                 try { const j = await res.json(); detail = j.detail || detail; } catch {}
@@ -705,7 +706,7 @@ export default function NotebookWorkspace() {
                                 {/* Page dots */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                                     {pages.slice(0, Math.min(pages.length, 20)).map((_, i) => (
-                                        <button key={i} onClick={() => setCurrentPage(i)} title={`Page ${i + 1}`} style={{ width: i === currentPage ? 20 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === currentPage ? '#7C3AED' : mutatedPages.has(i) ? '#C4B5FD' : 'var(--border2)', transition: 'all 0.2s', padding: 0 }} />
+                                        <button key={i} className="page-dot" data-label={`Page ${i + 1}`} onClick={() => setCurrentPage(i)} title={`Page ${i + 1}`} style={{ width: i === currentPage ? 20 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === currentPage ? '#7C3AED' : mutatedPages.has(i) ? '#C4B5FD' : 'var(--border2)', transition: 'all 0.2s', padding: 0 }} />
                                     ))}
                                     {pages.length > 20 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>+{pages.length - 20}</span>}
                                 </div>
@@ -715,8 +716,7 @@ export default function NotebookWorkspace() {
                 )}
 
                 {/* Right Sidebar */}
-                {sidebarOpen && (
-                    <aside style={{ width: 310, minWidth: 310, borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflow: 'hidden' }}>
+                <aside className={sidebarOpen ? 'sidebar-panel' : 'sidebar-panel collapsed'}>
                         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                             {[{ key: 'map', label: 'Concept Map', icon: <Brain size={12}/> }, { key: 'doubts', label: (() => { const onPage = doubtsLog.filter(d => d.pageIdx === currentPage).length; const total = doubtsLog.length; if (!total) return 'Doubts'; if (onPage) return `Doubts (${onPage}/${total})`; return `Doubts (${total})`; })(), icon: <MessageCircle size={12}/> }].map(tab => (
                                 <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? '#7C3AED' : 'var(--text3)' }}>
@@ -727,8 +727,7 @@ export default function NotebookWorkspace() {
                         {rightTab === 'map'
                             ? <KnowledgePanel nodes={graphNodes} edges={graphEdges} notebookId={id} onNodeStatusChange={handleNodeStatusChange} onJumpToSection={handleJumpToSection} />
                             : <DoubtsPanel doubts={doubtsLog} currentPage={currentPage} />}
-                    </aside>
-                )}
+                </aside>
             </div>
 
             {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} onClose={() => setMutating(false)} onMutate={handleMutate} />}
