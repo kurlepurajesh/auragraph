@@ -21,6 +21,74 @@ import re
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
+# PDF extraction artifact scrubber
+# ──────────────────────────────────────────────────────────────────────────────
+
+_CID_RE          = re.compile(r'\(cid:\d+\)')
+_PAGE_MARKER_RE  = re.compile(r'---\s*[Pp]age\s+\d+\s*---')
+_DASH_ONLY_RE    = re.compile(r'^[\s\u2212\u2013\u2014\-]+$')
+
+
+def _scrub_pdf_artifacts(text: str) -> str:
+    """
+    Remove common PDF extraction artifacts:
+      1. (cid:N)  — unresolved glyph references from CID-keyed fonts
+      2. Single- or two-character lines — glyph-per-line dumps from Type3 fonts
+      3. --- Page N --- markers (both compact and spaced variants)
+      4. Pure-dash/minus separator lines
+      5. Mirror/echo lines — drop the spaced-glyph version when the very next
+         non-empty line is the concatenated version of the same characters
+    """
+    # Pass 1: strip (cid:N) inline
+    text = _CID_RE.sub('', text)
+
+    # Pass 2: remove embedded page markers
+    text = _PAGE_MARKER_RE.sub('', text)
+
+    # Pass 3: per-line cleanup
+    lines = text.split('\n')
+    cleaned: list[str] = []
+    i = 0
+    while i < len(lines):
+        raw    = lines[i]
+        s      = raw.strip()
+
+        # Pure dash/separator lines
+        if s and _DASH_ONLY_RE.match(s):
+            i += 1
+            continue
+
+        # Single or two character lines (glyph dump fragments).
+        # Allow truly empty lines (paragraph breaks).
+        if 1 <= len(s) <= 2:
+            i += 1
+            continue
+
+        # Mirror-text detection: if the next non-empty line is the same text
+        # with all spaces removed, skip THIS line (the spaced glyph version)
+        # and keep the next (the clean ToUnicode reconstruction).
+        if s:
+            compact_s = s.replace(' ', '')
+            # Look for the next non-empty line
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            if j < len(lines):
+                compact_next = lines[j].strip().replace(' ', '')
+                if compact_next and compact_next == compact_s and len(compact_s) > 3:
+                    # Current line is just the next line with spaces inserted — skip it
+                    i += 1
+                    continue
+
+        cleaned.append(raw)
+        i += 1
+
+    # Pass 4: collapse runs of 3+ blank lines → 2 blank lines
+    result = re.sub(r'\n{3,}', '\n\n', '\n'.join(cleaned))
+    return result.strip()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # PDF extraction (pdfplumber)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -43,7 +111,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 if text and text.strip():
                     pages_text.append(f"--- Page {i} ---\n{text.strip()}")
         if pages_text:
-            return "\n\n".join(pages_text)
+            return _scrub_pdf_artifacts("\n\n".join(pages_text))
     except Exception as e:
         logger.warning("pdfplumber failed (%s), falling back to PyPDF2", e)
 
@@ -57,7 +125,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
             if text and text.strip():
                 pages_text.append(f"--- Page {i} ---\n{text.strip()}")
         if pages_text:
-            return "\n\n".join(pages_text)
+            return _scrub_pdf_artifacts("\n\n".join(pages_text))
     except Exception as e:
         raise ValueError(f"Failed to parse PDF: {e}") from e
 

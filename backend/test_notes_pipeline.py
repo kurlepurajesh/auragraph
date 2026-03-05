@@ -1039,6 +1039,141 @@ else:
 
 
 # =========================================================
+# 14.  PDF extraction artifact scrubbing
+# =========================================================
+sec("14 . PDF extraction artifact scrubbing")
+from agents.pdf_utils import _scrub_pdf_artifacts
+from agents.local_summarizer import _clean_pdf_text
+
+# ── 14a: (cid:N) removal ──────────────────────────────────────────
+# Note: (cid:N) tokens replace individual chars in CID fonts, so removing them
+# leaves behind the surrounding chars — the key guarantee is NO (cid: remains.
+cid_input = "H(cid:40)e(cid:41)l(cid:42)lo World\nThis is (cid:100) a test."
+cid_result = _scrub_pdf_artifacts(cid_input)
+if "(cid:" not in cid_result and "World" in cid_result and "test" in cid_result:
+    ok("_scrub_pdf_artifacts: (cid:N) removed, surrounding text preserved")
+else:
+    fail("_scrub_pdf_artifacts: (cid:N) not removed", repr(cid_result[:200]))
+
+# ── 14b: single-char-per-line glyph dump collapsed ───────────────
+glyph_dump = "H\ne\nl\nl\no\nHello\nWorld\nW\no\nr\nl\nd\nWorld"
+glyph_result = _scrub_pdf_artifacts(glyph_dump)
+single_char_lines = [l for l in glyph_result.split('\n') if len(l.strip()) == 1]
+if not single_char_lines and "Hello" in glyph_result and "World" in glyph_result:
+    ok("_scrub_pdf_artifacts: single-char glyph lines removed, words preserved")
+else:
+    fail("_scrub_pdf_artifacts: single-char lines not cleaned",
+         repr(glyph_result[:200]))
+
+# ── 14c: --- Page N --- markers removed ──────────────────────────
+page_marker_input = "--- Page 1 ---\nIntroduction text.\n--- Page 2 ---\nMore content."
+pm_result = _scrub_pdf_artifacts(page_marker_input)
+if "--- Page" not in pm_result and "Introduction text" in pm_result and "More content" in pm_result:
+    ok("_scrub_pdf_artifacts: --- Page N --- markers removed, content kept")
+else:
+    fail("_scrub_pdf_artifacts: page marker removal failed", repr(pm_result[:200]))
+
+# ── 14d: mirror/echo deduplication ───────────────────────────────
+# Spaced version followed immediately by concatenated version
+mirror_input = "X ( ω ) =\nX(ω)=\nSome following text."
+mirror_result = _scrub_pdf_artifacts(mirror_input)
+# The spaced version should be dropped; the clean version and next text kept
+lines_out = [l for l in mirror_result.split('\n') if l.strip()]
+if len(lines_out) <= 2 and "X(ω)=" in mirror_result:
+    ok("_scrub_pdf_artifacts: mirror/echo lines deduplicated")
+else:
+    fail("_scrub_pdf_artifacts: mirror dedup failed", repr(mirror_result[:200]))
+
+# ── 14e: real content preserved ──────────────────────────────────
+real_text = (
+    "The Fourier Transform decomposes a signal into frequencies.\n"
+    "X(ω) = ∫ x(t) e^{-jωt} dt\n"
+    "The inverse transform recovers the original signal."
+)
+real_result = _scrub_pdf_artifacts(real_text)
+if "Fourier Transform" in real_result and "inverse transform" in real_result:
+    ok("_scrub_pdf_artifacts: real educational content unchanged")
+else:
+    fail("_scrub_pdf_artifacts: real content corrupted", repr(real_result[:300]))
+
+# ── 14f: dash/separator-only lines removed ───────────────────────
+dash_input = "Section A\n−−−−−−−\nContent here.\n−−−\nSection B"
+dash_result = _scrub_pdf_artifacts(dash_input)
+dash_only_lines = [l for l in dash_result.split('\n') if l.strip() and not any(c.isalpha() or c.isdigit() for c in l)]
+if not dash_only_lines and "Section A" in dash_result and "Content here" in dash_result:
+    ok("_scrub_pdf_artifacts: pure-dash separator lines removed")
+else:
+    fail("_scrub_pdf_artifacts: dash line removal failed",
+         f"Dash-only lines remaining: {dash_only_lines!r}")
+
+# ── 14g: _clean_pdf_text: (cid:N) stripped ───────────────────────
+cid_text = "Convolution(cid:40)theorem states that multiplication(cid:41) in frequency domain\nis equivalent to convolution in time domain."
+clean_cid = _clean_pdf_text(cid_text)
+if "(cid:" not in clean_cid and "Convolution" in clean_cid:
+    ok("_clean_pdf_text: inline (cid:N) stripped")
+else:
+    fail("_clean_pdf_text: (cid:N) not stripped", repr(clean_cid[:200]))
+
+# ── 14h: _clean_pdf_text: mirror text deduplicated ───────────────
+mirror_text = "F o u r i e r T r a n s f o r m\nFourier Transform\nThis converts time domain to frequency domain."
+clean_mirror = _clean_pdf_text(mirror_text)
+occurrences = clean_mirror.count("Fourier Transform")
+if occurrences == 1 and "time domain" in clean_mirror:
+    ok("_clean_pdf_text: mirror text deduplicated to single occurrence")
+else:
+    fail("_clean_pdf_text: mirror dedup failed",
+         f"Occurrences of 'Fourier Transform': {occurrences}, text: {repr(clean_mirror[:200])}")
+
+# ── 14i: _clean_pdf_text: embedded page markers stripped ─────────
+page_mark_text = "--- Page 3 ---\nThe Z-Transform is used for discrete-time signals.\n--- Page 4 ---\nROC defines stability."
+clean_pm = _clean_pdf_text(page_mark_text)
+if "--- Page" not in clean_pm and "Z-Transform" in clean_pm and "ROC" in clean_pm:
+    ok("_clean_pdf_text: embedded page markers stripped")
+else:
+    fail("_clean_pdf_text: page markers not stripped", repr(clean_pm[:200]))
+
+# ── 14j: _clean_pdf_text: 1-3 char junk lines dropped ────────────
+junk_lines = "A\nBC\nD\nThe system is LTI.\nE\nF\nIt has memory."
+clean_junk = _clean_pdf_text(junk_lines)
+short_lines = [l for l in clean_junk.split('\n') if l.strip() and len(l.strip()) <= 3]
+if not short_lines and "LTI" in clean_junk and "memory" in clean_junk:
+    ok("_clean_pdf_text: 1-3 char junk lines dropped, content preserved")
+else:
+    fail("_clean_pdf_text: junk line removal failed",
+         f"Short lines remaining: {short_lines!r}")
+
+# ── 14k: combined artifact barrage → only real content survives ──
+ARTIFACT_BARRAGE = (
+    "--- Page 1 ---\n"
+    "L(cid:40)T(cid:41)I S y s t e m s\n"
+    "LTI Systems\n"
+    "A\nY\nA\n"
+    "−−−−−−\n"
+    "(cid:100)(cid:101)(cid:102)\n"
+    "A Linear Time-Invariant system satisfies superposition.\n"
+    "The impulse response fully characterises the system.\n"
+    "--- Page 2 ---\n"
+    "B\nC\n"
+    "Convolution integral: y(t) = x(t) * h(t)\n"
+)
+clean_barrage = _clean_pdf_text(ARTIFACT_BARRAGE)
+assertions_14k = [
+    ("(cid:" not in clean_barrage, "(cid:) removed"),
+    ("--- Page" not in clean_barrage, "page markers removed"),
+    ("superposition" in clean_barrage, "real content kept — superposition"),
+    ("impulse response" in clean_barrage, "real content kept — impulse response"),
+    ("Convolution integral" in clean_barrage, "real content kept — convolution"),
+]
+all_ok_14k = True
+for cond, desc in assertions_14k:
+    if not cond:
+        fail(f"14k combined barrage: {desc}", repr(clean_barrage[:300]))
+        all_ok_14k = False
+if all_ok_14k:
+    ok("_clean_pdf_text: combined artifact barrage → only real content survives")
+
+
+# =========================================================
 # Summary
 # =========================================================
 total = passed + failed + skipped

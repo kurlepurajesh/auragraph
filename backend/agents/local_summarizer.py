@@ -170,6 +170,11 @@ def _is_math_line(line: str) -> bool:
 
 
 # ─── Text cleaning ────────────────────────────────────────────────────────────
+_CID_INLINE_RE    = re.compile(r'\(cid:\d+\)')
+_PAGE_MARK_RE     = re.compile(r'---\s*[Pp]age\s+\d+\s*---')
+_MIRROR_SPACE_RE  = re.compile(r'^(\S)\s+(\S\s+){2,}')   # ≥3 spaced-out chars
+
+
 def _clean_pdf_text(text: str) -> str:
     noise = re.compile(
         r"^\s*("
@@ -181,17 +186,48 @@ def _clean_pdf_text(text: str) -> str:
         r")\s*$",
         re.IGNORECASE
     )
-    lines = []
+
+    # Strip inline (cid:N) and embedded page markers first
+    text = _CID_INLINE_RE.sub('', text)
+    text = _PAGE_MARK_RE.sub('', text)
+
+    lines: list[str] = []
+    prev_compact: str = ''
     for line in text.split("\n"):
         stripped = line.strip()
-        if not stripped or len(stripped) < 4:
+
+        # Keep blank lines as paragraph separators, but collapse later
+        if not stripped:
             lines.append("")
+            prev_compact = ''
             continue
+
+        # Drop lines that are 1-3 chars (glyph-per-line dump fragments)
+        if len(stripped) <= 3:
+            continue
+
+        # Drop noise patterns
         if noise.match(stripped):
             continue
+
+        # Deduplicate mirror/echo text:
+        # If this line (spaces removed) == previous non-empty line (spaces removed)
+        # it is most likely the spaced-glyph version of that same text → drop it.
+        compact = re.sub(r'\s+', '', stripped)
+        if compact and compact == prev_compact:
+            # Replace the previously-stored version with the current (typically the
+            # clean, concatenated form — the spaced/glyph version was stored first).
+            fixed_cur = re.sub(r'([a-z])([A-Z][a-z])', r'\1 \2', stripped)
+            fixed_cur = re.sub(r'([.!?])([A-Z])', r'\1 \2', fixed_cur)
+            if lines and lines[-1].strip():
+                lines[-1] = fixed_cur
+            continue
+        prev_compact = compact if compact else prev_compact
+
         fixed = re.sub(r'([a-z])([A-Z][a-z])', r'\1 \2', stripped)
         fixed = re.sub(r'([.!?])([A-Z])', r'\1 \2', fixed)
         lines.append(fixed)
+
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 

@@ -442,11 +442,11 @@ export default function NotebookWorkspace() {
         if (!note) return [];
         const byH2 = note.split(/(?=^## )/m).map(s => s.trim()).filter(Boolean);
         if (byH2.length > 0) {
-            // Group sections together targeting ~2200 chars per page
-            const TARGET = 2200;
+            // Group sections together targeting ~3000 chars per page
+            const TARGET = 3000;
             const merged = []; let buf = '';
             for (const s of byH2) {
-                if (buf && buf.length + s.length + 2 > TARGET && buf.length > 500) {
+                if (buf && buf.length + s.length + 2 > TARGET && buf.length > 200) {
                     merged.push(buf.trim());
                     buf = s;
                 } else {
