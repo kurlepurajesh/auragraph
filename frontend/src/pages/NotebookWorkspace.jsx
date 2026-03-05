@@ -328,6 +328,14 @@ function NoteRenderer({ content }) {
         ul({ children }) { return <ul style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize: 16, color: '#18181B' }}>{children}</ul>; },
         ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize: 16, color: '#18181B' }}>{children}</ol>; },
         li({ children }) { return <li style={{ marginBottom: 5 }}>{children}</li>; },
+        img({ src, alt }) {
+            return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F4F4F5', border: '1px solid #E4E4E7', borderRadius: 8, padding: '12px 16px', margin: '14px 0', color: '#71717A', fontSize: 13, fontStyle: 'italic', fontFamily: '"DM Sans",sans-serif' }}>
+                    <span style={{ fontSize: 18 }}>🖼</span>
+                    <span>{alt ? `Figure: ${alt}` : 'Figure'}</span>
+                </div>
+            );
+        },
     };
     return <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{content || ''}</ReactMarkdown>;
 }

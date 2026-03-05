@@ -3,7 +3,21 @@ import { useSelector, useDispatch } from 'react-redux';
 import { setGraphData, updateNodeStatus } from './store';
 import EnhancedGraph from './AuraGraphNodeGraph';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { Sparkles, Loader2, ChevronLeft, ChevronRight, FilePlus2, BookOpen, Upload, FileText, X, MessageSquare } from 'lucide-react';
+
+const KATEX_OPTS = { throwOnError: false, strict: false, errorColor: '#cc0000' };
+const IMG_OVERRIDE = {
+    img({ src, alt }) {
+        if (!src) return null;
+        return (
+            <div style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: 8, padding: '14px 18px', margin: '12px 0', fontSize: 12, color: '#475569', fontStyle: 'italic' }}>
+                {alt ? `[Figure: ${alt}]` : '[Figure]'}
+            </div>
+        );
+    }
+};
 
 // ─── Mutation Modal ──────────────────────────────────────────────────────────
 function MutateModal({ page, onClose, onMutate }) {
@@ -186,7 +200,11 @@ function NoteViewer({ pages, currentPage, setCurrentPage, note, prof }) {
                 )}
                 {pages.length > 0 && (
                     <div style={{ fontSize: 14.5, lineHeight: 2.0, color: '#cbd5e1', fontFamily: "Georgia,'Times New Roman',serif", background: '#0a101d', padding: '40px 44px', borderRadius: 14, boxShadow: '0 10px 40px rgba(0,0,0,0.6)', minHeight: 320 }}>
-                        <ReactMarkdown>{pages[currentPage]}</ReactMarkdown>
+                        <ReactMarkdown
+                            remarkPlugins={[remarkMath]}
+                            rehypePlugins={[[rehypeKatex, KATEX_OPTS]]}
+                            components={IMG_OVERRIDE}
+                        >{pages[currentPage]}</ReactMarkdown>
                     </div>
                 )}
             </div>
@@ -340,7 +358,11 @@ export default function AuraGraph() {
                         </button>
                         {examQ && (
                             <div style={{ marginTop: 10, padding: 10, background: "#1e1b4b", borderRadius: 6, fontSize: 11, color: "#e2e8f0", maxHeight: 160, overflowY: "auto" }}>
-                                <ReactMarkdown>{examQ}</ReactMarkdown>
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkMath]}
+                                    rehypePlugins={[[rehypeKatex, KATEX_OPTS]]}
+                                    components={IMG_OVERRIDE}
+                                >{examQ}</ReactMarkdown>
                             </div>
                         )}
                     </div>

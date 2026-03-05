@@ -874,6 +874,171 @@ except Exception as e:
 
 
 # =========================================================
+# 13.  Aggressive math: _raw_to_latex + delimiter torture
+# =========================================================
+sec("13 . Aggressive math: _raw_to_latex + delimiter torture")
+from agents.local_summarizer import _raw_to_latex, _is_math_line
+
+# ── 13a: _raw_to_latex symbol table ──────────────────────────────
+RAW_TO_LATEX_CASES = [
+    # (raw input,             expected substring in output)
+    ("integral x dt",         r"\int"),
+    ("sum_{n=0}^{N}",         r"\sum"),
+    ("prod_{k=1}^{N}",        r"\prod"),
+    ("sqrt(x^2 + y^2)",       r"\sqrt"),
+    ("lim_{x->0} f(x)",       r"\lim"),
+    ("alpha + beta",          r"\alpha"),
+    ("gamma * delta",         r"\gamma"),
+    ("epsilon < zeta",        r"\epsilon"),
+    ("theta = pi/4",         r"\theta"),
+    ("lambda * Omega",        r"\lambda"),
+    ("mu and sigma",          r"\mu"),
+    ("sigma and rho",         r"\sigma"),
+    ("omega = 2pi*f_0",       r"\omega"),
+    ("nabla f(x,y)",          r"\nabla"),
+    ("x -> y => z",           r"\rightarrow"),
+    ("x <-> y",               r"\leftrightarrow"),
+    ("P(X) >= 0",             r"\geq"),
+    ("a != b",                r"\neq"),
+    ("infty or infinity",     r"\infty"),
+    ("sin(theta) + cos(phi)", r"\sin"),
+    ("log(x) + ln(y)",        r"\log"),
+    ("exp(-x^2/2)",           r"\exp"),
+]
+for raw, expected_sub in RAW_TO_LATEX_CASES:
+    result = _raw_to_latex(raw)
+    if expected_sub in result:
+        ok(f"_raw_to_latex: {repr(raw)[:40]}", f"-> {expected_sub}")
+    else:
+        fail(f"_raw_to_latex: {repr(raw)[:40]}",
+             f"Expected {repr(expected_sub)} in output\nGot: {repr(result)}")
+
+# ── 13b: _is_math_line torture — harder edge cases ────────────────
+HARD_MATH_CASES = [
+    # heavy LaTeX — definitely math
+    (r"$$\int_{-\infty}^{\infty} f(x) e^{-j\omega x} dx$$",  True),
+    (r"$X(z) = \sum_{n=0}^{N-1} x[n] z^{-n}$",              True),
+    (r"$\sigma^2 = \frac{1}{N}\sum_{i=1}^{N}(x_i - \mu)^2$", True),
+    (r"$P(A|B) = \frac{P(B|A)P(A)}{P(B)}$",                  True),
+    # operator-dense short lines  —  math
+    ("a^2 + b^2 = c^2",                                       True),
+    ("H(z) = Y(z)/X(z)",                                      True),
+    ("f'(x) = lim_{h->0} [f(x+h)-f(x)]/h",                   True),
+    ("det(A - lambda*I) = 0",                                  True),
+    # pure prose sentences  —  not math
+    ("The sampling theorem is fundamental to digital signal processing.", False),
+    ("We will now prove the convolution theorem using Fourier analysis.", False),
+    ("Linearity means the system satisfies superposition.",             False),
+    ("Consider a discrete-time signal x of length N.",                 False),
+    # borderline — very short single-char assignment is treated as math
+    ("n = 8",                                                          True),
+    ("k is the frequency index",                                       False),
+]
+for line, expected in HARD_MATH_CASES:
+    result = _is_math_line(line)
+    if result == expected:
+        ok(f"_is_math_line hard: {repr(line)[:55]}", "math" if expected else "prose")
+    else:
+        fail(f"_is_math_line hard: {repr(line)[:55]}",
+             f"Expected {'math' if expected else 'prose'}, got {'math' if result else 'prose'}")
+
+# ── 13c: fix_latex_delimiters — complex real-world documents ──────
+TORTURE_CASES = [
+    # Multiple inline parens in one paragraph
+    ("multi inline in para",
+     r"We have \(f(x)\) and also \(g(x)\) which together give \(h(x)\).",
+     lambda r: r.count("\\(") == 0 and r.count("$") == 6,
+     "all 3 \\(...\\) -> $ ... $"),
+
+    # Display block nested inside a paragraph (common in AI output)
+    ("display inside para text",
+     "The DFT is given by:\n\\[\nX[k] = \\sum_{n=0}^{N-1} x[n] e^{-j2\\pi kn/N}\n\\]\nand this defines the spectrum.",
+     lambda r: "\\[" not in r and "$$" in r,
+     "\\[...\\] replaced by $$ block"),
+
+    # Mix of inline and display in one document
+    ("mixed inline+display",
+     "Energy \\(E = mc^2\\) is famous.\n\n\\[\\int_0^1 x dx = 0.5\\]\n\nThis ends the proof.",
+     lambda r: "\\(" not in r and "\\[" not in r,
+     "no raw delimiters remain"),
+
+    # Already-normalised note must survive unchanged (idempotent)
+    ("idempotent: already normalised note unchanged",
+     "## Topic\n\nProse text.\n\n$$\nE = mc^2\n$$\n\nMore prose with $x^2$ inline.",
+     lambda r: r.count("$$") == 2 and "$x^2$" in r,
+     "already-normalised note unchanged"),
+
+    # Wall of $$ — many display blocks back to back
+    ("many display blocks in sequence",
+     "\n\n".join(f"$$\nf_{i}(x)\n$$" for i in range(5)),
+     lambda r: r.count("$$") == 10,
+     "10 $$ markers preserved"),
+
+    # Inline math at start and end of line (no surrounding space)
+    ("inline math at line boundaries",
+     r"$a$ plus $b$ equals $c$",
+     lambda r: r.count("$") >= 6 and "\\(" not in r,
+     "6 $ markers, no raw parens"),
+
+    # Bare \\( ... \\) spanning 5 lines
+    ("five-line inline paren",
+     "Start \\(\n  a\n  +\n  b\n  = c\n\\) end",
+     lambda r: "\\(" not in r and "$" in r,
+     "five-line paren becomes single $"),
+
+    # Real formula: Bayes theorem with multiple nested parens
+    ("Bayes theorem with parens",
+     r"\(P(A|B) = \frac{P(B|A) \cdot P(A)}{P(B)}\)",
+     lambda r: "\\(" not in r and "$P(A|B)" in r,
+     "Bayes inline -> $...$"),
+]
+
+for desc, src, predicate, detail in TORTURE_CASES:
+    try:
+        result = fix_latex_delimiters(src)
+        if predicate(result):
+            ok(f"Torture [{desc}]", detail)
+        else:
+            fail(f"Torture [{desc}]", f"{detail}\nResult: {repr(result[:200])}")
+    except Exception as e:
+        fail(f"Torture [{desc}]", str(e))
+
+# ── 13d: image-in-note — _strip_metadata_lines & pipeline pass-through ──
+IMAGE_IN_MD = (
+    "## Fourier Transform\n\n"
+    "The spectrum is shown below.\n\n"
+    "![Frequency spectrum](spectrum.png)\n\n"
+    "Note the peak at f_0.\n\n"
+    "![Block diagram of LTI system](lti_block.png)\n\n"
+    "The transfer function H(z) relates input to output.\n"
+)
+# After stripping metadata lines, markdown image syntax must NOT be destroyed
+stripped = _strip_metadata_lines(IMAGE_IN_MD)
+if "![Frequency spectrum]" in stripped and "![Block diagram" in stripped:
+    ok("Image Markdown syntax preserved through _strip_metadata_lines")
+else:
+    fail("Image Markdown syntax destroyed by _strip_metadata_lines",
+         f"Got: {repr(stripped[:300])}")
+
+# generate_local_note must not crash on a note containing markdown image refs
+try:
+    note_with_img = generate_local_note(IMAGE_IN_MD, "See figure for reference.", "Beginner")
+    ok("generate_local_note handles note with image markdown (no crash)",
+       f"{len(note_with_img)} chars")
+except Exception as e:
+    fail("generate_local_note crashed on image markdown", traceback.format_exc())
+
+# fix_latex_delimiters must not destroy ![alt](src) image references
+img_md = "Some text $x^2$ and an image: ![fig](img.png) and more $y$."
+img_result = fix_latex_delimiters(img_md)
+if "![fig](img.png)" in img_result:
+    ok("fix_latex_delimiters preserves ![alt](src) image references")
+else:
+    fail("fix_latex_delimiters destroyed image markdown",
+         f"Got: {repr(img_result)}")
+
+
+# =========================================================
 # Summary
 # =========================================================
 total = passed + failed + skipped
