@@ -212,13 +212,21 @@ NOTES:
 
 # ── Textbook instruction builder ─────────────────────────────────────────────
 
-def _textbook_instruction_block(textbook_context: str, max_chars: int = 5_000) -> str:
+def _textbook_instruction_block(textbook_context: str, max_chars: int = 7_000) -> str:
     """Build the textbook context block for the note generation prompt."""
     has_tb = bool(textbook_context) and textbook_context.strip() not in ("", "(none)")
     if has_tb:
         return (
-            "TEXTBOOK CONTEXT (enrichment only — deepen slide content, never add new topics):\n"
+            "TEXTBOOK CONTEXT (use this aggressively — it is a high-quality academic source):\n"
             + textbook_context[:max_chars]
+            + "\n\n"
+            "TEXTBOOK USAGE RULES:\n"
+            "• Pull precise definitions, full theorem statements, and complete proofs directly from the textbook.\n"
+            "• If the textbook has a worked example that matches the topic, reproduce or adapt it — cite [Textbook] inline.\n"
+            "• If the textbook shows a derivation, include it step-by-step in the notes.\n"
+            "• Prefer the textbook's notation when it is cleaner than the slide notation.\n"
+            "• Use textbook chapter/section headings as sub-heading hints where relevant.\n"
+            "• Do NOT introduce topics that appear ONLY in the textbook but NOT in the slides."
         )
     return (
         "TEXTBOOK CONTEXT: None provided.\n"
@@ -357,7 +365,7 @@ async def generate_topic_note(
             topic=topic.topic,
             key_points_block=key_points_block,
             slide_text=topic.slide_text[:8_000],
-            textbook_instruction=_textbook_instruction_block(textbook_context, 5_000),
+            textbook_instruction=_textbook_instruction_block(textbook_context, 7_000),
             proficiency=proficiency,
         )
         result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=3500)
@@ -370,7 +378,7 @@ async def generate_topic_note(
             topic=topic.topic,
             key_points_block=key_points_block,
             slide_text=topic.slide_text[:6_000],
-            textbook_instruction=_textbook_instruction_block(textbook_context, 4_000),
+            textbook_instruction=_textbook_instruction_block(textbook_context, 5_500),
             proficiency=proficiency,
         )
         result = await _call_groq(_NOTE_SYSTEM, user, max_tokens=3000)

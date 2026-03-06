@@ -33,10 +33,10 @@ from pipeline.vector_db import VectorDB
 logger = logging.getLogger(__name__)
 
 # How many textbook chunks to retrieve per topic
-TOP_K_PER_TOPIC = 6
+TOP_K_PER_TOPIC = 10
 
 # Max chars of textbook context to pass into note generation per topic
-MAX_CONTEXT_CHARS = 8_000
+MAX_CONTEXT_CHARS = 14_000
 
 
 def _build_retrieval_query(topic: SlideTopic) -> str:
@@ -124,9 +124,8 @@ class TopicRetriever:
         if not results:
             return ""
 
-        # Filter out very low-similarity chunks (score < 0.05)
-        # to avoid injecting irrelevant textbook content
-        results = [(c, s) for c, s in results if s >= 0.05]
+        # Filter out low-similarity chunks; keep only reasonably relevant ones
+        results = [(c, s) for c, s in results if s >= 0.03]
 
         if not results:
             logger.debug("TopicRetriever: no relevant chunks for '%s' (all below threshold)", topic.topic)
