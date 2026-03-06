@@ -1,0 +1,285 @@
+"""
+pipeline/note_generator.py
+──────────────────────────
+Step 6 + Step 7 + Step 8 — Note Generation, Merging, Refinement.
+
+For each lecture topic:
+  • Slide content (verbatim from slide_analyzer)
+  • Retrieved textbook context (from topic_retriever)
+  → One GPT call per topic → structured Markdown section
+
+Then:
+  • Merge all sections into one document (Step 7)
+  • Optional single refinement pass (Step 8)
+
+LLM call budget (as required by spec):
+  1  call for slide analysis        (slide_analyzer.py)
+  N  calls for per-topic generation (this file)
+  1  call for refinement            (this file, optional)
+
+Fallback: if Azure is unavailable, builds notes from slide content alone
+using deterministic templates — same quality as local_summarizer.py.
+"""
+from __future__ import annotations
+
+import logging
+import os
+from typing import Optional
+
+from pipeline.slide_analyzer import SlideTopic
+from agents.latex_utils import fix_latex_delimiters
+
+logger = logging.getLogger(__name__)
+
+
+# ── Prompts ───────────────────────────────────────────────────────────────────
+
+_NOTE_SYSTEM = """\
+You are AuraGraph, an expert academic note writer for engineering students in India.
+Your notes are read the night before an exam. Every sentence must earn its place.
+"""
+
+_NOTE_USER_TEMPLATE = """\
+Generate structured study notes for ONE lecture topic.
+
+TOPIC: {topic}
+
+SLIDE CONTENT (primary — follow this exactly):
+{slide_text}
+
+TEXTBOOK CONTEXT (enrichment only — deepen the slide content, never add new topics):
+{textbook_context}
+
+TARGET PROFICIENCY: {proficiency}
+
+════════════════════════════════
+RULES (follow strictly)
+════════════════════════════════
+STRUCTURE:
+• Start with exactly: ## {topic}
+• Only add ### sub-headings if the topic genuinely has distinct sub-topics.
+• End with: > 📝 **Exam Tip:** (one sentence, exam-specific)
+• No preamble, no conclusion paragraphs.
+
+CONTENT:
+• Follow the SLIDE CONTENT as your primary source.
+• Use TEXTBOOK CONTEXT only to clarify, add a missing definition, or add one example.
+• NEVER introduce a concept that is not in the slides.
+
+PROFICIENCY ADAPTATION:
+BEGINNER:
+  1. Plain-English sentence: "Simply put, X is …"
+  2. One analogy in a > blockquote.
+  3. Key formula(s) with **Where:** table (one line per symbol).
+  4. Numbered steps if there is a process.
+
+INTERMEDIATE:
+  1. Formal definition.
+  2. Intuition sentence linking formula to real meaning.
+  3. Display LaTeX for every key formula; define symbols inline.
+  4. Key conditions / edge cases as bullets.
+
+ADVANCED:
+  1. Formal definition with all conditions.
+  2. Full derivation. Terse algebra. No commentary between steps.
+  3. Validity / convergence conditions.
+  4. Edge cases as bullets.
+  5. One comparison with a related concept.
+
+MATHEMATICS:
+• ALL math in LaTeX. NEVER write "integral", "sigma", "omega" as English words.
+• Inline: $expression$   Display (own line):
+  $$
+  formula here
+  $$
+• NEVER use \\[ \\] or \\( \\). ONLY $ and $$.
+• NEVER wrap math in backtick code fences.
+
+OUTPUT: Only the ## section. Nothing before it, nothing after the Exam Tip.
+"""
+
+_REFINEMENT_SYSTEM = """\
+You are an expert academic editor.
+Improve the clarity and readability of these study notes.
+"""
+
+_REFINEMENT_USER = """\
+Below are draft study notes. Improve them according to these rules:
+
+RULES:
+• Do NOT add new topics or ## sections.
+• Do NOT change the topic order or structure.
+• Fix awkward phrasing, redundancy, and unclear explanations.
+• Ensure all formulas use $...$ or $$ ... $$ LaTeX — never \\( \\) or \\[ \\].
+• Ensure every ## section ends with > 📝 **Exam Tip:** ...
+• Remove any preamble or conclusion text you find.
+• Output ONLY the improved notes — no commentary.
+
+NOTES:
+{notes}
+"""
+
+
+# ── Azure direct HTTP call (same pattern as slide_analyzer.py) ─────────────
+
+def _azure_available() -> bool:
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+    api_key  = os.environ.get("AZURE_OPENAI_API_KEY",  "")
+    return bool(endpoint) and bool(api_key) and "mock" not in endpoint.lower()
+
+
+async def _call_azure(
+    system: str,
+    user:   str,
+    max_tokens: int = 2048,
+) -> Optional[str]:
+    """Direct Azure OpenAI call. Returns text or None on failure."""
+    try:
+        import httpx
+    except ImportError:
+        logger.warning("httpx not installed — Azure note generation unavailable")
+        return None
+
+    endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    api_key    = os.environ.get("AZURE_OPENAI_API_KEY",  "")
+    deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+    api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
+
+    url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
+    payload = {
+        "messages":   [{"role": "system", "content": system},
+                       {"role": "user",   "content": user}],
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            resp = await client.post(url, json=payload, headers={"api-key": api_key})
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        logger.warning("note_generator Azure call failed: %s", e)
+        return None
+
+
+# ── Per-topic generation ───────────────────────────────────────────────────
+
+async def generate_topic_note(
+    topic:            SlideTopic,
+    textbook_context: str,
+    proficiency:      str = "Intermediate",
+) -> str:
+    """
+    Generate one ## section for a single lecture topic.
+    Uses Azure if available; falls back to a deterministic template.
+    """
+    if _azure_available():
+        user = _NOTE_USER_TEMPLATE.format(
+            topic=topic.topic,
+            slide_text=topic.slide_text[:6_000],
+            textbook_context=textbook_context[:4_000] if textbook_context else "(none)",
+            proficiency=proficiency,
+        )
+        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=1500)
+        if result:
+            # Ensure it starts with the ## heading
+            if not result.lstrip().startswith("##"):
+                result = f"## {topic.topic}\n\n{result}"
+            return fix_latex_delimiters(result)
+
+    # ── Deterministic fallback ─────────────────────────────────────────────
+    return _build_fallback_section(topic, textbook_context, proficiency)
+
+
+def _build_fallback_section(
+    topic:            SlideTopic,
+    textbook_context: str,
+    proficiency:      str,
+) -> str:
+    """
+    Build a note section without LLM.
+    Preserves all slide content and inlines a snippet of textbook context.
+    """
+    from agents.local_summarizer import _build_section, _extract_math_and_prose
+
+    body = topic.slide_text
+    # Strip slide boundary markers for the body
+    import re
+    body = re.sub(r'^---\s*Slide\s+\d+[^\n]*---\s*\n?', '', body, flags=re.MULTILINE).strip()
+    enrichment = textbook_context[:300] if textbook_context else ""
+
+    section = _build_section(topic.topic, body, enrichment, 8, proficiency)
+    if section:
+        return fix_latex_delimiters(section)
+
+    # Absolute fallback: just wrap slide text
+    return fix_latex_delimiters(f"## {topic.topic}\n\n{body}\n\n> 📝 **Exam Tip:** Review this concept carefully.")
+
+
+# ── Merge + Refinement ─────────────────────────────────────────────────────
+
+def merge_sections(sections: list[str]) -> str:
+    """Concatenate all topic sections in order with clean spacing."""
+    cleaned = []
+    for s in sections:
+        s = s.strip()
+        if s:
+            cleaned.append(s)
+    return "\n\n".join(cleaned)
+
+
+async def refine_notes(notes: str) -> str:
+    """
+    Single refinement pass to improve clarity (Step 8).
+    Only called when Azure is available and notes > 500 chars.
+    Returns original notes on failure.
+    """
+    if not _azure_available() or len(notes) < 500:
+        return notes
+
+    user    = _REFINEMENT_USER.format(notes=notes[:30_000])
+    refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=4096)
+    if refined and len(refined) > len(notes) * 0.3:
+        return fix_latex_delimiters(refined)
+
+    logger.info("Refinement produced short/empty output — keeping original")
+    return notes
+
+
+# ── Full pipeline orchestration ────────────────────────────────────────────
+
+async def run_generation_pipeline(
+    topics:           list[SlideTopic],
+    topic_contexts:   dict[str, str],   # topic_name → textbook context string
+    proficiency:      str = "Intermediate",
+    refine:           bool = True,
+) -> str:
+    """
+    Run Step 6 (N topic calls) + Step 7 (merge) + Step 8 (refinement).
+
+    Args:
+        topics:         Ordered list of SlideTopic from slide_analyzer.
+        topic_contexts: Dict from topic_retriever mapping topic → context string.
+        proficiency:    "Beginner" | "Intermediate" | "Advanced"
+        refine:         Whether to run the Step 8 refinement pass.
+
+    Returns:
+        Full merged + (optionally) refined note string in Markdown.
+    """
+    if not topics:
+        return ""
+
+    sections: list[str] = []
+    for topic in topics:
+        context = topic_contexts.get(topic.topic, "")
+        logger.info("Generating note for topic: %s", topic.topic)
+        section = await generate_topic_note(topic, context, proficiency)
+        sections.append(section)
+
+    merged = merge_sections(sections)
+
+    if refine and _azure_available():
+        logger.info("Running refinement pass on %d chars", len(merged))
+        merged = await refine_notes(merged)
+
+    return merged

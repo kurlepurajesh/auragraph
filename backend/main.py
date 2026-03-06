@@ -341,16 +341,31 @@ async def upload_fuse_multi(
 ):
     """
     Main upload-and-generate endpoint.
+    Implements the full 8-step semantic pipeline from the architecture spec:
 
-    Steps:
-      1. Extract text from all uploaded PDFs/PPTXs
-      2. Chunk everything and store ALL chunks verbatim in the knowledge store
-      3. Retrieve the most relevant chunks for note generation
-      4. Generate notes via Azure GPT (or local fallback)
-      5. Split notes into pages and store the page index
-      6. Return the full note + storage stats
+      Step 1 — Text Extraction
+      Step 2 — Textbook Chunking (400-700 token chunks with chapter/section metadata)
+      Step 3 — Embeddings (Azure text-embedding-3-large or TF-IDF fallback)
+      Step 4 — Slide Understanding (1 GPT call → structured topic list)
+      Step 5 — Topic-Based Retrieval (semantic search per topic)
+      Step 6 — Per-Topic Note Generation (N GPT calls, one per topic)
+      Step 7 — Merge Notes
+      Step 8 — Refinement (1 GPT call)
+
+    Everything is also stored verbatim in the knowledge store so that
+    doubt answering and mutation have full source context.
+
+    LLM budget: 1 (slide analysis) + N (topic notes) + 1 (refinement) calls.
+    Everything else (chunking, embedding, retrieval) is deterministic.
     """
-    # ── Step 1: Extract ──────────────────────────────────────────────────────
+    from pipeline.chunker import chunk_textbook
+    from pipeline.embedder import Embedder
+    from pipeline.vector_db import VectorDB
+    from pipeline.slide_analyzer import analyse_slides
+    from pipeline.topic_retriever import TopicRetriever
+    from pipeline.note_generator import run_generation_pipeline
+
+    # ── Step 1: Text Extraction ───────────────────────────────────────────────
     all_slides_text   = ""
     all_textbook_text = ""
     extraction_errors: list[str] = []
@@ -379,57 +394,105 @@ async def upload_fuse_multi(
             detail += " Errors: " + "; ".join(extraction_errors)
         raise HTTPException(422, detail)
 
-    # ── Step 2: Chunk and STORE EVERYTHING ───────────────────────────────────
-    slide_chunks    = chunk_text(all_slides_text,   max_chars=4000)
-    textbook_chunks = chunk_text(all_textbook_text, max_chars=4000)
+    # ── Step 2: Chunk and Store EVERYTHING verbatim ───────────────────────────
+    # Store raw slide + textbook chunks for doubt/mutation retrieval
+    slide_raw_chunks    = chunk_text(all_slides_text,   max_chars=4000)
+    textbook_raw_chunks = chunk_text(all_textbook_text, max_chars=4000)
 
     chunks_stored = None
     if notebook_id:
         try:
             chunks_stored = store_source_chunks(nb_id=notebook_id,
-                                                slide_chunks=slide_chunks,
-                                                textbook_chunks=textbook_chunks)
-            logger.info("Stored %d chunks for notebook %s", chunks_stored["total"], notebook_id)
+                                                slide_chunks=slide_raw_chunks,
+                                                textbook_chunks=textbook_raw_chunks)
+            logger.info("Knowledge store: %d total chunks for notebook %s",
+                        chunks_stored["total"], notebook_id)
         except Exception as e:
             logger.warning("Knowledge store write failed: %s", e)
 
-    # ── Step 3: Build prompt content ─────────────────────────────────────────
-    # If we stored chunks, retrieve the best ones; otherwise use full text
-    if notebook_id and chunks_stored:
-        # Use a broad query covering the whole note to get representative coverage
-        coverage_query = all_slides_text[:500]  # first 500 chars as proxy for topic
-        slide_hits    = retrieve_relevant_chunks(notebook_id, coverage_query,
-                                                 top_k=20, source_filter="slides")
-        textbook_hits = retrieve_relevant_chunks(notebook_id, coverage_query,
-                                                 top_k=15, source_filter="textbook")
-        slide_content    = _format_chunks_for_prompt(slide_hits,    _PROMPT_SLIDES_BUDGET)
-        textbook_content = _format_chunks_for_prompt(textbook_hits, _PROMPT_TEXTBOOK_BUDGET)
-    else:
-        # No notebook_id (legacy path) — use raw text with budget cap
-        slide_content    = all_slides_text[:_PROMPT_SLIDES_BUDGET]
-        textbook_content = all_textbook_text[:_PROMPT_TEXTBOOK_BUDGET]
-
-    # ── Step 4: Generate notes ────────────────────────────────────────────────
-    fused_note    = None
-    source        = "local"
-    azure_error   = None
-
-    if _is_azure_available():
+    # ── Step 2b: Semantic chunking of textbook for vector search ─────────────
+    textbook_semantic_chunks = []
+    if all_textbook_text.strip():
         try:
-            logger.info("Azure fusion: slides=%d chars, textbook=%d chars",
-                        len(slide_content), len(textbook_content))
-            fused_note = await fusion_agent.fuse(slide_content, textbook_content, proficiency)
-            source     = "azure"
+            textbook_semantic_chunks = chunk_textbook(all_textbook_text)
+            logger.info("Textbook: %d semantic chunks", len(textbook_semantic_chunks))
+        except Exception as e:
+            logger.warning("Textbook chunking failed: %s", e)
+
+    # ── Step 3: Embeddings ────────────────────────────────────────────────────
+    embedder   = Embedder()
+    vector_db  = VectorDB()
+    embed_backend = "none"
+
+    if textbook_semantic_chunks:
+        # Try to load persisted vectors first (fast path on re-generation)
+        loaded = False
+        if notebook_id:
+            try:
+                loaded = vector_db.load(notebook_id)
+                if loaded:
+                    logger.info("Loaded persisted vector index for notebook %s", notebook_id)
+            except Exception:
+                pass
+
+        if not loaded:
+            try:
+                embed_backend = embedder.embed_chunks(textbook_semantic_chunks)
+                vector_db.add_chunks(textbook_semantic_chunks)
+                if notebook_id:
+                    vector_db.save(notebook_id)
+                logger.info("Embedded %d textbook chunks via %s", len(textbook_semantic_chunks), embed_backend)
+            except Exception as e:
+                logger.warning("Embedding failed: %s", e)
+
+    # ── Step 4: Slide Understanding (1 LLM call) ──────────────────────────────
+    topics = []
+    try:
+        topics = await analyse_slides(all_slides_text)
+        logger.info("Slide analysis: %d topics extracted", len(topics))
+    except Exception as e:
+        logger.warning("Slide analysis failed: %s", e)
+
+    # ── Step 5: Topic-Based Retrieval ─────────────────────────────────────────
+    topic_contexts: dict[str, str] = {}
+    if topics and vector_db.size > 0:
+        try:
+            retriever = TopicRetriever(vector_db, embedder)
+            topic_contexts = retriever.retrieve_all_topics(topics)
+            logger.info("Retrieved textbook context for %d topics", len(topic_contexts))
+        except Exception as e:
+            logger.warning("Topic retrieval failed: %s", e)
+
+    # ── Steps 6+7+8: Note Generation + Merge + Refinement ────────────────────
+    fused_note  = None
+    source      = "local"
+    azure_error = None
+
+    if topics:
+        try:
+            fused_note = await run_generation_pipeline(
+                topics=topics,
+                topic_contexts=topic_contexts,
+                proficiency=proficiency,
+                refine=_is_azure_available(),
+            )
+            source = "azure" if _is_azure_available() else "local"
+            logger.info("Pipeline generated %d chars", len(fused_note or ""))
         except Exception as exc:
             azure_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("Azure fusion failed: %s", azure_error)
+            logger.warning("Pipeline generation failed: %s", azure_error)
 
-    if fused_note is None:
+    # Final fallback: if pipeline produced nothing, use local summarizer
+    if not fused_note or len(fused_note.strip()) < 100:
+        logger.info("Falling back to local summarizer")
+        if azure_error is None and not _is_azure_available():
+            azure_error = None  # silent: Azure not configured
         fused_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
+        source     = "local"
 
     fused_note = fix_latex_delimiters(fused_note)
 
-    # ── Step 5: Store note pages ──────────────────────────────────────────────
+    # ── Store note pages ──────────────────────────────────────────────────────
     if notebook_id:
         try:
             pages = _note_to_pages(fused_note)
@@ -438,8 +501,6 @@ async def upload_fuse_multi(
         except Exception as e:
             logger.warning("Note page store failed: %s", e)
 
-    # ── Step 6: Persist note in notebook store ────────────────────────────────
-    if notebook_id:
         try:
             update_notebook_note(notebook_id, fused_note, proficiency)
         except Exception:
@@ -449,7 +510,7 @@ async def upload_fuse_multi(
     if source == "local" and azure_error:
         fallback_warning = f"Azure unavailable ({azure_error}) — offline notes used."
     elif source == "local":
-        fallback_warning = "Azure not configured — offline notes used."
+        fallback_warning = "Azure not configured — offline summariser used."
 
     return FusionResponse(
         fused_note=fused_note,

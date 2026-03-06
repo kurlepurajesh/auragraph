@@ -1,4 +1,4 @@
-"""
+r"""
 agents/latex_utils.py
 Utility: normalize all LaTeX delimiter variants to $ / $$ (rehype-katex friendly).
 
