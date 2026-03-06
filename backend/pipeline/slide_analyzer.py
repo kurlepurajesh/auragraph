@@ -161,10 +161,11 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
         api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
         deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
         url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
+        user_content = _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:40_000])
         payload = {
             "messages": [
                 {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
-                {"role": "user",   "content": _SLIDE_ANALYSIS_USER.format(slides=slides_text[:40_000])},
+                {"role": "user",   "content": user_content},
             ],
             "max_tokens":     4096,
             "temperature":    0.1,
@@ -199,7 +200,7 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
         api_key = os.environ.get("GROQ_API_KEY", "")
         model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
         user_prompt = (
-            _SLIDE_ANALYSIS_USER.format(slides=slides_text[:35_000])
+            _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:35_000])
             + "\n\nIMPORTANT: Output ONLY a valid JSON array. No markdown fences. No explanation."
         )
         payload = {
