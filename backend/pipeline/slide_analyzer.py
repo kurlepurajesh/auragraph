@@ -102,16 +102,47 @@ def _groq_ok() -> bool:
 
 
 def _parse_topics_json(content: str) -> Optional[list[dict]]:
-    """Parse JSON content into a list of topic dicts, unwrapping common wrappers."""
+    """Parse JSON content into a list of topic dicts, unwrapping common wrappers.
+
+    Handles:
+      • bare JSON arrays
+      • objects with well-known keys (topics, lecture_topics, outline, …)
+      • objects with any unknown key whose value is a list  (catch-all)
+      • malformed/truncated output — scans for the first [ … ] array fragment
+    """
     # Strip markdown fences if present
     content = re.sub(r'^```[a-z]*\s*', '', content.strip(), flags=re.MULTILINE)
     content = re.sub(r'```\s*$', '', content.strip(), flags=re.MULTILINE)
-    parsed = json.loads(content.strip())
+    content = content.strip()
+
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        # Try to extract the first JSON array embedded anywhere in the text
+        m = re.search(r'\[', content)
+        if m:
+            try:
+                # json.JSONDecoder.raw_decode finds the largest valid object starting at pos
+                decoder = json.JSONDecoder()
+                parsed, _ = decoder.raw_decode(content, m.start())
+            except json.JSONDecodeError:
+                logger.warning("slide_analyzer: JSON parse failed; raw content head: %r", content[:300])
+                return None
+        else:
+            logger.warning("slide_analyzer: no JSON array found; raw content head: %r", content[:300])
+            return None
+
     if isinstance(parsed, list):
         return parsed
-    for key in ("topics", "lecture_topics", "outline", "data", "result"):
-        if key in parsed and isinstance(parsed[key], list):
-            return parsed[key]
+    if isinstance(parsed, dict):
+        # Well-known wrapper keys first
+        for key in ("topics", "lecture_topics", "outline", "data", "result", "items"):
+            if key in parsed and isinstance(parsed[key], list):
+                return parsed[key]
+        # Catch-all: return the first non-empty list value found
+        for val in parsed.values():
+            if isinstance(val, list) and val:
+                return val
     return None
 
 

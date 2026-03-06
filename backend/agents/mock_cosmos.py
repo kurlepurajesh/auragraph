@@ -41,10 +41,10 @@ def get_db(username: str = "anonymous") -> dict:
                 "nodes": [dict(n) for n in _DEFAULT_NODES],
                 "edges": [list(e) for e in _DEFAULT_EDGES],
             }
-            with open(path, "w") as f:
-                json.dump(db, f)
+            with open(path, "w", encoding='utf-8') as f:
+                json.dump(db, f, ensure_ascii=False)
             return db
-        with open(path, "r") as f:
+        with open(path, "r", encoding='utf-8') as f:
             return json.load(f)
 
 
@@ -53,8 +53,8 @@ def save_db(db: dict, username: str = "anonymous") -> None:
     path = _db_path(username)
     tmp  = path.with_suffix(".tmp")
     with _DB_LOCK:
-        with open(tmp, "w") as f:
-            json.dump(db, f)
+        with open(tmp, "w", encoding='utf-8') as f:
+            json.dump(db, f, ensure_ascii=False)
         os.replace(tmp, path)
 
 

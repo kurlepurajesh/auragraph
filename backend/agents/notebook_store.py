@@ -14,13 +14,13 @@ _NB_LOCK = threading.Lock()
 
 def _get_all():
     if not NOTEBOOKS_PATH.exists():
-        NOTEBOOKS_PATH.write_text(json.dumps([]))
-    return json.loads(NOTEBOOKS_PATH.read_text())
+        NOTEBOOKS_PATH.write_text(json.dumps([]), encoding='utf-8')
+    return json.loads(NOTEBOOKS_PATH.read_text(encoding='utf-8'))
 
 
 def _save_all(notebooks):
     # Caller must hold _NB_LOCK before calling this.
-    NOTEBOOKS_PATH.write_text(json.dumps(notebooks, indent=2))
+    NOTEBOOKS_PATH.write_text(json.dumps(notebooks, indent=2, ensure_ascii=False), encoding='utf-8')
 
 
 def create_notebook(user_id: str, name: str, course: str) -> dict:

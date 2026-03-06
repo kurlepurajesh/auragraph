@@ -15,13 +15,13 @@ _USERS_LOCK = threading.Lock()
 
 def _get_users():
     if not USERS_PATH.exists():
-        USERS_PATH.write_text(json.dumps([]))
-    return json.loads(USERS_PATH.read_text())
+        USERS_PATH.write_text(json.dumps([]), encoding='utf-8')
+    return json.loads(USERS_PATH.read_text(encoding='utf-8'))
 
 
 def _save_users(users):
     # Caller must hold _USERS_LOCK before calling this.
-    USERS_PATH.write_text(json.dumps(users, indent=2))
+    USERS_PATH.write_text(json.dumps(users, indent=2, ensure_ascii=False), encoding='utf-8')
 
 
 def _hash_password(password: str) -> str:

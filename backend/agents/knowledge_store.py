@@ -83,14 +83,14 @@ def _load_store(nb_id: str) -> dict:
     if not p.exists():
         return {"chunks": [], "note_pages": [], "stored_at": None}
     try:
-        return json.loads(p.read_text())
+        return json.loads(p.read_text(encoding='utf-8'))
     except Exception:
         return {"chunks": [], "note_pages": [], "stored_at": None}
 
 
 def _save_store(nb_id: str, store: dict):
     # Caller must hold _get_store_lock(nb_id) before calling this.
-    _store_path(nb_id).write_text(json.dumps(store, indent=2, ensure_ascii=False))
+    _store_path(nb_id).write_text(json.dumps(store, indent=2, ensure_ascii=False), encoding='utf-8')
 
 
 # ── Public API ────────────────────────────────────────────────────────────────

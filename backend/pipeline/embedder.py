@@ -67,11 +67,18 @@ def _get_azure_embedding_client():
 
 def _embed_azure(texts: list[str], client) -> Optional[np.ndarray]:
     """
-    Call Azure text-embedding-3-large for a batch of texts.
+    Call Azure OpenAI embeddings for a batch of texts.
     Returns shape (N, 1536) float32 array, or None on failure.
+
+    Requires AZURE_EMBEDDING_DEPLOYMENT to be explicitly set in the environment.
+    If absent we skip the Azure call entirely and let the TF-IDF fallback handle it —
+    this prevents DeploymentNotFound 404 errors when the tenant has no embedding model.
     """
+    deployment = os.environ.get("AZURE_EMBEDDING_DEPLOYMENT", "").strip()
+    if not deployment:
+        logger.debug("AZURE_EMBEDDING_DEPLOYMENT not set — skipping Azure, using TF-IDF")
+        return None
     try:
-        deployment = os.environ.get("AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-large")
         # Azure has a max batch size of 16 for embeddings
         all_vecs = []
         for i in range(0, len(texts), 16):
