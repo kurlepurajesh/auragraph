@@ -254,6 +254,37 @@ def _format_chunks_for_prompt(chunks: list[dict], budget: int) -> str:
     return "\n---\n".join(parts) if parts else "(no relevant content found)"
 
 
+def _match_image_to_topic(description: str, topics) -> str | None:
+    """
+    Match an image description to the most likely lecture topic using
+    tokenised word overlap (Jaccard similarity). Zero-dependency.
+    Returns the best topic name, or None if no meaningful match found.
+    """
+    import re as _re
+    STOP = {'a','an','the','is','are','of','in','on','at','to','for','with',
+            'its','this','that','these','those','it','as','by','be','was',
+            'were','showing','shows','figure','diagram','image','graph',
+            'chart','plot','from','and','or','not','each','which','where'}
+    def _tokens(s: str) -> set:
+        return set(_re.sub(r'[^\w\s]', '', s.lower()).split()) - STOP
+
+    desc_tokens = _tokens(description)
+    if not desc_tokens:
+        return None
+    best_score, best_topic = 0.0, None
+    for t in topics:
+        combined = t.topic + ' ' + ' '.join(getattr(t, 'key_points', [])[:4])
+        t_tokens = _tokens(combined)
+        if not t_tokens:
+            continue
+        inter = len(desc_tokens & t_tokens)
+        union = len(desc_tokens | t_tokens)
+        score = inter / union if union else 0.0
+        if score > best_score:
+            best_score, best_topic = score, t.topic
+    return best_topic if best_score > 0.04 else None
+
+
 def _note_to_pages(note: str) -> list[str]:
     """Split a note string into pages the same way the frontend does."""
     by_h2 = note.split("\n## ")
@@ -432,7 +463,7 @@ async def get_knowledge_stats(nb_id: str, authorization: Optional[str] = Header(
 @app.post("/api/upload-fuse-multi", response_model=FusionResponse)
 async def upload_fuse_multi(
     slides_pdfs:   List[UploadFile] = File(...),
-    textbook_pdfs: List[UploadFile] = File(...),
+    textbook_pdfs: Optional[List[UploadFile]] = File(default=None),
     proficiency:   str = Form("Intermediate"),
     notebook_id:   str = Form(""),
 ):
@@ -466,7 +497,9 @@ async def upload_fuse_multi(
     all_slides_text   = ""
     all_textbook_text = ""
     extraction_errors: list[str] = []
-    all_slide_images  = []    # ExtractedImage objects from all slides files
+    all_slide_images        = []    # ExtractedImage objects from all slides files
+    all_textbook_images     = []    # ExtractedImage objects from all textbook files
+    textbook_figures_items  = []    # (ExtractedImage, url_str) for unified figures section
 
     for upload in slides_pdfs:
         raw   = await upload.read()
@@ -483,7 +516,7 @@ async def upload_fuse_multi(
         except Exception as e:
             logger.warning("Image extraction failed %s: %s", fname, e)
 
-    for upload in textbook_pdfs:
+    for upload in (textbook_pdfs or []):
         raw   = await upload.read()
         fname = upload.filename or "textbook.pdf"
         try:
@@ -491,6 +524,15 @@ async def upload_fuse_multi(
         except ValueError as e:
             extraction_errors.append(f"{fname}: {e}")
             logger.warning("Textbook extraction failed %s: %s", fname, e)
+        # Extract embedded images (circuit diagrams, figures, graphs, etc.)
+        try:
+            tb_imgs = extract_images_from_file(raw, fname)
+            for img in tb_imgs:
+                img.img_id       = f"tb_{img.img_id}"          # avoid ID collision with slide images
+                img.source_label = f"Textbook — {img.source_label}"
+            all_textbook_images.extend(tb_imgs)
+        except Exception as e:
+            logger.warning("Textbook image extraction failed %s: %s", fname, e)
 
     if not all_slides_text.strip() and not all_textbook_text.strip():
         detail = "Could not extract text from any uploaded files."
@@ -544,7 +586,26 @@ async def upload_fuse_multi(
         # No notebook_id — can't persist images, but still describe for LLM context
         logger.info("No notebook_id — skipping image save (no persistent URL to serve)")
         slide_figures_md = ""
-
+    # ── Step 1c: Describe + save extracted textbook images ────────────────────
+    if all_textbook_images and notebook_id:
+        logger.info("Describing %d extracted textbook images…", len(all_textbook_images))
+        for img in all_textbook_images:
+            try:
+                img.description = describe_slide_image(img.data, img.source_label)
+            except Exception as e:
+                img.description = f"Figure from {img.source_label}"
+                logger.debug("describe_slide_image failed for textbook img: %s", e)
+        try:
+            save_images(notebook_id, all_textbook_images)
+            for img in all_textbook_images:
+                ext = img.mime.split("/")[-1].replace("jpeg", "jpg")
+                textbook_figures_items.append(
+                    (img, f"/api/images/{notebook_id}/{img.img_id}.{ext}")
+                )
+            logger.info("Saved %d textbook images for notebook %s", len(all_textbook_images), notebook_id)
+        except Exception as e:
+            logger.warning("Textbook image save failed: %s", e)
+            all_textbook_images = []
     # ── Step 2: Chunk and Store EVERYTHING verbatim ───────────────────────────
     # Store raw slide + textbook chunks for doubt/mutation retrieval
     slide_raw_chunks    = chunk_text(all_slides_text,   max_chars=4000)
@@ -614,6 +675,21 @@ async def upload_fuse_multi(
         except Exception as e:
             logger.warning("Topic retrieval failed: %s", e)
 
+    # ── Step 5b: Match textbook figures to topics, inject into context ─────────
+    if textbook_figures_items and topics:
+        for img, img_url in textbook_figures_items:
+            best_topic = _match_image_to_topic(img.description, topics)
+            if best_topic is not None:
+                ref = (
+                    f"\n\n[Textbook Figure: {img.description}]"
+                    f"\n![{img.description}]({img_url})"
+                )
+                if best_topic in topic_contexts:
+                    topic_contexts[best_topic] += ref
+                else:
+                    topic_contexts[best_topic] = ref.strip()
+        logger.info("Matched %d textbook figures to topics", len(textbook_figures_items))
+
     # ── Steps 6+7+8: Note Generation + Merge + Refinement ────────────────────
     fused_note  = None
     source      = "local"
@@ -640,9 +716,28 @@ async def upload_fuse_multi(
 
     fused_note = fix_latex_delimiters(fused_note)
 
-    # ── Append extracted slide figures to notes ───────────────────────────────
-    if slide_figures_md and fused_note:
-        fused_note = fused_note.rstrip() + "\n\n" + slide_figures_md
+    # ── Append unified figures section to notes ───────────────────────────────
+    if fused_note and (slide_figures_md or textbook_figures_items):
+        has_slides   = bool(slide_figures_md)
+        has_textbook = bool(textbook_figures_items)
+        if has_slides and not has_textbook:
+            # Slides-only — keep existing compact format
+            fused_note = fused_note.rstrip() + "\n\n" + slide_figures_md
+        else:
+            # Combined section with sub-headings
+            combined = ["## \U0001f4ce Figures & Diagrams\n"]
+            if has_slides:
+                combined.append("### \U0001f5d2\ufe0f Slide Figures\n")
+                # Strip the ## header line from the pre-built slide_figures_md
+                slide_body = "\n".join(slide_figures_md.split("\n")[1:]).strip()
+                combined.append(slide_body)
+            if has_textbook:
+                combined.append("\n### \U0001f4d6 Textbook Figures\n")
+                for img, img_url in textbook_figures_items:
+                    safe_alt = img.description.replace('"', "'")
+                    combined.append(f"![{safe_alt}]({img_url})")
+                    combined.append(f"*{img.description}* — {img.source_label}\n")
+            fused_note = fused_note.rstrip() + "\n\n" + "\n".join(combined)
 
     # ── Store note pages ──────────────────────────────────────────────────────
     if notebook_id:
