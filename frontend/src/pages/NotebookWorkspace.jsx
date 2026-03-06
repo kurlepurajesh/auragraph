@@ -32,8 +32,8 @@ function authHeaders() {
 
 // ─── Animated Fuse Progress ───────────────────────────────────────────────────
 const FUSE_STEPS = [
-    { label: 'Uploading PDFs', icon: '📤' },
-    { label: 'Extracting slides text', icon: '📄' },
+    { label: 'Uploading files', icon: '📤' },
+    { label: 'Extracting slides & notes', icon: '📄' },
     { label: 'Extracting textbook content', icon: '📚' },
     { label: 'Running Fusion Agent', icon: '🧠' },
     { label: 'Calibrating to your level', icon: '🎯' },
@@ -76,32 +76,42 @@ function FuseProgressBar({ active }) {
 function FileDrop({ label, icon, files, onFiles }) {
     const ref = useRef();
     const [drag, setDrag] = useState(false);
+    const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.heic', '.heif', '.tiff', '.tif']);
+    const isImage = (f) => IMAGE_EXTS.has(f.name.slice(f.name.lastIndexOf('.')).toLowerCase());
     const addFiles = (incoming) => {
-        const valid = Array.from(incoming).filter(f => f.type === 'application/pdf' || f.name.endsWith('.pdf'));
+        const valid = Array.from(incoming).filter(f =>
+            f.type === 'application/pdf' ||
+            f.name.endsWith('.pdf') ||
+            f.name.endsWith('.pptx') ||
+            f.name.endsWith('.ppt') ||
+            isImage(f)
+        );
         if (valid.length) onFiles(prev => [...prev, ...valid]);
     };
     const DropIcon = icon || BookOpen;
     const hasFiles = files.length > 0;
     const totalMB = (files.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1);
+    const fileIcon = (f) => isImage(f) ? '🖼️' : f.name.endsWith('.pptx') || f.name.endsWith('.ppt') ? '📊' : '📄';
     return (
         <div data-testid={`file-drop-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`}
             onDragOver={e => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={e => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
             style={{ border: `2px dashed ${drag ? 'var(--text)' : hasFiles ? '#10B981' : 'var(--border2)'}`, borderRadius: 12, padding: 16, background: drag ? 'var(--surface2)' : hasFiles ? '#F0FDF4' : 'var(--surface)', transition: 'all 0.15s', minHeight: 120 }}>
-            <input ref={ref} type="file" accept=".pdf" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
+            <input ref={ref} type="file" accept=".pdf,.pptx,.ppt,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.tiff,.tif" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
             {!hasFiles ? (
                 <div onClick={() => ref.current.click()} style={{ textAlign: 'center', cursor: 'pointer', padding: '12px 0' }}>
                     <DropIcon size={26} color="var(--text3)" style={{ margin: '0 auto 8px', display: 'block' }} />
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>{label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>Drag & drop or click to browse</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>PDF · PPTX · JPG · PNG · WebP · HEIC</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>Drag & drop or click to browse</div>
                 </div>
             ) : (
                 <>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
                         {files.map((f, i) => (
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 6, padding: '6px 10px', border: '1px solid #d1fae5' }}>
-                                <FileText size={14} color="#10B981" style={{ flexShrink: 0 }} />
+                                <span style={{ fontSize: 14, flexShrink: 0 }}>{fileIcon(f)}</span>
                                 <span style={{ fontSize: 12, color: '#065f46', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                                 <span style={{ fontSize: 10, color: 'var(--text3)' }}>{(f.size/1024/1024).toFixed(1)}MB</span>
                                 <button onClick={e => { e.stopPropagation(); onFiles(prev => prev.filter((_,j) => j !== i)); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text3)', display: 'flex' }}><X size={12} /></button>
@@ -589,7 +599,7 @@ export default function NotebookWorkspace() {
 
     const handleFuse = async () => {
         if (!slidesFiles.length || !textbookFiles.length) return;
-        setFusing(true); setFuseProgress('Uploading PDFs…');
+        setFusing(true); setFuseProgress('Uploading files…');
         setMutatedPages(new Set()); setGraphNodes([]); setGraphEdges([]);
         try {
             const form = new FormData();
@@ -754,8 +764,8 @@ export default function NotebookWorkspace() {
                             <FuseProgressBar active={fusing} />
                             {!fusing && (<>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-                                    <FileDrop label="Professor's Slides" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />
-                                    <FileDrop label="Textbook" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
+                                    <FileDrop label="Professor's Slides & Notes" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />
+                                    <FileDrop label="Textbook (PDF / image)" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
                                 </div>
                                 <div style={{ marginBottom: 24 }}>
                                     <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 10 }}>Proficiency Level</label>

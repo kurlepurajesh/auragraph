@@ -300,11 +300,19 @@ def extract_text_from_pptx(file_bytes: bytes) -> str:
 def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     """
     Unified entry point: routes to the right extractor based on file extension.
-    Supports .pdf, .pptx, .ppt (pptx fallback).
+    Supports: .pdf, .pptx/.ppt, .jpg/.jpeg/.png/.webp/.bmp/.tiff/.heic/.heif
     """
+    from pathlib import Path
     fname = filename.lower()
     if fname.endswith(".pptx") or fname.endswith(".ppt"):
         return extract_text_from_pptx(file_bytes)
+    # Image formats → OCR (Groq vision → tesseract → placeholder)
+    if Path(fname).suffix in {
+        '.jpg', '.jpeg', '.png', '.webp',
+        '.bmp', '.tiff', '.tif', '.heic', '.heif',
+    }:
+        from agents.image_ocr import extract_text_from_image
+        return extract_text_from_image(file_bytes, filename)
     return extract_text_from_pdf(file_bytes)
 
 
