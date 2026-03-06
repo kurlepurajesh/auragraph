@@ -285,6 +285,37 @@ def _match_image_to_topic(description: str, topics) -> str | None:
     return best_topic if best_score > 0.04 else None
 
 
+def _inject_figures_into_sections(note: str, topic_figures: dict) -> str:
+    """
+    Inject figure markdown blocks directly after the ## heading of their
+    matching topic section. Figures appear inline in the note right where
+    the topic starts, not dumped at the end.
+    topic_figures: { topic_name: [(description, url), ...] }
+    """
+    if not topic_figures:
+        return note
+    lines = note.split('\n')
+    result = []
+    for line in lines:
+        result.append(line)
+        if line.startswith('## '):
+            heading_text = line[3:].strip().lower()
+            matched_figs = None
+            for tname, figs in topic_figures.items():
+                tl = tname.lower()
+                if tl == heading_text or tl in heading_text or heading_text in tl:
+                    matched_figs = figs
+                    break
+            if matched_figs:
+                result.append('')  # blank line after heading before figures
+                for description, url in matched_figs:
+                    safe_alt = description.replace('"', "'")
+                    result.append(f'![{safe_alt}]({url})')
+                    result.append(f'*{safe_alt}*')
+                    result.append('')
+    return '\n'.join(result)
+
+
 def _note_to_pages(note: str) -> list[str]:
     """Split a note string into pages the same way the frontend does."""
     by_h2 = note.split("\n## ")
@@ -541,7 +572,6 @@ async def upload_fuse_multi(
         raise HTTPException(422, detail)
 
     # ── Step 1b: Describe + save extracted slide images ───────────────────────
-    slide_figures_md = ""   # appended to notes later
     if all_slide_images and notebook_id:
         logger.info("Describing %d extracted slide images…", len(all_slide_images))
         for img in all_slide_images:
@@ -571,21 +601,9 @@ async def upload_fuse_multi(
                     lambda m, ann=annotation: m.group(0) + ann,
                     all_slides_text, count=1,
                 )
-
-            # Build the figures section for the end of the notes
-            lines = ["## \U0001f4ce Figures & Diagrams\n"]
-            for img in all_slide_images:
-                ext      = img.mime.split("/")[-1].replace("jpeg", "jpg")
-                img_url  = f"/api/images/{notebook_id}/{img.img_id}.{ext}"
-                safe_alt = img.description.replace('"', "'")
-                lines.append(f"![{safe_alt}]({img_url})")
-                lines.append(f"*{img.description}* — {img.source_label}\n")
-            slide_figures_md = "\n".join(lines)
-            logger.info("Built figures section with %d images", len(all_slide_images))
+            logger.info("Annotated %d slide images into slide text for LLM context", len(all_slide_images))
     elif all_slide_images:
-        # No notebook_id — can't persist images, but still describe for LLM context
-        logger.info("No notebook_id — skipping image save (no persistent URL to serve)")
-        slide_figures_md = ""
+        logger.info("No notebook_id — skipping slide image save")
     # ── Step 1c: Describe + save extracted textbook images ────────────────────
     if all_textbook_images and notebook_id:
         logger.info("Describing %d extracted textbook images…", len(all_textbook_images))
@@ -690,6 +708,31 @@ async def upload_fuse_multi(
                     topic_contexts[best_topic] = ref.strip()
         logger.info("Matched %d textbook figures to topics", len(textbook_figures_items))
 
+    # ── Step 5c: Build topic_figures map for inline injection ─────────────────
+    topic_figures: dict[str, list[tuple[str, str]]] = {}
+    if topics and notebook_id:
+        # Slide figures: match by checking if source_label appears in topic's slide_text
+        for img in all_slide_images:
+            ext = img.mime.split("/")[-1].replace("jpeg", "jpg")
+            img_url = f"/api/images/{notebook_id}/{img.img_id}.{ext}"
+            matched = None
+            for t in topics:
+                if img.source_label.lower() in t.slide_text.lower():
+                    matched = t.topic
+                    break
+            if matched is None:
+                matched = _match_image_to_topic(img.description, topics)
+            if matched:
+                topic_figures.setdefault(matched, []).append((img.description, img_url))
+        # Textbook figures: use description-based Jaccard match
+        for img, img_url in textbook_figures_items:
+            best_topic = _match_image_to_topic(img.description, topics)
+            if best_topic:
+                topic_figures.setdefault(best_topic, []).append((img.description, img_url))
+        if topic_figures:
+            logger.info("Inline figures: %d topics, %d total figures",
+                        len(topic_figures), sum(len(v) for v in topic_figures.values()))
+
     # ── Steps 6+7+8: Note Generation + Merge + Refinement ────────────────────
     fused_note  = None
     source      = "local"
@@ -716,28 +759,9 @@ async def upload_fuse_multi(
 
     fused_note = fix_latex_delimiters(fused_note)
 
-    # ── Append unified figures section to notes ───────────────────────────────
-    if fused_note and (slide_figures_md or textbook_figures_items):
-        has_slides   = bool(slide_figures_md)
-        has_textbook = bool(textbook_figures_items)
-        if has_slides and not has_textbook:
-            # Slides-only — keep existing compact format
-            fused_note = fused_note.rstrip() + "\n\n" + slide_figures_md
-        else:
-            # Combined section with sub-headings
-            combined = ["## \U0001f4ce Figures & Diagrams\n"]
-            if has_slides:
-                combined.append("### \U0001f5d2\ufe0f Slide Figures\n")
-                # Strip the ## header line from the pre-built slide_figures_md
-                slide_body = "\n".join(slide_figures_md.split("\n")[1:]).strip()
-                combined.append(slide_body)
-            if has_textbook:
-                combined.append("\n### \U0001f4d6 Textbook Figures\n")
-                for img, img_url in textbook_figures_items:
-                    safe_alt = img.description.replace('"', "'")
-                    combined.append(f"![{safe_alt}]({img_url})")
-                    combined.append(f"*{img.description}* — {img.source_label}\n")
-            fused_note = fused_note.rstrip() + "\n\n" + "\n".join(combined)
+    # ── Inject figures inline into their matching topic sections ──────────────
+    if fused_note and topic_figures:
+        fused_note = _inject_figures_into_sections(fused_note, topic_figures)
 
     # ── Store note pages ──────────────────────────────────────────────────────
     if notebook_id:
