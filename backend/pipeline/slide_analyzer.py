@@ -110,67 +110,87 @@ def _parse_topics_json(content: str) -> Optional[list[dict]]:
 
 
 async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
-    """Slide analysis via Azure OpenAI (openai SDK). Returns list of topic dicts or None."""
+    """
+    Slide analysis via Azure OpenAI — true async httpx.
+    FIX C1: was asyncio.to_thread(AzureOpenAI(...)), now httpx.AsyncClient.
+    Includes one 429 retry with Retry-After back-off.
+    """
     if not _azure_ok():
         return None
     try:
-        from openai import AzureOpenAI
-        def _sync():
-            client = AzureOpenAI(
-                azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
-                api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
-                api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
-            )
-            resp = client.chat.completions.create(
-                model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
-                messages=[
-                    {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
-                    {"role": "user",   "content": _SLIDE_ANALYSIS_USER.format(slides=slides_text[:40_000])},
-                ],
-                max_tokens=4096,
-                temperature=0.1,
-                response_format={"type": "json_object"},
-            )
-            return resp.choices[0].message.content.strip()
-        content = await _asyncio.to_thread(_sync)
-        return _parse_topics_json(content)
+        import httpx
+        endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+        api_key    = os.environ.get("AZURE_OPENAI_API_KEY",  "")
+        api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
+        deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
+        payload = {
+            "messages": [
+                {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
+                {"role": "user",   "content": _SLIDE_ANALYSIS_USER.format(slides=slides_text[:40_000])},
+            ],
+            "max_tokens":     4096,
+            "temperature":    0.1,
+            "response_format": {"type": "json_object"},
+        }
+        headers = {"api-key": api_key, "Content-Type": "application/json"}
+        for attempt in range(2):
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 429 and attempt == 0:
+                wait = int(resp.headers.get("Retry-After", "10"))
+                logger.warning("slide_analyzer Azure 429 — retrying in %d s", wait)
+                await _asyncio.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return _parse_topics_json(resp.json()["choices"][0]["message"]["content"].strip())
     except Exception as e:
         logger.warning("slide_analyzer Azure call failed: %s", e)
-        return None
+    return None
 
 
 async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
-    """Slide analysis via Groq (openai SDK with Groq base URL). Returns list or None."""
+    """
+    Slide analysis via Groq — true async httpx.
+    FIX C1: was asyncio.to_thread(OpenAI(...)), now httpx.AsyncClient.
+    Includes one 429 retry with Retry-After back-off.
+    """
     if not _groq_ok():
         return None
     try:
-        from openai import OpenAI
-        def _sync():
-            client = OpenAI(
-                base_url="https://api.groq.com/openai/v1",
-                api_key=os.environ.get("GROQ_API_KEY", ""),
-            )
-            model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-            # Ask Groq to return JSON — instruct it explicitly in the prompt
-            user_prompt = (
-                _SLIDE_ANALYSIS_USER.format(slides=slides_text[:35_000])
-                + "\n\nIMPORTANT: Output ONLY a valid JSON array. No markdown fences. No explanation."
-            )
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
-                    {"role": "user",   "content": user_prompt},
-                ],
-                max_tokens=4096,
-                temperature=0.1,
-            )
-            return resp.choices[0].message.content.strip()
-        content = await _asyncio.to_thread(_sync)
-        return _parse_topics_json(content)
+        import httpx
+        api_key = os.environ.get("GROQ_API_KEY", "")
+        model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        user_prompt = (
+            _SLIDE_ANALYSIS_USER.format(slides=slides_text[:35_000])
+            + "\n\nIMPORTANT: Output ONLY a valid JSON array. No markdown fences. No explanation."
+        )
+        payload = {
+            "model":       model,
+            "messages":    [
+                {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
+                {"role": "user",   "content": user_prompt},
+            ],
+            "max_tokens":  4096,
+            "temperature": 0.1,
+        }
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        for attempt in range(2):
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    json=payload, headers=headers,
+                )
+            if resp.status_code == 429 and attempt == 0:
+                wait = int(resp.headers.get("Retry-After", "6"))
+                logger.warning("slide_analyzer Groq 429 — retrying in %d s", wait)
+                await _asyncio.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return _parse_topics_json(resp.json()["choices"][0]["message"]["content"].strip())
     except Exception as e:
         logger.warning("slide_analyzer Groq call failed: %s", e)
-        return None
+    return None
 
 
 # ── Deterministic Fallback ────────────────────────────────────────────────────
@@ -274,14 +294,11 @@ def _split_at_slide_boundary(text: str, max_chars: int) -> list[str]:
         return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
 
     chunks, start = [], 0
-    current = 0
     for boundary in boundaries[1:]:  # skip first (it IS the start)
         if boundary - start > max_chars:
-            # Cut here — take up to this boundary
+            # Accumulated content since last cut exceeds limit — cut here
             chunks.append(text[start:boundary])
             start = boundary
-            current = 0
-        current = boundary - start
     # Add remainder
     if start < len(text):
         chunks.append(text[start:])

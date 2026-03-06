@@ -181,18 +181,35 @@ def _is_groq_available() -> bool:
 # ── Groq helpers ───────────────────────────────────────────────────────────────
 
 async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
-    from openai import OpenAI as _OpenAI
-    def _sync():
-        client = _OpenAI(
-            base_url="https://api.groq.com/openai/v1",
-            api_key=os.environ.get("GROQ_API_KEY", ""),
-        )
-        resp = client.chat.completions.create(
-            model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
-            messages=messages, max_tokens=max_tokens,
-        )
-        return resp.choices[0].message.content.strip()
-    return await asyncio.to_thread(_sync)
+    """
+    True-async Groq call via httpx — no thread-pool blocking.
+    FIX C1 (main.py): was asyncio.to_thread(OpenAI()) — now httpx, consistent
+    with note_generator.py.  Includes one 429 retry with 6 s back-off.
+    """
+    import httpx
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    payload = {
+        "model":       model,
+        "messages":    messages,
+        "max_tokens":  max_tokens,
+        "temperature": 0.3,
+    }
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    for attempt in range(2):
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                json=payload, headers=headers,
+            )
+        if resp.status_code == 429 and attempt == 0:
+            wait = int(resp.headers.get("Retry-After", "6"))
+            logger.warning("Groq 429 — waiting %d s before retry", wait)
+            await asyncio.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
+    raise RuntimeError("Groq rate-limited after retry")
 
 
 async def _groq_fuse(slide_content: str, textbook_content: str, proficiency: str) -> str:
@@ -447,6 +464,7 @@ async def health():
         "service":          "AuraGraph v0.5",
         "azure_configured": _is_azure_available(),
         "groq_configured":  _is_groq_available(),
+        "llm_concurrency":  int(os.environ.get("LLM_CONCURRENCY", "1")),
     }
 
 

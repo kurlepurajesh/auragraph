@@ -291,6 +291,7 @@ async def _call_azure(
     """
     Azure OpenAI call via httpx async client (true async — no thread pool).
     FIX C1: was asyncio.to_thread(_sync) which blocked thread pool under load.
+    Includes one 429 retry with Retry-After back-off.
     """
     if not _azure_available():
         return None
@@ -307,17 +308,20 @@ async def _call_azure(
             "max_tokens": max_tokens,
             "temperature": 0.3,
         }
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                url, json=payload,
-                headers={"api-key": api_key, "Content-Type": "application/json"},
-            )
+        headers = {"api-key": api_key, "Content-Type": "application/json"}
+        for attempt in range(2):
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 429 and attempt == 0:
+                wait = int(resp.headers.get("Retry-After", "10"))
+                logger.warning("note_generator Azure 429 — retrying in %d s", wait)
+                await asyncio.sleep(wait)
+                continue
             resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"].strip()
+            return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         logger.warning("note_generator Azure async call failed: %s", e)
-        return None
+    return None
 
 
 async def _call_groq(
@@ -328,6 +332,7 @@ async def _call_groq(
     """
     Groq call via httpx async client (true async — no thread pool).
     FIX C1: was asyncio.to_thread(_sync) which blocked thread pool under load.
+    Includes one 429 retry with Retry-After back-off.
     """
     if not _groq_available():
         return None
@@ -342,19 +347,24 @@ async def _call_groq(
             "max_tokens":  max_tokens,
             "temperature": 0.3,
         }
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {api_key}",
-                         "Content-Type": "application/json"},
-            )
+        headers = {"Authorization": f"Bearer {api_key}",
+                   "Content-Type": "application/json"}
+        for attempt in range(2):
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    json=payload, headers=headers,
+                )
+            if resp.status_code == 429 and attempt == 0:
+                wait = int(resp.headers.get("Retry-After", "6"))
+                logger.warning("note_generator Groq 429 — retrying in %d s", wait)
+                await asyncio.sleep(wait)
+                continue
             resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"].strip()
+            return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         logger.warning("note_generator Groq async call failed: %s", e)
-        return None
+    return None
 
 
 # ── Per-topic generation ───────────────────────────────────────────────────
