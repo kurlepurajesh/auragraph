@@ -753,11 +753,11 @@ def _build_section(
     if not sentences and not math_lines:
         return None
 
-    if proficiency == "Beginner":
+    if proficiency == "Foundations":
         return _build_beginner_section(heading, body, enrichment, sentences, math_lines)
     else:
         top_prose = _score_and_pick(sentences, prose_k) if len(sentences) > prose_k else sentences
-        if proficiency == "Intermediate":
+        if proficiency == "Practitioner":
             return _build_intermediate_section(heading, body, enrichment, top_prose, math_lines)
         else:
             return _build_advanced_section(heading, body, enrichment, top_prose, math_lines)
@@ -765,15 +765,15 @@ def _build_section(
 
 # ─── Proficiency config ───────────────────────────────────────────────────────
 _PROF = {
-    "Beginner": {
+    "Foundations": {
         "prose_k": 99,
         "label":   "Full conceptual depth — every idea explained from scratch with analogies",
     },
-    "Intermediate": {
+    "Practitioner": {
         "prose_k": 8,
         "label":   "Balanced depth — key formulas with intuition and application",
     },
-    "Advanced": {
+    "Expert": {
         "prose_k": 6,
         "label":   "Full rigour — formal definitions, derivations, edge cases",
     },
@@ -793,7 +793,7 @@ def generate_local_note(slides_text: str, textbook_text: str, proficiency: str) 
       4. Build the section note: slide content + minimal enrichment.
       5. Deduplicate headings.
     """
-    cfg     = _PROF.get(proficiency, _PROF["Intermediate"])
+    cfg     = _PROF.get(proficiency, _PROF["Practitioner"])
     prose_k = cfg["prose_k"]
 
     slides_text   = _clean_pdf_text(slides_text)
@@ -840,7 +840,7 @@ def generate_local_note(slides_text: str, textbook_text: str, proficiency: str) 
             if best_para:
                 enrichment = _extract_enrichment(
                     best_para,
-                    max_sentences=3 if proficiency == "Beginner" else 2
+                    max_sentences=3 if proficiency == "Foundations" else 2
                 )
 
         sec = _build_section(heading, body, enrichment, prose_k, proficiency)
@@ -856,14 +856,14 @@ def generate_local_note(slides_text: str, textbook_text: str, proficiency: str) 
 
     # 5. Compose final output
     level_banner = {
-        "Beginner":     "🔰 **Beginner mode** — Every concept taught from scratch. Read each section fully before looking at formulas.",
-        "Intermediate": "⚡ **Intermediate mode** — Key definitions, formulas, and worked intuition.",
-        "Advanced":     "🎯 **Advanced mode** — Full rigour: derivations, edge cases, formal notation.",
+        "Foundations":  "🔰 **Foundations mode** — Every concept taught from scratch. Read each section fully before looking at formulas.",
+        "Practitioner": "⚡ **Practitioner mode** — Key definitions, formulas, and worked intuition.",
+        "Expert":       "🎯 **Expert mode** — Full rigour: derivations, edge cases, formal notation.",
     }.get(proficiency, "")
 
     header = (
         f"# AuraGraph Study Notes\n\n"
-        f"**Proficiency: {proficiency}** — {cfg['label']}\n\n"
+        f"**Study Mode: {proficiency}** — {cfg['label']}\n\n"
         f"> {level_banner}\n"
     )
     return header + "\n\n---\n\n" + "\n\n---\n\n".join(sections)

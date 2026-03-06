@@ -532,7 +532,7 @@ export default function NotebookWorkspace() {
 
     const [notebook, setNotebook] = useState(null);
     const [note, setNote] = useState('');
-    const [prof, setProf] = useState('Intermediate');
+    const [prof, setProf] = useState('Practitioner');
     const [slidesFiles, setSlidesFiles] = useState([]);
     const [textbookFiles, setTextbookFiles] = useState([]);
     const [fusing, setFusing] = useState(false);
@@ -617,8 +617,8 @@ export default function NotebookWorkspace() {
         setDoubtsLog(loadDoubts(id));
         fetch(`${API}/notebooks/${id}`, { headers: authHeaders() })
             .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-            .then(nb => { setNotebook(nb); setNote(nb.note || ''); setProf(nb.proficiency || 'Intermediate'); if (nb.graph?.nodes?.length) { setGraphNodes(nb.graph.nodes); setGraphEdges(nb.graph.edges || []); } })
-            .catch(() => { const l = ls_getNotebook(id); if (l) { setNotebook(l); setNote(l.note || ''); setProf(l.proficiency || 'Intermediate'); if (l.graph?.nodes?.length) { setGraphNodes(l.graph.nodes); setGraphEdges(l.graph.edges || []); } } else { setNotebook({ id, name: 'Untitled', course: '' }); } });
+            .then(nb => { setNotebook(nb); setNote(nb.note || ''); setProf(nb.proficiency || 'Practitioner'); if (nb.graph?.nodes?.length) { setGraphNodes(nb.graph.nodes); setGraphEdges(nb.graph.edges || []); } })
+            .catch(() => { const l = ls_getNotebook(id); if (l) { setNotebook(l); setNote(l.note || ''); setProf(l.proficiency || 'Practitioner'); if (l.graph?.nodes?.length) { setGraphNodes(l.graph.nodes); setGraphEdges(l.graph.edges || []); } } else { setNotebook({ id, name: 'Untitled', course: '' }); } });
     }, [id]);
 
     const saveNote = async (newNote, newProf) => {
@@ -769,7 +769,7 @@ export default function NotebookWorkspace() {
                     {hasNote && (<>
                         {/* Proficiency — current level shown; click to switch (requires re-upload) */}
                         <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', padding: 2, borderRadius: 8, border: '1px solid var(--border)' }}>
-                            {['Beginner','Intermediate','Advanced'].map(p => (
+                            {['Foundations','Practitioner','Expert'].map(p => (
                                 <button key={p} onClick={() => {
                                     if (p === prof) return;
                                     if (window.confirm(`Switch to ${p} level?\n\nThis will take you back to the upload screen. Re-upload your materials to regenerate notes at the new level.`)) {
@@ -818,7 +818,7 @@ export default function NotebookWorkspace() {
                                 <div style={{ marginBottom: 24 }}>
                                     <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 10 }}>Proficiency Level</label>
                                     <div style={{ display: 'flex', gap: 10 }}>
-                                        {[['Beginner','Simpler, analogies-first'],['Intermediate','Balanced depth'],['Advanced','Dense, technical']].map(([p,d]) => (
+                                        {[['Foundations','Concepts first — analogies & plain English'],['Practitioner','Balanced depth — formulas with intuition'],['Expert','Full rigour — derivations & edge cases']].map(([p,d]) => (
                                             <button key={p} onClick={() => setProf(p)} style={{ flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${prof === p ? 'var(--text)' : 'var(--border)'}`, background: prof === p ? 'var(--text)' : 'var(--bg)', color: prof === p ? '#fff' : 'var(--text2)', textAlign: 'center', transition: 'all 0.15s' }}>
                                                 <div style={{ fontWeight: 600, fontSize: 13 }}>{p}</div>
                                                 <div style={{ fontSize: 11, marginTop: 2, opacity: 0.7 }}>{d}</div>

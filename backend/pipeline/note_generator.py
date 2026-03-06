@@ -144,7 +144,7 @@ WORKED EXAMPLE (mandatory for every section):
   **Solution:** step-by-step
 
 PROFICIENCY ADAPTATION:
-BEGINNER:
+FOUNDATIONS:
   1. Plain-English sentence: "Simply put, X is …"
   2. One analogy in a > blockquote.
   3. Key formula(s) with a **Where:** pipe-table defining each symbol:
@@ -153,7 +153,7 @@ BEGINNER:
      | $F$ | output value |
   4. Numbered steps if there is a process.
 
-INTERMEDIATE:
+PRACTITIONER:
   1. Formal definition.
   2. Intuition sentence linking the formula to real physical meaning.
   3. Display LaTeX for every key formula; define symbols inline.
@@ -162,7 +162,7 @@ INTERMEDIATE:
      | Formula | When to use |
      |---------|-------------|
 
-ADVANCED:
+EXPERT:
   1. Formal definition with all boundary conditions.
   2. Full derivation — terse algebra, no commentary between steps.
   3. Validity / convergence conditions.
@@ -372,7 +372,7 @@ async def _call_groq(
 async def generate_topic_note(
     topic:            SlideTopic,
     textbook_context: str,
-    proficiency:      str = "Intermediate",
+    proficiency:      str = "Practitioner",
 ) -> tuple[str, str]:
     """
     Generate one ## section for a single lecture topic.
@@ -492,7 +492,7 @@ async def refine_notes(notes: str) -> str:
 async def run_generation_pipeline(
     topics:           list[SlideTopic],
     topic_contexts:   dict[str, str],   # topic_name → textbook context string
-    proficiency:      str = "Intermediate",
+    proficiency:      str = "Practitioner",
     refine:           bool = True,
 ) -> tuple[str, str]:
     """

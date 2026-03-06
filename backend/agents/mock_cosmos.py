@@ -1,42 +1,88 @@
 """
 Mock Cosmos DB for State Management Development
-Tracks Mastery States of Concepts
+Tracks Mastery States of Concepts — per-user isolated storage.
+
+FIX (round 4):
+  • Per-user DB files (mock_db_<username>.json) prevent one user's mastery
+    updates from clobbering another's.
+  • threading.Lock on all read/write paths prevents concurrent-write corruption.
 """
 import json
 import os
+import re
+import threading
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "mock_db.json"
+_DB_DIR  = Path(__file__).parent.parent
+_DB_LOCK = threading.Lock()
 
-def get_db():
-    if not os.path.exists(DB_PATH):
-        # Default starting state
-        db = {
-            "nodes": [
-                { "id": 1, "label": "Fourier Transform", "status": "mastered", "x": 50, "y": 18 },
-                { "id": 2, "label": "Convolution Theorem", "status": "struggling", "x": 50, "y": 44 },
-                { "id": 3, "label": "LTI Systems", "status": "partial", "x": 20, "y": 70 },
-                { "id": 4, "label": "Freq. Response", "status": "mastered", "x": 80, "y": 70 },
-                { "id": 5, "label": "Z-Transform", "status": "partial", "x": 50, "y": 90 }
-            ],
-            "edges": [[1,2], [2,3], [2,4], [3,5], [4,5]]
-        }
-        with open(DB_PATH, "w") as f:
+_DEFAULT_NODES = [
+    {"id": 1, "label": "Fourier Transform",  "status": "mastered",   "x": 50, "y": 18},
+    {"id": 2, "label": "Convolution Theorem","status": "struggling",  "x": 50, "y": 44},
+    {"id": 3, "label": "LTI Systems",         "status": "partial",    "x": 20, "y": 70},
+    {"id": 4, "label": "Freq. Response",      "status": "mastered",   "x": 80, "y": 70},
+    {"id": 5, "label": "Z-Transform",         "status": "partial",    "x": 50, "y": 90},
+]
+_DEFAULT_EDGES = [[1, 2], [2, 3], [2, 4], [3, 5], [4, 5]]
+
+
+def _db_path(username: str) -> Path:
+    """Return per-user DB path, sanitising the username to a safe filename."""
+    safe = re.sub(r"[^a-zA-Z0-9_\-]", "_", username) if username else "anonymous"
+    return _DB_DIR / f"mock_db_{safe}.json"
+
+
+def get_db(username: str = "anonymous") -> dict:
+    """Return the mastery graph for *username*, creating it if absent."""
+    path = _db_path(username)
+    with _DB_LOCK:
+        if not path.exists():
+            db: dict = {
+                "nodes": [dict(n) for n in _DEFAULT_NODES],
+                "edges": [list(e) for e in _DEFAULT_EDGES],
+            }
+            with open(path, "w") as f:
+                json.dump(db, f)
+            return db
+        with open(path, "r") as f:
+            return json.load(f)
+
+
+def save_db(db: dict, username: str = "anonymous") -> None:
+    """Persist *db* for *username* atomically (write to tmp, then rename)."""
+    path = _db_path(username)
+    tmp  = path.with_suffix(".tmp")
+    with _DB_LOCK:
+        with open(tmp, "w") as f:
             json.dump(db, f)
-        return db
-    
-    with open(DB_PATH, "r") as f:
-        return json.load(f)
+        os.replace(tmp, path)
 
-def save_db(db):
-    with open(DB_PATH, "w") as f:
-        json.dump(db, f)
 
-def update_node_status(node_label, new_status):
-    db = get_db()
-    for node in db["nodes"]:
-        if node["label"].lower() == node_label.lower():
-            node["status"] = new_status
-            save_db(db)
-            return node
-    return None
+def update_node_status(node_label: str, new_status: str, username: str = "anonymous"):
+    """Update a single node's status in the per-user graph. Returns the node or None."""
+    path = _db_path(username)
+    with _DB_LOCK:
+        # Read
+        if not path.exists():
+            db: dict = {
+                "nodes": [dict(n) for n in _DEFAULT_NODES],
+                "edges": [list(e) for e in _DEFAULT_EDGES],
+            }
+        else:
+            with open(path, "r") as f:
+                db = json.load(f)
+        # Mutate
+        matched = None
+        for node in db["nodes"]:
+            if node["label"].lower() == node_label.lower():
+                node["status"] = new_status
+                matched = node
+                break
+        if matched is None:
+            return None
+        # Write
+        tmp = path.with_suffix(".tmp")
+        with open(tmp, "w") as f:
+            json.dump(db, f)
+        os.replace(tmp, path)
+    return matched

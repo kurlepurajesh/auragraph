@@ -549,7 +549,7 @@ async def get_knowledge_stats(nb_id: str, authorization: Optional[str] = Header(
 async def upload_fuse_multi(
     slides_pdfs:   List[UploadFile] = File(...),
     textbook_pdfs: Optional[List[UploadFile]] = File(default=None),
-    proficiency:   str = Form("Intermediate"),
+    proficiency:   str = Form("Practitioner"),
     notebook_id:   str = Form(""),
     authorization: Optional[str] = Header(None),
 ):
@@ -868,7 +868,7 @@ async def serve_slide_image(notebook_id: str, img_filename: str):
 async def upload_fuse(
     slides_pdf:   UploadFile = File(...),
     textbook_pdf: UploadFile = File(...),
-    proficiency:  str = Form("Intermediate"),
+    proficiency:  str = Form("Practitioner"),
     notebook_id:  str = Form(""),
     authorization: Optional[str] = Header(None),
 ):
@@ -937,7 +937,8 @@ async def mutate_note(
     FIX A7: No hardcoded "Convolution Theorem" — extracts real concept from note.
     FIX L3: Single mutate parser via FusionAgent._parse_mutate_response.
     """
-    get_current_user(authorization)  # FIX A4
+    user = get_current_user(authorization)  # FIX A4
+    _username = user.get("username", "anonymous")
 
     note_page = get_note_page(req.notebook_id, req.page_idx)
     if note_page is None:
@@ -976,7 +977,7 @@ async def mutate_note(
             graph = extract_concepts(mutated)
             if graph.get("nodes"):
                 top_concept = graph["nodes"][0]["label"]
-                update_node_status(top_concept, "partial")
+                update_node_status(top_concept, "partial", _username)
         except Exception:
             pass   # non-critical — don't break mutation over graph update failure
 
@@ -1020,8 +1021,8 @@ async def examine_concept(
 @app.get("/api/graph")
 async def get_graph(authorization: Optional[str] = Header(None)):
     """FIX A2: requires Bearer token."""
-    get_current_user(authorization)
-    return get_db()
+    user = get_current_user(authorization)
+    return get_db(user.get("username", "anonymous"))
 
 
 @app.post("/api/graph/update")
@@ -1029,8 +1030,8 @@ async def update_graph(
     req: NodeUpdateRequest,
     authorization: Optional[str] = Header(None),
 ):
-    get_current_user(authorization)
-    updated = update_node_status(req.concept_name, req.status)
+    user = get_current_user(authorization)
+    updated = update_node_status(req.concept_name, req.status, user.get("username", "anonymous"))
     if not updated:
         raise HTTPException(404, "Node not found")
     return {"status": "success", "node": updated}
@@ -1083,7 +1084,7 @@ async def update_notebook_graph_node(
 class FusionRequest(BaseModel):
     slide_summary:      str
     textbook_paragraph: str
-    proficiency:        str = "Intermediate"
+    proficiency:        str = "Practitioner"
     notebook_id:        Optional[str] = None
 
 

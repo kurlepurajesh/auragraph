@@ -55,21 +55,21 @@ TEXTBOOK ENRICHMENT RULE  ← second most important rule
 PROFICIENCY GUIDE
 ════════════════════════════════════════════════════════════════
 
-BEGINNER — Teach from scratch. For EACH `##` section:
+FOUNDATIONS — Teach from scratch. For EACH `##` section:
   1. One plain-English sentence: "Simply put, X is …"
   2. One `>` blockquote analogy.
   3. Key formula(s) in display LaTeX + **Where:** table (one line per symbol).
   4. Process as numbered list (max 5 steps) if applicable.
   5. `> 📝 **Exam Tip:** …`
 
-INTERMEDIATE — Consolidate. For EACH `##` section:
+PRACTITIONER — Consolidate. For EACH `##` section:
   1. One concise definition or formal statement.
   2. One intuition sentence linking formula to physical meaning.
   3. Display LaTeX for every key formula; define non-obvious symbols inline.
   4. Key conditions / edge cases as bullet list.
   5. `> 📝 **Exam Tip:** …`
 
-ADVANCED — Depth only. For EACH `##` section:
+EXPERT — Depth only. For EACH `##` section:
   1. Formal definition with all conditions.
   2. Full derivation (show algebra). Terse — no commentary between steps.
   3. Validity / convergence conditions.
@@ -207,7 +207,7 @@ class FusionAgent:
         self,
         slide_content: str,
         textbook_content: str,
-        proficiency: str = "Intermediate",
+        proficiency: str = "Practitioner",
     ) -> str:
         result = await self._kernel.invoke(self._fuse_fn, KernelArguments(
             slide_content=slide_content,

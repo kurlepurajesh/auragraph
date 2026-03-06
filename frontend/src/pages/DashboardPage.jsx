@@ -92,7 +92,7 @@ function NotebookCard({ nb, onOpen, onDelete }) {
                         <Calendar size={11} /> {dateStr}
                     </div>
                     {nb.proficiency && (
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 10, background: nb.proficiency === 'Beginner' ? '#ECFDF5' : nb.proficiency === 'Advanced' ? '#EFF6FF' : '#F5F3FF', color: nb.proficiency === 'Beginner' ? '#059669' : nb.proficiency === 'Advanced' ? '#2563EB' : '#7C3AED', border: `1px solid ${nb.proficiency === 'Beginner' ? '#A7F3D0' : nb.proficiency === 'Advanced' ? '#BFDBFE' : '#DDD6FE'}` }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 10, background: nb.proficiency === 'Foundations' ? '#ECFDF5' : nb.proficiency === 'Expert' ? '#EFF6FF' : '#F5F3FF', color: nb.proficiency === 'Foundations' ? '#059669' : nb.proficiency === 'Expert' ? '#2563EB' : '#7C3AED', border: `1px solid ${nb.proficiency === 'Foundations' ? '#A7F3D0' : nb.proficiency === 'Expert' ? '#BFDBFE' : '#DDD6FE'}` }}>
                             {nb.proficiency}
                         </span>
                     )}
