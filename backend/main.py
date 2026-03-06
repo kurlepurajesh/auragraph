@@ -18,6 +18,7 @@ textbook says, and exactly what the student is reading — combined with
 OpenAI's own knowledge.
 """
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -135,6 +136,75 @@ def _is_azure_available() -> bool:
         and "mock-endpoint" not in endpoint
         and api_key not in ("", "mock-key")
     )
+
+
+def _is_groq_available() -> bool:
+    key = os.environ.get("GROQ_API_KEY", "")
+    return key not in ("", "your-groq-api-key-here")
+
+
+async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
+    from openai import OpenAI as _OpenAI
+    def _sync():
+        client = _OpenAI(
+            base_url="https://api.groq.com/openai/v1",
+            api_key=os.environ.get("GROQ_API_KEY", ""),
+        )
+        model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        resp  = client.chat.completions.create(
+            model=model, messages=messages, max_tokens=max_tokens,
+        )
+        return resp.choices[0].message.content.strip()
+    return await asyncio.to_thread(_sync)
+
+
+async def _groq_fuse(slide_content: str, textbook_content: str, proficiency: str) -> str:
+    from agents.fusion_agent import FUSION_PROMPT
+    prompt = (
+        FUSION_PROMPT
+        .replace("{{$slide_content}}",    slide_content)
+        .replace("{{$textbook_content}}", textbook_content)
+        .replace("{{$proficiency}}",      proficiency)
+    )
+    return await _groq_chat([{"role": "user", "content": prompt}])
+
+
+async def _groq_doubt(
+    doubt: str, slide_context: str, textbook_context: str, note_page: str
+) -> str:
+    from agents.fusion_agent import DOUBT_ANSWER_PROMPT
+    prompt = (
+        DOUBT_ANSWER_PROMPT
+        .replace("{{$doubt}}",            doubt)
+        .replace("{{$slide_context}}",    slide_context)
+        .replace("{{$textbook_context}}", textbook_context)
+        .replace("{{$note_page}}",        note_page)
+    )
+    return await _groq_chat([{"role": "user", "content": prompt}])
+
+
+async def _groq_mutate(
+    note_page: str, doubt: str, slide_context: str, textbook_context: str
+) -> tuple[str, str]:
+    from agents.fusion_agent import MUTATION_PROMPT
+    prompt = (
+        MUTATION_PROMPT
+        .replace("{{$note_page}}",        note_page)
+        .replace("{{$doubt}}",            doubt)
+        .replace("{{$slide_context}}",    slide_context)
+        .replace("{{$textbook_context}}", textbook_context)
+    )
+    text   = await _groq_chat([{"role": "user", "content": prompt}])
+    parts  = text.split("|||")
+    if len(parts) >= 2:
+        return parts[0].strip(), " ".join(p.strip() for p in parts[1:]).strip()
+    return text, "Student required additional clarification."
+
+
+async def _groq_examine(concept_name: str) -> str:
+    from agents.examiner_agent import EXAMINER_PROMPT
+    prompt = EXAMINER_PROMPT.replace("{{$concept_name}}", concept_name)
+    return await _groq_chat([{"role": "user", "content": prompt}])
 
 
 def _format_chunks_for_prompt(chunks: list[dict], budget: int) -> str:
@@ -257,6 +327,7 @@ async def health():
         "status": "ok",
         "service": "AuraGraph v0.4",
         "azure_configured": _is_azure_available(),
+        "groq_configured":  _is_groq_available(),
     }
 
 
@@ -482,13 +553,24 @@ async def upload_fuse_multi(
             azure_error = f"{type(exc).__name__}: {exc}"
             logger.warning("Pipeline generation failed: %s", azure_error)
 
-    # Final fallback: if pipeline produced nothing, use local summarizer
+    # Fallback chain: Groq → local
     if not fused_note or len(fused_note.strip()) < 100:
-        logger.info("Falling back to local summarizer")
-        if azure_error is None and not _is_azure_available():
-            azure_error = None  # silent: Azure not configured
-        fused_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
-        source     = "local"
+        if _is_groq_available():
+            try:
+                logger.info("Falling back to Groq for note generation")
+                fused_note = await _groq_fuse(
+                    all_slides_text[:_PROMPT_SLIDES_BUDGET],
+                    all_textbook_text[:_PROMPT_TEXTBOOK_BUDGET],
+                    proficiency,
+                )
+                source = "groq"
+                logger.info("Groq generated %d chars", len(fused_note or ""))
+            except Exception as exc:
+                logger.warning("Groq fuse failed: %s", exc)
+        if not fused_note or len(fused_note.strip()) < 100:
+            logger.info("Falling back to local summarizer")
+            fused_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
+            source     = "local"
 
     fused_note = fix_latex_delimiters(fused_note)
 
@@ -574,6 +656,13 @@ async def answer_doubt(req: DoubtRequest):
         except Exception as exc:
             logger.warning("Azure doubt failed: %s", exc)
 
+    if _is_groq_available():
+        try:
+            answer = await _groq_doubt(doubt, slide_context, textbook_context, note_page)
+            return DoubtResponse(answer=fix_latex_delimiters(answer), source="groq")
+        except Exception as exc:
+            logger.warning("Groq doubt failed: %s", exc)
+
     # Local fallback: combine contexts into a simple response
     from agents.local_mutation import _diagnose_gap, _build_analogy_hint
     gap     = _diagnose_gap(doubt)
@@ -625,6 +714,12 @@ async def mutate_note(req: MutationRequest):
         except Exception as exc:
             logger.warning("Azure mutation failed: %s", exc)
 
+    if mutated is None and _is_groq_available():
+        try:
+            mutated, gap = await _groq_mutate(note_page, doubt, slide_context, textbook_context)
+        except Exception as exc:
+            logger.warning("Groq mutation failed: %s", exc)
+
     if mutated is None:
         mutated, gap = local_mutate(note_page, doubt)
 
@@ -661,6 +756,12 @@ async def examine_concept(req: ExaminerRequest):
             return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
         except Exception as exc:
             logger.warning("Azure examiner failed: %s", exc)
+    if _is_groq_available():
+        try:
+            questions = await _groq_examine(req.concept_name)
+            return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
+        except Exception as exc:
+            logger.warning("Groq examiner failed: %s", exc)
     questions = local_examine(req.concept_name)
     return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
 
@@ -736,6 +837,13 @@ async def fuse_knowledge(req: FusionRequest):
             source     = "azure"
         except Exception as exc:
             azure_error = str(exc)
+
+    if fused_note is None and _is_groq_available():
+        try:
+            fused_note = await _groq_fuse(slide_content, textbook_content, req.proficiency)
+            source     = "groq"
+        except Exception as exc:
+            logger.warning("Groq fuse failed: %s", exc)
 
     if fused_note is None:
         fused_note = generate_local_note(req.slide_summary, req.textbook_paragraph, req.proficiency)
