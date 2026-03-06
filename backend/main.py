@@ -187,6 +187,7 @@ async def _groq_mutate(
     note_page: str, doubt: str, slide_context: str, textbook_context: str
 ) -> tuple[str, str]:
     from agents.fusion_agent import MUTATION_PROMPT
+    import re as _re
     prompt = (
         MUTATION_PROMPT
         .replace("{{$note_page}}",        note_page)
@@ -194,10 +195,30 @@ async def _groq_mutate(
         .replace("{{$slide_context}}",    slide_context)
         .replace("{{$textbook_context}}", textbook_context)
     )
-    text   = await _groq_chat([{"role": "user", "content": prompt}])
-    parts  = text.split("|||")
+    text = await _groq_chat([{"role": "user", "content": prompt}])
+
+    # Strategy 1: exact ||| separator (as instructed)
+    parts = text.split("|||")
     if len(parts) >= 2:
-        return parts[0].strip(), " ".join(p.strip() for p in parts[1:]).strip()
+        rewrite = parts[0].strip()
+        gap     = " ".join(p.strip() for p in parts[1:]).strip()
+        if rewrite and gap:
+            return rewrite, gap
+
+    # Strategy 2: labelled sections (Gap: / Rewritten:)
+    gap_match     = _re.search(r'(?:^|\n)(?:Gap|Conceptual\s+Gap|Diagnosed\s+Gap|Issue)[:\s]+(.+)', text, _re.IGNORECASE)
+    rewrite_match = _re.search(r'(?:^|\n)(?:Rewritten?(?:\s+Section)?)[:\s]+([\s\S]+?)(?=\n(?:Gap|\||$)|$)', text, _re.IGNORECASE)
+    if gap_match and rewrite_match:
+        return rewrite_match.group(1).strip(), gap_match.group(1).strip()
+
+    # Strategy 3: last short paragraph is the gap sentence
+    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    if len(paragraphs) >= 2:
+        last = paragraphs[-1]
+        if len(last) < 250 and not last.startswith(('#', '$', '|')):
+            return '\n\n'.join(paragraphs[:-1]).strip(), last
+
+    # Strategy 4: whole response is the rewrite
     return text, "Student required additional clarification."
 
 
@@ -290,6 +311,7 @@ class MutationResponse(BaseModel):
     mutated_paragraph: str
     concept_gap:       str
     page_idx:          int
+    source:            str = "azure"   # "azure" | "groq" | "local"
 
 
 class ExaminerRequest(BaseModel):
@@ -689,6 +711,7 @@ async def mutate_note(req: MutationRequest):
 
     mutated = None
     gap     = ""
+    source  = "local"
 
     if _is_azure_available():
         try:
@@ -698,19 +721,23 @@ async def mutate_note(req: MutationRequest):
                 slide_context=slide_context,
                 textbook_context=textbook_context,
             )
+            source = "azure"
         except Exception as exc:
             logger.warning("Azure mutation failed: %s", exc)
 
     if mutated is None and _is_groq_available():
         try:
             mutated, gap = await _groq_mutate(note_page, doubt, slide_context, textbook_context)
+            source = "groq"
         except Exception as exc:
             logger.warning("Groq mutation failed: %s", exc)
 
     if mutated is None:
         mutated, gap = local_mutate(note_page, doubt)
+        source = "local"
 
-    mutated = fix_latex_delimiters(mutated)
+    from pipeline.note_generator import _fix_tables
+    mutated = fix_latex_delimiters(_fix_tables(mutated))
 
     # Update the stored note page
     if nb_id:
@@ -731,6 +758,7 @@ async def mutate_note(req: MutationRequest):
         mutated_paragraph=mutated,
         concept_gap=gap,
         page_idx=page_idx,
+        source=source,
     )
 
 

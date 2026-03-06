@@ -441,6 +441,7 @@ function DoubtsPanel({ doubts, currentPage }) {
                         <div key={d.id}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginBottom: 4 }}>
                                 {d.success ? <span style={{ fontSize: 9, color: '#7C3AED', fontWeight: 700 }}>✨ mutated</span> : <span style={{ fontSize: 9, color: '#EF4444', fontWeight: 600 }}>⚠ failed</span>}
+                                {d.success && d.source && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 6, background: d.source === 'azure' ? '#EFF6FF' : d.source === 'groq' ? '#ECFDF5' : '#F5F5F5', color: d.source === 'azure' ? '#1D4ED8' : d.source === 'groq' ? '#065F46' : '#52525B', border: `1px solid ${d.source === 'azure' ? '#BFDBFE' : d.source === 'groq' ? '#A7F3D0' : '#D4D4D8'}` }}>{d.source}</span>}
                                 <span style={{ fontSize: 9, color: '#D1D5DB' }}>{d.time}</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
@@ -664,7 +665,7 @@ export default function NotebookWorkspace() {
             const bqs = pl.findIndex(l => l.includes('💡') || l.trimStart().startsWith('> '));
             let insight = data.concept_gap || 'Page updated.';
             if (bqs !== -1) { const bl = []; for (let i = bqs; i < pl.length; i++) { if (pl[i].startsWith('> ') || pl[i] === '>') bl.push(pl[i].replace(/^>\s?/, '')); else if (bl.length > 0) break; } if (bl.length) insight = bl.join(' ').trim(); }
-            const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, time: ts, success: true };
+            const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true };
             setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
             setRightTab('doubts');
         } catch {
