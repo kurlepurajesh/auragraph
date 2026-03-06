@@ -3,11 +3,14 @@ Mock Auth Utility — AuraGraph
 Stores users in users.json with hashed passwords.
 Tokens expire after TOKEN_TTL_SECONDS and are rotated on each login.
 """
-import json, uuid, hashlib, time, os
+import json, uuid, hashlib, time, os, threading
 from pathlib import Path
 
 USERS_PATH = Path(__file__).parent.parent / "users.json"
 TOKEN_TTL_SECONDS = 7 * 24 * 3600  # 7 days
+
+# Serialises all read-modify-write operations on users.json
+_USERS_LOCK = threading.Lock()
 
 
 def _get_users():
@@ -17,6 +20,7 @@ def _get_users():
 
 
 def _save_users(users):
+    # Caller must hold _USERS_LOCK before calling this.
     USERS_PATH.write_text(json.dumps(users, indent=2))
 
 
@@ -25,32 +29,34 @@ def _hash_password(password: str) -> str:
 
 
 def register_user(email: str, password: str) -> dict:
-    users = _get_users()
-    if any(u["email"] == email for u in users):
-        return None  # already exists
-    user = {
-        "id": str(uuid.uuid4()),
-        "email": email,
-        "password_hash": _hash_password(password),
-        "token": str(uuid.uuid4()),
-        "token_issued_at": time.time(),
-        "name": email.split("@")[0].capitalize(),
-    }
-    users.append(user)
-    _save_users(users)
+    with _USERS_LOCK:
+        users = _get_users()
+        if any(u["email"] == email for u in users):
+            return None  # already exists
+        user = {
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "password_hash": _hash_password(password),
+            "token": str(uuid.uuid4()),
+            "token_issued_at": time.time(),
+            "name": email.split("@")[0].capitalize(),
+        }
+        users.append(user)
+        _save_users(users)
     return {k: v for k, v in user.items() if k not in ("password_hash",)}
 
 
 def login_user(email: str, password: str) -> dict:
-    users = _get_users()
-    ph = _hash_password(password)
-    user = next((u for u in users if u["email"] == email and u["password_hash"] == ph), None)
-    if not user:
-        return None
-    # Rotate token on every login
-    user["token"] = str(uuid.uuid4())
-    user["token_issued_at"] = time.time()
-    _save_users(users)
+    with _USERS_LOCK:
+        users = _get_users()
+        ph = _hash_password(password)
+        user = next((u for u in users if u["email"] == email and u["password_hash"] == ph), None)
+        if not user:
+            return None
+        # Rotate token on every login
+        user["token"] = str(uuid.uuid4())
+        user["token_issued_at"] = time.time()
+        _save_users(users)
     return {k: v for k, v in user.items() if k not in ("password_hash",)}
 
 

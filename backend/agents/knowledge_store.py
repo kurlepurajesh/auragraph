@@ -27,6 +27,7 @@ Retrieval uses Jaccard keyword overlap (fast, deterministic, no embeddings).
 
 import json
 import re
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +35,17 @@ from typing import Optional
 
 STORE_DIR = Path(__file__).parent.parent / "knowledge_store"
 STORE_DIR.mkdir(exist_ok=True)
+
+# Per-notebook write locks — prevents concurrent uploads corrupting the JSON file
+_STORE_LOCKS: dict[str, threading.Lock] = {}
+_STORE_LOCKS_LOCK = threading.Lock()
+
+
+def _get_store_lock(nb_id: str) -> threading.Lock:
+    with _STORE_LOCKS_LOCK:
+        if nb_id not in _STORE_LOCKS:
+            _STORE_LOCKS[nb_id] = threading.Lock()
+        return _STORE_LOCKS[nb_id]
 
 
 # ── Stop-words for keyword extraction ────────────────────────────────────────
@@ -77,6 +89,7 @@ def _load_store(nb_id: str) -> dict:
 
 
 def _save_store(nb_id: str, store: dict):
+    # Caller must hold _get_store_lock(nb_id) before calling this.
     _store_path(nb_id).write_text(json.dumps(store, indent=2, ensure_ascii=False))
 
 
@@ -162,12 +175,13 @@ def store_source_chunks(
             text=text.strip(),
         ).to_dict())
 
-    store = _load_store(nb_id)
-    store["chunks"]        = all_chunks
-    store["stored_at"]     = datetime.now().isoformat()
-    store["textbook_hash"] = textbook_hash   # FIX F3
-    # Preserve existing note pages
-    _save_store(nb_id, store)
+    with _get_store_lock(nb_id):
+        store = _load_store(nb_id)
+        store["chunks"]        = all_chunks
+        store["stored_at"]     = datetime.now().isoformat()
+        store["textbook_hash"] = textbook_hash   # FIX F3
+        # Preserve existing note pages
+        _save_store(nb_id, store)
 
     n_slides = sum(1 for c in all_chunks if c["source"] == "slides")
     n_text   = sum(1 for c in all_chunks if c["source"] == "textbook")
@@ -243,9 +257,10 @@ def store_note_pages(nb_id: str, pages: list[str]):
     Store the generated note split into pages.
     pages[i] = the full markdown text of page i.
     """
-    store = _load_store(nb_id)
-    store["note_pages"] = pages
-    _save_store(nb_id, store)
+    with _get_store_lock(nb_id):
+        store = _load_store(nb_id)
+        store["note_pages"] = pages
+        _save_store(nb_id, store)
 
 
 def get_note_page(nb_id: str, page_idx: int) -> Optional[str]:
@@ -267,13 +282,14 @@ def update_note_page(nb_id: str, page_idx: int, new_text: str) -> bool:
     Replace a single note page with new_text (used after mutation).
     Returns True on success, False if page_idx is out of range.
     """
-    store = _load_store(nb_id)
-    pages = store.get("note_pages", [])
-    if 0 <= page_idx < len(pages):
-        pages[page_idx] = new_text
-        store["note_pages"] = pages
-        _save_store(nb_id, store)
-        return True
+    with _get_store_lock(nb_id):
+        store = _load_store(nb_id)
+        pages = store.get("note_pages", [])
+        if 0 <= page_idx < len(pages):
+            pages[page_idx] = new_text
+            store["note_pages"] = pages
+            _save_store(nb_id, store)
+            return True
     return False
 
 
