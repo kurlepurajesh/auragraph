@@ -200,10 +200,10 @@ async def generate_topic_note(
     topic:            SlideTopic,
     textbook_context: str,
     proficiency:      str = "Intermediate",
-) -> str:
+) -> tuple[str, str]:
     """
     Generate one ## section for a single lecture topic.
-    Uses Azure if available; falls back to a deterministic template.
+    Returns (section_text, source) where source is 'azure' | 'groq' | 'local'.
     """
     if _azure_available():
         user = _NOTE_USER_TEMPLATE.format(
@@ -216,7 +216,7 @@ async def generate_topic_note(
         if result:
             if not result.lstrip().startswith("##"):
                 result = f"## {topic.topic}\n\n{result}"
-            return fix_latex_delimiters(result)
+            return fix_latex_delimiters(result), "azure"
 
     if _groq_available():
         user = _NOTE_USER_TEMPLATE.format(
@@ -229,10 +229,10 @@ async def generate_topic_note(
         if result:
             if not result.lstrip().startswith("##"):
                 result = f"## {topic.topic}\n\n{result}"
-            return fix_latex_delimiters(result)
+            return fix_latex_delimiters(result), "groq"
 
     # ── Deterministic fallback ─────────────────────────────────────────────────────
-    return _build_fallback_section(topic, textbook_context, proficiency)
+    return _build_fallback_section(topic, textbook_context, proficiency), "local"
 
 
 def _build_fallback_section(
@@ -316,22 +316,20 @@ async def run_generation_pipeline(
         return "", "local"
 
     sections: list[str] = []
-    used_llm = False
+    topic_sources: list[str] = []
     for topic in topics:
         context = topic_contexts.get(topic.topic, "")
         logger.info("Generating note for topic: %s", topic.topic)
-        section = await generate_topic_note(topic, context, proficiency)
+        section, topic_src = await generate_topic_note(topic, context, proficiency)
         sections.append(section)
-        # Detect if any LLM was used (section > bare fallback)
-        if len(section) > 200:
-            used_llm = True
+        topic_sources.append(topic_src)
 
     merged = merge_sections(sections)
 
-    # Determine source
-    if _azure_available() and used_llm:
+    # Determine source from what was actually used across all topic calls
+    if "azure" in topic_sources:
         source = "azure"
-    elif _groq_available() and used_llm:
+    elif "groq" in topic_sources:
         source = "groq"
     else:
         source = "local"
