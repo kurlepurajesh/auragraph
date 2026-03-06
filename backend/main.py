@@ -41,6 +41,7 @@ All 32 critic findings resolved:
 
 import asyncio
 import hashlib
+import json
 import logging
 import os
 import re
@@ -59,6 +60,7 @@ from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from agents.fusion_agent import FusionAgent
 from agents.examiner_agent import ExaminerAgent
 from agents.mock_cosmos import get_db, update_node_status, increment_mutation_count
+from agents.content_safety import check_content_safety
 from agents.pdf_utils import extract_text_from_file, chunk_text
 from agents.knowledge_store import (
     store_source_chunks, retrieve_relevant_chunks,
@@ -450,6 +452,15 @@ class ConceptPracticeRequest(BaseModel):
 
 class ConceptPracticeResponse(BaseModel):
     questions: list         # list of {question, options:{A,B,C,D}, correct, explanation}
+
+
+class SniperExamRequest(BaseModel):
+    notebook_id: Optional[str] = None   # reserved for ownership checks
+
+
+class SniperExamResponse(BaseModel):
+    questions:       list   # [{question, options, correct, explanation, concept}]
+    concepts_tested: list   # [{label, status}]
 
 
 class NodeUpdateRequest(BaseModel):
@@ -954,6 +965,9 @@ async def answer_doubt(
 
     if raw_text is not None:
         vr = parse_verification_response(raw_text)
+        _safe, _cat = await check_content_safety(vr.answer)
+        if not _safe:
+            logger.warning("Content Safety flagged doubt answer: category=%s", _cat)
         return DoubtResponse(
             answer=fix_latex_delimiters(vr.answer),
             source=source,
@@ -1018,6 +1032,11 @@ async def mutate_note(
         except Exception as e:
             logger.warning("Page update failed: %s", e)
 
+    # Content Safety check on mutated output
+    _safe, _cat = await check_content_safety(mutated)
+    if not _safe:
+        logger.warning("Content Safety flagged mutation output: category=%s", _cat)
+
     # FIX A7: dynamically extract real concept from the mutated note section
     if req.notebook_id and mutated:
         try:
@@ -1038,7 +1057,89 @@ async def mutate_note(
     )
 
 
-# ── Examiner (FIX A5: auth required) ─────────────────────────────────────────
+# ── Sniper Exam ───────────────────────────────────────────────────────
+async def _groq_sniper_exam(struggling: list[str], partial: list[str]) -> str:
+    from agents.examiner_agent import SNIPER_EXAM_PROMPT
+    prompt = (
+        SNIPER_EXAM_PROMPT
+        .replace("{{$struggling_concepts}}", ", ".join(struggling) if struggling else "None")
+        .replace("{{$partial_concepts}}",    ", ".join(partial)    if partial    else "None")
+    )
+    return await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2500)
+
+
+@app.post("/api/sniper-exam", response_model=SniperExamResponse)
+async def sniper_exam(
+    req: SniperExamRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Generates a 70% struggling / 30% partial targeted exam from the user's concept graph."""
+    user     = get_current_user(authorization)
+    username = user.get("username", "anonymous")
+
+    db    = get_db(username)
+    nodes = db.get("nodes", [])
+
+    struggling = [n["label"] for n in nodes if n.get("status") == "struggling"][:4]
+    partial    = [n["label"] for n in nodes if n.get("status") == "partial"][:3]
+
+    if not struggling and not partial:
+        all_labels = [n["label"] for n in nodes][:5]
+        struggling = all_labels[:3]
+        partial    = all_labels[3:]
+
+    concepts_tested = (
+        [{"label": l, "status": "struggling"} for l in struggling] +
+        [{"label": l, "status": "partial"}    for l in partial]
+    )
+
+    raw = ""
+    if _is_azure_available():
+        try:
+            from agents.examiner_agent import SNIPER_EXAM_PROMPT
+            from semantic_kernel.functions import KernelArguments
+            # Build prompt string directly (no SK function for sniper yet)
+            prompt = (
+                SNIPER_EXAM_PROMPT
+                .replace("{{$struggling_concepts}}", ", ".join(struggling) or "None")
+                .replace("{{$partial_concepts}}",    ", ".join(partial)    or "None")
+            )
+            raw = await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2500)
+        except Exception as e:
+            logger.warning("Azure sniper exam failed: %s", e)
+
+    if not raw and _is_groq_available():
+        try:
+            raw = await _groq_sniper_exam(struggling, partial)
+        except Exception as e:
+            logger.warning("Groq sniper exam failed: %s", e)
+
+    # Parse JSON
+    questions: list = []
+    if raw:
+        try:
+            clean = re.sub(r"^```[a-z]*\n?", "", raw.strip())
+            clean = re.sub(r"\n?```$", "", clean.strip())
+            questions = json.loads(clean)
+            if not isinstance(questions, list):
+                questions = []
+        except Exception:
+            questions = []
+
+    if not questions:
+        # Offline fallback — one stub question per struggling concept
+        for i, label in enumerate((struggling + partial)[:5]):
+            questions.append({
+                "question":    f"Describe the key aspects of {label}.",
+                "options":     {"A": "Option A", "B": "Option B", "C": "Option C", "D": "Option D"},
+                "correct":     "A",
+                "explanation": "Backend offline — reconnect for AI-generated questions.",
+                "concept":     label,
+            })
+
+    return SniperExamResponse(questions=questions, concepts_tested=concepts_tested)──────
+
+# ── Examiner (FIX A5: auth required) ───────────────────────────────────
 
 @app.post("/api/examine", response_model=ExaminerResponse)
 async def examine_concept(

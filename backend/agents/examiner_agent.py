@@ -56,7 +56,33 @@ Math rules: inline $...$, display on its own line $$...$$. NEVER use \\( \\) or 
 """
 
 
-class ExaminerAgent:
+SNIPER_EXAM_PROMPT = """\
+You are AuraGraph's Sniper Examiner. Generate EXACTLY 5 targeted MCQ questions.
+
+TARGET CONCEPTS — Struggling (70% weight → questions 1, 2, 3):
+{{$struggling_concepts}}
+
+REVIEW CONCEPTS — Partial (30% weight → questions 4, 5):
+{{$partial_concepts}}
+
+ALLOCATION RULES:
+  • Questions 1–3 MUST test the struggling concepts — rotate evenly if multiple.
+  • Questions 4–5 MUST test the partial concepts — rotate evenly if multiple.
+  • If only struggling concepts exist, spread them across all 5 questions.
+  • If only partial concepts exist, spread them across all 5 questions.
+
+Output ONLY a valid JSON array of exactly 5 objects. Raw JSON, no markdown fences.
+Each object MUST have EXACTLY these keys:
+  "question"    : full question text (string)
+  "options"     : object with keys A, B, C, D (all strings)
+  "correct"     : the correct option letter ("A", "B", "C", or "D")
+  "explanation" : one clear sentence explaining the answer
+  "concept"     : the concept this question tests
+
+Math: inline $...$, display $$...$$ on its own line. NEVER use \\( \\) or \\[ \\].
+"""
+
+
     def __init__(self, kernel: Kernel):
         self._kernel = kernel
         config = PromptTemplateConfig(

@@ -552,6 +552,7 @@ function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, on
 function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpToSection }) {
     const [selectedNode, setSelectedNode] = useState(null);
     const [examinerConcept, setExaminerConcept] = useState(null);
+    const [sniperOpen, setSniperOpen] = useState(false);
     const handleNodeClick = n => setSelectedNode(p => p?.id === n.id ? null : n);
     const handleStatusChange = (node, status) => { onNodeStatusChange(node, status); setSelectedNode(p => p?.id === node.id ? { ...p, status } : p); };
     const mc = nodes.filter(n => n.status === 'mastered').length;
@@ -573,7 +574,7 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
                 )}
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0 0' }}>
-                <KnowledgeGraph nodes={nodes} edges={edges} onNodeClick={handleNodeClick} selectedNodeId={selectedNode?.id} />
+                <GalaxyGraph nodes={nodes} edges={edges} onNodeClick={handleNodeClick} selectedNodeId={selectedNode?.id} />
                 {selectedNode && <ConceptDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} onStatusChange={handleStatusChange} onJumpToSection={label => { onJumpToSection(label); setSelectedNode(null); }} onFullPractice={label => { setExaminerConcept(label); setSelectedNode(null); }} />}
                 {nodes.length > 0 && (
                     <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', marginTop: 8 }}>
@@ -588,12 +589,20 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
                     </div>
                 )}
             </div>
-            <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 14 }}>
-                {[['mastered','#10B981'],['partial','#F59E0B'],['struggling','#EF4444']].map(([k,c]) => (
-                    <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text3)' }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: c }} /> {k}</div>
-                ))}
+            <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', gap: 14, marginBottom: sc > 0 || pc > 0 ? 8 : 0 }}>
+                    {[['mastered','#10B981'],['partial','#F59E0B'],['struggling','#EF4444']].map(([k,c]) => (
+                        <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text3)' }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: c }} /> {k}</div>
+                    ))}
+                </div>
+                {(sc > 0 || pc > 0) && (
+                    <button onClick={() => setSniperOpen(true)} style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none', background: sc > 0 ? 'linear-gradient(90deg,#EF4444,#F59E0B)' : '#F59E0B', color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 8px rgba(239,68,68,0.25)', letterSpacing: 0.2 }}>
+                        🎯 Sniper Test — {sc} red zone{sc !== 1 ? 's' : ''} targeted
+                    </button>
+                )}
             </div>
             {examinerConcept && <ExaminerModal concept={examinerConcept} onClose={() => setExaminerConcept(null)} />}
+            {sniperOpen && <SniperExamModal nodes={nodes} onClose={() => setSniperOpen(false)} />}
         </div>
     );
 }
