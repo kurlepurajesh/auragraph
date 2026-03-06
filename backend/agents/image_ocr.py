@@ -231,3 +231,86 @@ def extract_text_from_image(image_bytes: bytes, filename: str) -> str:
         f"[Image '{filename}': text extraction unavailable — "
         "configure GROQ_API_KEY to enable handwriting recognition.]\n"
     )
+
+
+# ── Diagram / figure description ─────────────────────────────────────────────
+
+_DESCRIBE_SYSTEM = """\
+You are an expert technical illustrator and academic assistant.
+Your job is to produce a precise, concise description of a diagram or figure
+extracted from a lecture slide, for inclusion in study notes.
+"""
+
+_DESCRIBE_PROMPT = """\
+Describe this diagram/figure from a lecture slide.
+
+Write ONE to THREE sentences covering:
+1. What type of diagram it is (circuit, block diagram, graph, waveform, flowchart, table, photo, etc.)
+2. The key components, labels, or values visible
+3. What concept it illustrates (if inferable)
+
+Rules:
+- Be specific: name components ("resistor R1", "op-amp U1"), axis labels, curve names
+- Keep it ≤ 60 words
+- Output ONLY the description — no preamble, no "This image shows"
+"""
+
+
+def describe_slide_image(image_bytes: bytes, source_label: str = "") -> str:
+    """
+    Call Groq vision to produce a concise academic caption for a slide figure.
+    Returns a short description string, or a generic fallback.
+    Falls back gracefully if Groq is unavailable.
+    """
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key or api_key.startswith("your-"):
+        return f"Figure from {source_label}" if source_label else "Figure"
+
+    # Encode as base64 PNG/JPEG
+    b64 = base64.b64encode(image_bytes).decode()
+    # Detect mime from magic bytes
+    if image_bytes[:4] == b'\x89PNG':
+        mime = "image/png"
+    elif image_bytes[:2] == b'\xff\xd8':
+        mime = "image/jpeg"
+    else:
+        mime = "image/png"
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(
+            base_url="https://api.groq.com/openai/v1",
+            api_key=api_key,
+        )
+        model = os.environ.get("GROQ_VISION_MODEL", "llama-3.2-11b-vision-preview")
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": _DESCRIBE_SYSTEM},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": _DESCRIBE_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime};base64,{b64}",
+                                "detail": "low",   # low detail is enough for a caption
+                            },
+                        },
+                    ],
+                },
+            ],
+            max_tokens=120,
+            temperature=0.1,
+        )
+        desc = resp.choices[0].message.content.strip()
+        # Strip any leading "This image shows" etc.
+        desc = desc.removeprefix("This image shows").removeprefix("This diagram shows").strip()
+        if desc.startswith((",", ".")):
+            desc = desc[1:].strip()
+        logger.info("image_ocr: described '%s' → %s", source_label, desc[:60])
+        return desc
+    except Exception as e:
+        logger.warning("image_ocr: describe_slide_image failed for %s: %s", source_label, e)
+        return f"Figure from {source_label}" if source_label else "Figure"

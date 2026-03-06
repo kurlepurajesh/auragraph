@@ -393,6 +393,27 @@ function NoteRenderer({ content }) {
         ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize: 16, color: '#18181B' }}>{children}</ol>; },
         li({ children }) { return <li style={{ marginBottom: 5 }}>{children}</li>; },
         img({ src, alt }) {
+            const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+            const isApiImage = src && (src.startsWith('/api/images/') || src.startsWith('http'));
+            const fullSrc = src && src.startsWith('/api/') ? `${API}${src}` : src;
+            if (isApiImage) {
+                return (
+                    <figure style={{ margin: '20px 0', textAlign: 'center' }}>
+                        <img
+                            src={fullSrc}
+                            alt={alt || 'Figure'}
+                            style={{ maxWidth: '100%', maxHeight: 420, borderRadius: 8, border: '1px solid #E4E4E7', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'inline-block' }}
+                            onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                        />
+                        <div style={{ display: 'none', alignItems: 'center', gap: 10, background: '#F4F4F5', border: '1px solid #E4E4E7', borderRadius: 8, padding: '12px 16px', margin: '14px 0', color: '#71717A', fontSize: 13, fontStyle: 'italic', fontFamily: '"DM Sans",sans-serif' }}>
+                            <span style={{ fontSize: 18 }}>🖼</span>
+                            <span>{alt ? `Figure: ${alt}` : 'Figure'}</span>
+                        </div>
+                        {alt && <figcaption style={{ fontSize: 12, color: '#71717A', marginTop: 6, fontFamily: '"DM Sans",sans-serif', fontStyle: 'italic' }}>{alt}</figcaption>}
+                    </figure>
+                );
+            }
+            // Non-served images (e.g. external URLs or data URIs) — plain render
             return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F4F4F5', border: '1px solid #E4E4E7', borderRadius: 8, padding: '12px 16px', margin: '14px 0', color: '#71717A', fontSize: 13, fontStyle: 'italic', fontFamily: '"DM Sans",sans-serif' }}>
                     <span style={{ fontSize: 18 }}>🖼</span>

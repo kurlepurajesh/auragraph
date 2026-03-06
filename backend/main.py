@@ -26,6 +26,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -48,6 +49,8 @@ from agents.local_examiner import local_examine
 from agents.concept_extractor import extract_concepts
 from agents.latex_utils import fix_latex_delimiters
 from agents.auth_utils import register_user, login_user, validate_token
+from agents.slide_images import extract_images_from_file, save_images, get_image_path
+from agents.image_ocr import describe_slide_image
 from agents.notebook_store import (
     create_notebook, get_notebooks, get_notebook,
     update_notebook_note, update_notebook_graph, delete_notebook,
@@ -462,6 +465,7 @@ async def upload_fuse_multi(
     all_slides_text   = ""
     all_textbook_text = ""
     extraction_errors: list[str] = []
+    all_slide_images  = []    # ExtractedImage objects from all slides files
 
     for upload in slides_pdfs:
         raw   = await upload.read()
@@ -471,6 +475,12 @@ async def upload_fuse_multi(
         except ValueError as e:
             extraction_errors.append(f"{fname}: {e}")
             logger.warning("Slides extraction failed %s: %s", fname, e)
+        # Extract embedded images (PDF / PPTX only — skip raw image uploads)
+        try:
+            imgs = extract_images_from_file(raw, fname)
+            all_slide_images.extend(imgs)
+        except Exception as e:
+            logger.warning("Image extraction failed %s: %s", fname, e)
 
     for upload in textbook_pdfs:
         raw   = await upload.read()
@@ -486,6 +496,53 @@ async def upload_fuse_multi(
         if extraction_errors:
             detail += " Errors: " + "; ".join(extraction_errors)
         raise HTTPException(422, detail)
+
+    # ── Step 1b: Describe + save extracted slide images ───────────────────────
+    slide_figures_md = ""   # appended to notes later
+    if all_slide_images and notebook_id:
+        logger.info("Describing %d extracted slide images…", len(all_slide_images))
+        for img in all_slide_images:
+            try:
+                img.description = describe_slide_image(img.data, img.source_label)
+            except Exception as e:
+                img.description = f"Figure from {img.source_label}"
+                logger.debug("describe_slide_image failed: %s", e)
+        # Save to disk for serving
+        try:
+            save_images(notebook_id, all_slide_images)
+        except Exception as e:
+            logger.warning("Image save failed: %s", e)
+            all_slide_images = []  # can't serve them, don't add broken links
+
+        if all_slide_images:
+            # Inject inline [Figure: ...] annotations into slide text so the LLM
+            # knows what diagrams existed on each slide during note generation
+            import re as _re
+            for img in all_slide_images:
+                marker_pattern = _re.compile(
+                    r'(---\s*' + img.source_label.replace(' ', '\\s+') + r'[^\n]*---)',
+                    _re.IGNORECASE,
+                )
+                annotation = f"\n[Figure: {img.description}]"
+                all_slides_text = marker_pattern.sub(
+                    lambda m, ann=annotation: m.group(0) + ann,
+                    all_slides_text, count=1,
+                )
+
+            # Build the figures section for the end of the notes
+            lines = ["## \U0001f4ce Figures & Diagrams\n"]
+            for img in all_slide_images:
+                ext      = img.mime.split("/")[-1].replace("jpeg", "jpg")
+                img_url  = f"/api/images/{notebook_id}/{img.img_id}.{ext}"
+                safe_alt = img.description.replace('"', "'")
+                lines.append(f"![{safe_alt}]({img_url})")
+                lines.append(f"*{img.description}* — {img.source_label}\n")
+            slide_figures_md = "\n".join(lines)
+            logger.info("Built figures section with %d images", len(all_slide_images))
+    elif all_slide_images:
+        # No notebook_id — can't persist images, but still describe for LLM context
+        logger.info("No notebook_id — skipping image save (no persistent URL to serve)")
+        slide_figures_md = ""
 
     # ── Step 2: Chunk and Store EVERYTHING verbatim ───────────────────────────
     # Store raw slide + textbook chunks for doubt/mutation retrieval
@@ -582,6 +639,10 @@ async def upload_fuse_multi(
 
     fused_note = fix_latex_delimiters(fused_note)
 
+    # ── Append extracted slide figures to notes ───────────────────────────────
+    if slide_figures_md and fused_note:
+        fused_note = fused_note.rstrip() + "\n\n" + slide_figures_md
+
     # ── Store note pages ──────────────────────────────────────────────────────
     if notebook_id:
         try:
@@ -609,6 +670,23 @@ async def upload_fuse_multi(
         fallback_reason=fallback_warning,
         chunks_stored=chunks_stored,
     )
+
+
+# ── Image serving ──────────────────────────────────────────────────────────────
+@app.get("/api/images/{notebook_id}/{img_filename}")
+async def serve_slide_image(notebook_id: str, img_filename: str):
+    """
+    Serve a slide image extracted during upload.
+    Images live in /tmp/auragraph_imgs/{notebook_id}/ and are ephemeral
+    (cleared on server restart).  Frontend notes embed these URLs.
+    """
+    path = get_image_path(notebook_id, img_filename)
+    if not path:
+        raise HTTPException(404, f"Image {img_filename} not found for notebook {notebook_id}")
+    ext  = img_filename.rsplit(".", 1)[-1].lower()
+    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+            "webp": "image/webp", "gif": "image/gif"}.get(ext, "image/png")
+    return FileResponse(path, media_type=mime, headers={"Cache-Control": "max-age=3600"})
 
 
 # Backward-compat alias
