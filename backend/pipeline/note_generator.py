@@ -170,26 +170,61 @@ OUTPUT: Only the ## section. Nothing before it, nothing after the Exam Tip.
 """
 
 _REFINEMENT_SYSTEM = """\
-You are an expert academic editor.
-Improve the clarity and readability of these study notes.
+You are an expert academic editor improving engineering study notes.
+Your job is to enhance clarity, completeness, and structure without removing content.
 """
 
 _REFINEMENT_USER = """\
-Below are draft study notes. Improve them according to these rules:
+Below are draft study notes. Improve them strictly according to these rules:
 
 RULES:
-• Do NOT add new topics or ## sections.
-• Do NOT change the topic order or structure.
+• Do NOT remove any ## sections or change their order.
+• Do NOT shorten notes — if anything, add missing detail.
 • Fix awkward phrasing, redundancy, and unclear explanations.
 • Ensure all formulas use $...$ or $$ ... $$ LaTeX — never \\( \\) or \\[ \\].
 • Ensure every ## section ends with > 📝 **Exam Tip:** ...
-• Remove any preamble or conclusion text you find.
-• Output ONLY the improved notes — no commentary.
+• Remove any preamble or conclusion text (e.g. "Here are your notes").
+• Output ONLY the improved notes — no commentary, no labels.
 
 NOTES:
 {notes}
 """
 
+# ── Post-processor ────────────────────────────────────────────────────────────
+
+_PREAMBLE_RE = re.compile(
+    r'^(?:here(?:\s+are|is)|sure[,!]?|certainly[,!]?|below|of course[,!]?'
+    r'|the\s+following|these\s+are)\b.*?\n+',
+    re.IGNORECASE | re.DOTALL,
+)
+
+def _post_process_section(text: str, topic: str) -> str:
+    """
+    Clean up a single generated ## section:
+    1. Strip any LLM preamble before the ## heading
+    2. Ensure the section starts with ## topic
+    3. Ensure it ends with an Exam Tip blockquote
+    """
+    import re
+
+    # 1. strip preamble lines before the ## heading
+    lines = text.split('\n')
+    start = 0
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith('##'):
+            start = i
+            break
+    text = '\n'.join(lines[start:]).strip()
+
+    # 2. ensure heading present
+    if not text.lstrip().startswith('##'):
+        text = f'## {topic}\n\n{text}'
+
+    # 3. ensure exam tip present at end
+    if '📝' not in text and 'Exam Tip' not in text:
+        text = text.rstrip() + f'\n\n> 📝 **Exam Tip:** Review the definition and key formula for {topic}.'
+
+    return text.strip()
 
 # ── LLM availability + call helpers ──────────────────────────────────────────
 
@@ -275,30 +310,36 @@ async def generate_topic_note(
     Generate one ## section for a single lecture topic.
     Returns (section_text, source) where source is 'azure' | 'groq' | 'local'.
     """
+    # Build the key_points block for the prompt
+    key_points_block = (
+        "\n".join(f"- {kp}" for kp in topic.key_points)
+        if topic.key_points else "(extracted from slide content below)"
+    )
+
     if _azure_available():
         user = _NOTE_USER_TEMPLATE.format(
             topic=topic.topic,
-            slide_text=topic.slide_text[:6_000],
-            textbook_context=textbook_context[:4_000] if textbook_context else "(none)",
+            key_points_block=key_points_block,
+            slide_text=topic.slide_text[:8_000],
+            textbook_context=textbook_context[:5_000] if textbook_context else "(none)",
             proficiency=proficiency,
         )
-        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=2500)
+        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=3000)
         if result:
-            if not result.lstrip().startswith("##"):
-                result = f"## {topic.topic}\n\n{result}"
+            result = _post_process_section(result, topic.topic)
             return fix_latex_delimiters(_fix_tables(result)), "azure"
 
     if _groq_available():
         user = _NOTE_USER_TEMPLATE.format(
             topic=topic.topic,
-            slide_text=topic.slide_text[:5_000],
-            textbook_context=textbook_context[:3_000] if textbook_context else "(none)",
+            key_points_block=key_points_block,
+            slide_text=topic.slide_text[:6_000],
+            textbook_context=textbook_context[:4_000] if textbook_context else "(none)",
             proficiency=proficiency,
         )
-        result = await _call_groq(_NOTE_SYSTEM, user, max_tokens=2500)
+        result = await _call_groq(_NOTE_SYSTEM, user, max_tokens=3000)
         if result:
-            if not result.lstrip().startswith("##"):
-                result = f"## {topic.topic}\n\n{result}"
+            result = _post_process_section(result, topic.topic)
             return fix_latex_delimiters(_fix_tables(result)), "groq"
 
     # ── Deterministic fallback ─────────────────────────────────────────────────────
@@ -314,12 +355,11 @@ def _build_fallback_section(
     Build a note section without LLM.
     Preserves all slide content and inlines a snippet of textbook context.
     """
-    from agents.local_summarizer import _build_section, _extract_math_and_prose
+    from agents.local_summarizer import _build_section
 
     body = topic.slide_text
-    # Strip slide boundary markers for the body
-    import re
-    body = re.sub(r'^---\s*Slide\s+\d+[^\n]*---\s*\n?', '', body, flags=re.MULTILINE).strip()
+    # Strip slide/page boundary markers for the body
+    body = re.sub(r'^---\s*(?:Slide|Page)\s+\d+[^\n]*---\s*\n?', '', body, flags=re.MULTILINE).strip()
     enrichment = textbook_context[:300] if textbook_context else ""
 
     section = _build_section(topic.topic, body, enrichment, 8, proficiency)
@@ -327,7 +367,7 @@ def _build_fallback_section(
         return fix_latex_delimiters(section)
 
     # Absolute fallback: just wrap slide text
-    return fix_latex_delimiters(f"## {topic.topic}\n\n{body}\n\n> 📝 **Exam Tip:** Review this concept carefully.")
+    return fix_latex_delimiters(f"## {topic.topic}\n\n{body}\n\n> 📝 **Exam Tip:** Review the definition and key formula for {topic.topic}.")
 
 
 # ── Merge + Refinement ─────────────────────────────────────────────────────
@@ -346,24 +386,34 @@ async def refine_notes(notes: str) -> str:
     """
     Single refinement pass to improve clarity (Step 8).
     Tries Azure first, then Groq. Skips if no LLM available or notes < 500 chars.
+    For large notes (>18k chars), Groq cannot reliably refine the full text
+    without truncation, so refinement is skipped for Groq on large outputs.
     Returns original notes on failure.
     """
     if len(notes) < 500:
         return notes
 
+    # Groq has tight output limits — skip refinement for large note sets
+    # to avoid silently truncating 50% of the content
+    groq_refine_ok = _groq_available() and len(notes) <= 18_000
+
     user = _REFINEMENT_USER.format(notes=notes[:28_000])
 
     if _azure_available():
         refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=8192)
-        if refined and len(refined) > len(notes) * 0.3:
-            return fix_latex_delimiters(refined)
+        if refined and len(refined) > len(notes) * 0.6:
+            return fix_latex_delimiters(_fix_tables(refined))
+        if refined:
+            logger.info("Azure refinement output too short (%d vs %d) — keeping original", len(refined), len(notes))
 
-    if _groq_available():
+    if groq_refine_ok:
         refined = await _call_groq(_REFINEMENT_SYSTEM, user, max_tokens=8192)
-        if refined and len(refined) > len(notes) * 0.3:
-            return fix_latex_delimiters(refined)
+        if refined and len(refined) > len(notes) * 0.6:
+            return fix_latex_delimiters(_fix_tables(refined))
+        if refined:
+            logger.info("Groq refinement output too short (%d vs %d) — keeping original", len(refined), len(notes))
 
-    logger.info("Refinement produced short/empty output — keeping original")
+    logger.info("Refinement skipped/failed — keeping original %d-char notes", len(notes))
     return notes
 
 
@@ -378,6 +428,9 @@ async def run_generation_pipeline(
     """
     Run Step 6 (N topic calls) + Step 7 (merge) + Step 8 (refinement).
 
+    Topic notes are generated CONCURRENTLY (up to 4 at a time) to avoid
+    making the student wait 30-50 seconds for a sequential loop.
+
     Returns:
         Tuple of (merged_notes, source) where source is
         'azure' | 'groq' | 'local'.
@@ -385,14 +438,19 @@ async def run_generation_pipeline(
     if not topics:
         return "", "local"
 
-    sections: list[str] = []
-    topic_sources: list[str] = []
-    for topic in topics:
-        context = topic_contexts.get(topic.topic, "")
-        logger.info("Generating note for topic: %s", topic.topic)
-        section, topic_src = await generate_topic_note(topic, context, proficiency)
-        sections.append(section)
-        topic_sources.append(topic_src)
+    # Semaphore: max 4 concurrent LLM calls (avoids Groq rate limits)
+    sem = asyncio.Semaphore(4)
+
+    async def _generate_with_sem(topic: SlideTopic) -> tuple[str, str]:
+        async with sem:
+            context = topic_contexts.get(topic.topic, "")
+            logger.info("Generating note for topic: %s", topic.topic)
+            return await generate_topic_note(topic, context, proficiency)
+
+    # Generate all topics concurrently
+    results = await asyncio.gather(*[_generate_with_sem(t) for t in topics])
+    sections     = [r[0] for r in results]
+    topic_sources = [r[1] for r in results]
 
     merged = merge_sections(sections)
 
@@ -405,7 +463,7 @@ async def run_generation_pipeline(
         source = "local"
 
     if refine and (_azure_available() or _groq_available()):
-        logger.info("Running refinement pass on %d chars", len(merged))
+        logger.info("Running refinement pass on %d chars (source=%s)", len(merged), source)
         merged = await refine_notes(merged)
 
     return merged, source
