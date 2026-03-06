@@ -1,9 +1,14 @@
 # Python
 backend/venv/
-backend/__pycache__/
-backend/agents/__pycache__/
-backend/*.pyc
+**/__pycache__/
+**/*.pyc
+*.pyc
+
+# Backend runtime data
 backend/.env
+backend/knowledge_store/
+backend/mock_db_*.json
+backend/mock_db_*.tmp
 
 # Node
 frontend/node_modules/
