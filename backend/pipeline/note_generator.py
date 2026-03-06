@@ -100,6 +100,15 @@ Five laws you NEVER break:
 ④ MNEMONIC       — If there is a pattern students forget, give a 1-line memory trick.
 ⑤ HONEST         — If the slide is sparse, write what you know accurately. Never pad with filler.
 
+CRITICAL — OCR source text:
+The slide content and key points may originate from OCR of handwritten or scanned notes.
+Mathematical expressions are often imperfectly captured — e.g. "E[X] = mu", "x squared plus
+sigma squared", "integral from 0 to T", fractional notation garbled as "a/b+c" vs "a/(b+c)".
+→ ALWAYS use your own mathematical knowledge to reconstruct the CORRECT formula.
+→ Write every formula in proper LaTeX — NEVER copy garbled OCR text as the final output.
+→ If a source expression is ambiguous, pick the mathematically consistent interpretation
+   given the topic, and render it correctly in LaTeX.
+
 Banned phrases (never write these): "delve", "explore", "It is important to note",
 "In conclusion", "In this section", "Overview:", "As we can see", "Please note".
 """
@@ -132,6 +141,10 @@ STRUCTURE:
 
 CONTENT:
 • SLIDE CONTENT is your primary source — never drop a definition or formula found there.
+• Source text may be OCR'd from handwritten notes — math may be written as plain text
+  (e.g. "sum of x_i / n", "e to the minus lambda t", "alpha squared"). Reconstruct
+  the CORRECT LaTeX formula using your knowledge of the topic — never output the
+  garbled OCR text literally.
 • Use textbook context only to clarify a definition or add one supporting example.
 • NEVER introduce a concept that is not in the slides.
 
@@ -178,6 +191,13 @@ TABLES:
 
 MATHEMATICS:
 • ALL math must be in LaTeX. NEVER write "integral", "sigma", "omega" as English words.
+• If the source expresses a formula as plain text (OCR artifact), rewrite it in
+  correct LaTeX using your mathematical knowledge of the topic. Examples:
+    OCR text               → Correct LaTeX
+    "E[X] = mu"            → $E[X] = \mu$
+    "integral from 0 to T" → $\int_0^T$
+    "x^2/2 + sigma^2"      → $\frac{x^2}{2} + \sigma^2$
+    "e to the minus lambda t" → $e^{-\lambda t}$
 • Inline: $expression$
 • Display (own line):
   $$

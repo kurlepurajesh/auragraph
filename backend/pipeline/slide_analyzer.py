@@ -43,6 +43,13 @@ class SlideTopic:
 _SLIDE_ANALYSIS_SYSTEM = """\
 You are an expert academic content analyst.
 Your job is to extract the structured lecture outline from raw slide text.
+
+IMPORTANT — Source text quality:
+The input may come from OCR of handwritten notes or scanned slides. Mathematical
+expressions may be imperfectly captured — e.g. "integral from 0 to T", "E[X] = mu",
+"x squared", "sigma^2", or garbled fractions. Use your OWN mathematical knowledge
+to interpret the INTENDED formula. Do NOT copy garbled OCR text literally into
+key_points — reconstruct the correct mathematical statement from context.
 """
 
 _SLIDE_ANALYSIS_USER = """\
@@ -59,7 +66,9 @@ Rules:
   2. Merge consecutive slides that cover the same concept into ONE topic entry.
   3. Ignore metadata slides (title slide, table of contents, references, thank you).
   4. Each topic must correspond to actual teaching content from the slides.
-  5. key_points must come FROM the slides, not invented.
+  5. key_points must represent the CORRECT mathematical or conceptual statement.
+     If the slide text has OCR artifacts or garbled math, interpret using your own
+     knowledge — state the formula/concept correctly, not as the OCR garbled it.
   6. Output ONLY valid JSON in this exact format — a JSON object with a "topics" key containing the array.
      No preamble, no markdown fences, no extra keys.
 
