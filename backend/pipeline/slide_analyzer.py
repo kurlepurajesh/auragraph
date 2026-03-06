@@ -87,7 +87,13 @@ import asyncio as _asyncio
 def _azure_ok() -> bool:
     ep  = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
     key = os.environ.get("AZURE_OPENAI_API_KEY",  "")
-    return bool(ep) and bool(key) and "mock" not in ep.lower()
+    # FIX (round 4): mirror main.py — also reject "placeholder" endpoints/keys
+    return (
+        bool(ep) and bool(key)
+        and "mock"        not in ep.lower()
+        and "placeholder" not in ep.lower()
+        and "placeholder" not in key.lower()
+    )
 
 
 def _groq_ok() -> bool:

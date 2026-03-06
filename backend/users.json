@@ -147,5 +147,13 @@
     "token": "aaa8f384-602a-458d-b88d-9861916e8fad",
     "token_issued_at": 1772731353.157016,
     "name": "Test_943d9fcb"
+  },
+  {
+    "id": "e19a19be-6e6a-431f-b788-b7beb94c9e9a",
+    "email": "smoketest2",
+    "password_hash": "0fadf52a4580cfebb99e61162139af3d3a6403c1d36b83e4962b721d1c8cbd0b",
+    "token": "18ee0a9e-6edb-444d-957d-60036c965f7e",
+    "token_issued_at": 1772813679.214305,
+    "name": "Smoketest2"
   }
 ]

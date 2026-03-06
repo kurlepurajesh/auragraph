@@ -683,5 +683,19 @@
     },
     "created_at": "2026-03-04T16:21:45.092282",
     "updated_at": "2026-03-05T14:13:33.738260"
+  },
+  {
+    "id": "ded3bf19-3d81-4dc6-a542-b2cd814ba38b",
+    "user_id": "e19a19be-6e6a-431f-b788-b7beb94c9e9a",
+    "name": "Smoke Test",
+    "course": "Test 101",
+    "note": "",
+    "proficiency": "Intermediate",
+    "graph": {
+      "nodes": [],
+      "edges": []
+    },
+    "created_at": "2026-03-06T16:14:24.124029",
+    "updated_at": "2026-03-06T16:14:24.124038"
   }
 ]

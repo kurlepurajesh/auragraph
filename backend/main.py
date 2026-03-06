@@ -853,6 +853,13 @@ async def upload_fuse_multi(
 
 @app.get("/api/images/{notebook_id}/{img_filename}")
 async def serve_slide_image(notebook_id: str, img_filename: str):
+    # FIX (round 4): reject path-traversal attempts in both path segments.
+    # <img> tags cannot send Authorization headers, so Bearer auth is not
+    # practical here; path hardening prevents directory escape instead.
+    import re as _re
+    if not _re.fullmatch(r'[a-zA-Z0-9_\-]+', notebook_id) or \
+       not _re.fullmatch(r'[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+', img_filename):
+        raise HTTPException(400, "Invalid image path")
     path = get_image_path(notebook_id, img_filename)
     if not path:
         raise HTTPException(404, f"Image {img_filename} not found")

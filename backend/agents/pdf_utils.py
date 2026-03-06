@@ -364,7 +364,15 @@ def chunk_text(text: str, max_chars: int = 8000) -> list[str]:
                     else:
                         if sub_buf:
                             chunks.append(sub_buf)
-                        sub_buf = sp
+                        # FIX (round 4): a single paragraph larger than max_chars
+                        # must itself be hard-split rather than stored as-is,
+                        # otherwise oversized chunks can exceed LLM context limits.
+                        if len(sp) > max_chars:
+                            for i in range(0, len(sp), max_chars):
+                                chunks.append(sp[i:i + max_chars])
+                            sub_buf = ""
+                        else:
+                            sub_buf = sp
                 if sub_buf:
                     current = sub_buf
                 else:

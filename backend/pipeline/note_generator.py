@@ -275,7 +275,13 @@ def _post_process_section(text: str, topic: str) -> str:
 def _azure_available() -> bool:
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
     api_key  = os.environ.get("AZURE_OPENAI_API_KEY",  "")
-    return bool(endpoint) and bool(api_key) and "mock" not in endpoint.lower()
+    # FIX (round 4): mirror main.py — also reject "placeholder" endpoints/keys
+    return (
+        bool(endpoint) and bool(api_key)
+        and "mock"        not in endpoint.lower()
+        and "placeholder" not in endpoint.lower()
+        and "placeholder" not in api_key.lower()
+    )
 
 
 def _groq_available() -> bool:
