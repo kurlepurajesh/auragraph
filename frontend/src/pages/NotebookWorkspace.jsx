@@ -135,6 +135,9 @@ function MutateModal({ page, notebookId, pageIdx, onClose, onMutate }) {
     const [busy, setBusy] = useState(false);
     const [answer, setAnswer] = useState('');
     const [answerSource, setAnswerSource] = useState('');
+    const [answerVerification, setAnswerVerification] = useState('correct');
+    const [answerCorrection, setAnswerCorrection]     = useState('');
+    const [answerFootnote, setAnswerFootnote]         = useState('');
     const [mode, setMode] = useState('idle'); // 'idle' | 'answering' | 'answered' | 'mutating'
 
     const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -156,6 +159,9 @@ function MutateModal({ page, notebookId, pageIdx, onClose, onMutate }) {
                 const data = await res.json();
                 setAnswer(data.answer || '');
                 setAnswerSource(data.source || 'local');
+                setAnswerVerification(data.verification_status || 'correct');
+                setAnswerCorrection(data.correction || '');
+                setAnswerFootnote(data.footnote || '');
             } else {
                 setAnswer('Could not get an answer. Try again or use Mutate to rewrite this page.');
             }
@@ -197,13 +203,49 @@ function MutateModal({ page, notebookId, pageIdx, onClose, onMutate }) {
 
                 {/* Answer panel */}
                 {(mode === 'answering' || mode === 'answered') && (
-                    <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: 14, marginBottom: 14, maxHeight: 260, overflowY: 'auto' }}>
+                    <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: 14, marginBottom: 14, maxHeight: 340, overflowY: 'auto' }}>
                         <div style={{ fontSize: 11, color: '#0369A1', fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Brain size={12} /> AuraGraph Answer {answerSource === 'azure' ? '(GPT-4o + your notes + textbook)' : '(offline)'}
+                            <Brain size={12} /> AuraGraph Answer {answerSource === 'azure' ? '(GPT-4o · verified)' : answerSource === 'groq' ? '(Groq · verified)' : '(offline)'}
                         </div>
                         {mode === 'answering'
-                            ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0369A1', fontSize: 13 }}><Loader2 className="spin" size={14} /> Searching your slides, textbook and notes…</div>
-                            : <div style={{ fontSize: 13, lineHeight: 1.7, color: '#0C4A6E', whiteSpace: 'pre-wrap' }}>{answer}</div>
+                            ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0369A1', fontSize: 13 }}><Loader2 className="spin" size={14} /> Verifying against slides, textbook and model knowledge…</div>
+                            : (
+                                <>
+                                    {/* Main answer */}
+                                    <div style={{ fontSize: 13, lineHeight: 1.8, color: '#0C4A6E' }}>
+                                        <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{answer}</ReactMarkdown>
+                                    </div>
+
+                                    {/* Verification badge */}
+                                    {answerVerification === 'correct' && (
+                                        <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5, background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: '#166534', fontWeight: 600 }}>
+                                            <CheckCircle2 size={11} /> Notes verified — content is correct
+                                        </div>
+                                    )}
+                                    {answerVerification === 'partially_correct' && (
+                                        <div style={{ marginTop: 10, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '10px 12px' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                <AlertCircle size={12} /> Notes are partially correct
+                                            </div>
+                                            <div style={{ fontSize: 12, lineHeight: 1.7, color: '#78350F' }}>
+                                                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{answerCorrection}</ReactMarkdown>
+                                            </div>
+                                            {answerFootnote && <div style={{ fontSize: 11, color: '#92400E', marginTop: 4, fontStyle: 'italic' }}>{answerFootnote}</div>}
+                                        </div>
+                                    )}
+                                    {answerVerification === 'incorrect' && (
+                                        <div style={{ marginTop: 10, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 12px' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 700, color: '#991B1B', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                <MinusCircle size={12} /> Notes contain an error
+                                            </div>
+                                            <div style={{ fontSize: 12, lineHeight: 1.7, color: '#7F1D1D' }}>
+                                                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{answerCorrection}</ReactMarkdown>
+                                            </div>
+                                            {answerFootnote && <div style={{ fontSize: 11, color: '#991B1B', marginTop: 4, fontStyle: 'italic' }}>{answerFootnote}</div>}
+                                        </div>
+                                    )}
+                                </>
+                            )
                         }
                     </div>
                 )}

@@ -104,40 +104,9 @@ CONCISENESS:
 """
 
 
-DOUBT_ANSWER_PROMPT = r"""\
-You are AuraGraph's Doubt Resolution Engine.
-A student has a doubt about their study material. Answer it completely.
-
-════════════════════════════════
-STUDENT'S DOUBT:
-{{$doubt}}
-
-════════════════════════════════
-RELEVANT SLIDE CONTENT (what the professor taught):
-{{$slide_context}}
-
-════════════════════════════════
-RELEVANT TEXTBOOK CONTENT (deeper explanation):
-{{$textbook_context}}
-
-════════════════════════════════
-RELEVANT NOTE PAGE (what the student is currently reading):
-{{$note_page}}
-
-════════════════════════════════
-TASK:
-1. Answer the doubt directly and completely.
-2. Draw on ALL three sources above — slide content, textbook depth, and the note context.
-3. If the answer involves a formula, show it in display LaTeX.
-4. Add a concrete example or analogy if it helps clarity.
-5. End with one `> 📝 **Exam Tip:**` if the doubt touches a commonly tested point.
-
-FORMAT:
-- Start directly with the answer. No preamble like "Great question!".
-- Use Markdown. Inline math `$...$`, display math on its own line `$$\n...\n$$`.
-- Keep it concise — 150-300 words unless the topic genuinely requires more.
-- NEVER use `\[`, `\]`, `\(`, `\)`.
-"""
+# DOUBT_ANSWER_PROMPT now delegates to the verification pipeline.
+# Import the prompt string from verifier_agent so there is a single source of truth.
+from agents.verifier_agent import VERIFICATION_PROMPT as DOUBT_ANSWER_PROMPT  # noqa: E402
 
 
 MUTATION_PROMPT = r"""\
@@ -200,7 +169,7 @@ class FusionAgent:
             )
 
         self._fuse_fn   = _make_fn("fuse",   FUSION_PROMPT,       ["slide_content", "textbook_content", "proficiency"])
-        self._doubt_fn  = _make_fn("doubt",  DOUBT_ANSWER_PROMPT, ["doubt", "slide_context", "textbook_context", "note_page"])
+        self._doubt_fn  = _make_fn("doubt",  DOUBT_ANSWER_PROMPT, ["doubt", "note_page", "slide_context", "textbook_context"])
         self._mutate_fn = _make_fn("mutate", MUTATION_PROMPT,     ["note_page", "doubt", "slide_context", "textbook_context"])
 
     async def fuse(

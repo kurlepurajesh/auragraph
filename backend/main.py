@@ -224,13 +224,13 @@ async def _groq_fuse(slide_content: str, textbook_content: str, proficiency: str
 
 
 async def _groq_doubt(doubt, slide_ctx, textbook_ctx, note_page) -> str:
-    from agents.fusion_agent import DOUBT_ANSWER_PROMPT
+    from agents.verifier_agent import VERIFICATION_PROMPT
     prompt = (
-        DOUBT_ANSWER_PROMPT
+        VERIFICATION_PROMPT
         .replace("{{$doubt}}",            doubt)
+        .replace("{{$note_page}}",        note_page)
         .replace("{{$slide_context}}",    slide_ctx)
         .replace("{{$textbook_context}}", textbook_ctx)
-        .replace("{{$note_page}}",        note_page)
     )
     return await _groq_chat([{"role": "user", "content": prompt}])
 
@@ -413,8 +413,11 @@ class DoubtRequest(BaseModel):
 
 
 class DoubtResponse(BaseModel):
-    answer: str
-    source: str = "azure"
+    answer:              str
+    source:              str = "azure"
+    verification_status: str = "correct"   # correct | partially_correct | incorrect
+    correction:          str = ""           # non-empty when notes contain an error
+    footnote:            str = ""           # optional short clarification
 
 
 class MutationRequest(BaseModel):
@@ -918,23 +921,39 @@ async def answer_doubt(
     textbook_ctx = _format_chunks_for_prompt(textbook_hits, 8_000)
     note_page    = get_note_page(req.notebook_id, req.page_idx) or ""
 
+    from agents.verifier_agent import parse_verification_response
+
+    raw_text: str | None = None
+    source = "local"
+
     if _is_azure_available():
         try:
-            answer = await fusion_agent.answer_doubt(
+            raw_text = str(await fusion_agent.answer_doubt(
                 doubt=req.doubt, slide_context=slide_ctx,
                 textbook_context=textbook_ctx, note_page=note_page,
-            )
-            return DoubtResponse(answer=fix_latex_delimiters(answer), source="azure")
+            ))
+            source = "azure"
         except Exception as e:
             logger.warning("Azure doubt failed: %s", e)
 
-    if _is_groq_available():
+    if raw_text is None and _is_groq_available():
         try:
-            answer = await _groq_doubt(req.doubt, slide_ctx, textbook_ctx, note_page)
-            return DoubtResponse(answer=fix_latex_delimiters(answer), source="groq")
+            raw_text = await _groq_doubt(req.doubt, slide_ctx, textbook_ctx, note_page)
+            source = "groq"
         except Exception as e:
             logger.warning("Groq doubt failed: %s", e)
 
+    if raw_text is not None:
+        vr = parse_verification_response(raw_text)
+        return DoubtResponse(
+            answer=fix_latex_delimiters(vr.answer),
+            source=source,
+            verification_status=vr.verification_status,
+            correction=fix_latex_delimiters(vr.correction),
+            footnote=vr.footnote,
+        )
+
+    # ── Offline fallback ──────────────────────────────────────────────────────
     from agents.local_mutation import _diagnose_gap, _build_analogy_hint
     gap     = _diagnose_gap(req.doubt)
     analogy = _build_analogy_hint(req.doubt)
