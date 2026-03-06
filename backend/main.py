@@ -443,6 +443,15 @@ class ExaminerResponse(BaseModel):
     practice_questions: str
 
 
+class ConceptPracticeRequest(BaseModel):
+    concept_name: str
+    level: str = "partial"   # struggling | partial | mastered
+
+
+class ConceptPracticeResponse(BaseModel):
+    questions: list         # list of {question, options:{A,B,C,D}, correct, explanation}
+
+
 class NodeUpdateRequest(BaseModel):
     concept_name: str
     status:       str
@@ -1052,6 +1061,65 @@ async def examine_concept(
             logger.warning("Groq examiner failed: %s", e)
     q = local_examine(req.concept_name)
     return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
+
+
+# ── Concept Practice (level-aware structured MCQs) ────────────────────────────
+
+async def _groq_concept_practice(concept_name: str, level: str) -> str:
+    from agents.examiner_agent import CONCEPT_PRACTICE_PROMPT
+    prompt = (
+        CONCEPT_PRACTICE_PROMPT
+        .replace("{{$concept_name}}", concept_name)
+        .replace("{{$level}}",        level)
+    )
+    return await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2000)
+
+
+@app.post("/api/concept-practice", response_model=ConceptPracticeResponse)
+async def concept_practice_endpoint(
+    req: ConceptPracticeRequest,
+    authorization: Optional[str] = Header(None),
+):
+    import json as _json
+    get_current_user(authorization)
+
+    level = req.level.lower().strip()
+    if level not in ("struggling", "partial", "mastered"):
+        level = "partial"
+
+    raw: str | None = None
+
+    if examiner_agent and _is_azure_available():
+        try:
+            raw = await examiner_agent.concept_practice(req.concept_name, level)
+        except Exception as e:
+            logger.warning("Azure concept-practice failed: %s", e)
+
+    if raw is None and _is_groq_available():
+        try:
+            raw = await _groq_concept_practice(req.concept_name, level)
+        except Exception as e:
+            logger.warning("Groq concept-practice failed: %s", e)
+
+    if raw:
+        stripped = raw.strip()
+        stripped = re.sub(r'^```(?:json)?\s*', '', stripped)
+        stripped = re.sub(r'\s*```$', '', stripped.strip())
+        try:
+            parsed = _json.loads(stripped)
+            if isinstance(parsed, list) and parsed:
+                return ConceptPracticeResponse(questions=parsed)
+        except Exception as exc:
+            logger.warning("concept-practice JSON parse failed: %s | raw: %s", exc, raw[:200])
+
+    return ConceptPracticeResponse(questions=[
+        {
+            "question": f"Which of the following best describes '{req.concept_name}'?",
+            "options": {"A": "Option A", "B": "Option B", "C": "Option C", "D": "Option D"},
+            "correct": "A",
+            "explanation": "Backend offline — reconnect for AI-generated questions.",
+        }
+    ])
 
 
 # ── Graph routes (FIX A2: auth required) ──────────────────────────────────────

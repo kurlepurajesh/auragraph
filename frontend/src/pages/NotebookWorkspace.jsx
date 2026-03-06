@@ -366,31 +366,139 @@ function KnowledgeGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
     );
 }
 
-// ─── Node Popover ─────────────────────────────────────────────────────────────
-function NodePopover({ node, onClose, onExamine, onStatusChange, onJumpToSection }) {
-    const opts = ['mastered', 'partial', 'struggling'];
-    const icons = { mastered: <CheckCircle2 size={13}/>, partial: <MinusCircle size={13}/>, struggling: <AlertCircle size={13}/> };
-    const colors = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
+// ─── Question Cards (level-aware per-question Show Answer) ───────────────────
+function QuestionCards({ questions, level }) {
+    const [revealed, setRevealed] = useState(new Set());
+    const LC = {
+        mastered:   { bg: '#DCFCE7', border: '#BBF7D0', accent: '#10B981', text: '#065F46' },
+        partial:    { bg: '#FEF9C3', border: '#FDE68A', accent: '#D97706', text: '#78350F' },
+        struggling: { bg: '#FEF2F2', border: '#FECACA', accent: '#DC2626', text: '#7F1D1D' },
+    };
+    const lc = LC[level] || LC.partial;
     return (
-        <div style={{ background: 'var(--bg)', borderRadius: 12, border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', padding: '14px 16px', margin: '0 12px 12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{node.label}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(questions || []).map((q, i) => {
+                const isRev = revealed.has(i);
+                return (
+                    <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                        <div style={{ padding: '10px 12px', fontSize: 12.5, lineHeight: 1.65, color: 'var(--text)' }}>
+                            <span style={{ fontWeight: 700, color: '#7C3AED', marginRight: 5 }}>{i + 1})</span>
+                            <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} components={{ p: ({ children }) => <span>{children}</span> }}>{q.question || ''}</ReactMarkdown>
+                        </div>
+                        <div style={{ padding: '4px 12px 8px', display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid var(--border)' }}>
+                            {['A','B','C','D'].map(opt => {
+                                const isCorrect = isRev && opt === q.correct;
+                                return (
+                                    <div key={opt} style={{ display: 'flex', gap: 7, padding: '5px 9px', borderRadius: 7, background: isCorrect ? lc.bg : 'transparent', border: `1px solid ${isCorrect ? lc.border : 'transparent'}`, fontSize: 12, lineHeight: 1.5, transition: 'background 0.2s' }}>
+                                        <span style={{ fontWeight: 700, color: isCorrect ? lc.accent : '#9CA3AF', minWidth: 16, flexShrink: 0 }}>{opt})</span>
+                                        <span style={{ color: isCorrect ? lc.text : 'var(--text2)', flex: 1 }}>
+                                            <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} components={{ p: ({ children }) => <span>{children}</span> }}>{q.options?.[opt] || ''}</ReactMarkdown>
+                                        </span>
+                                        {isCorrect && <CheckCircle2 size={11} color={lc.accent} style={{ flexShrink: 0, marginTop: 2 }} />}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div style={{ borderTop: '1px solid var(--border)' }}>
+                            {!isRev ? (
+                                <button onClick={() => setRevealed(p => new Set([...p, i]))} style={{ width: '100%', padding: '8px 12px', background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                                    <CheckCircle2 size={12} /> Show Answer
+                                </button>
+                            ) : (
+                                <div style={{ padding: '10px 12px', background: lc.bg }}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: lc.accent, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <CheckCircle2 size={11} /> Answer: {q.correct}
+                                    </div>
+                                    <div style={{ fontSize: 11, lineHeight: 1.65, color: lc.text }}>
+                                        <span style={{ fontWeight: 600 }}>Explanation: </span>{q.explanation || ''}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// ─── Concept Detail Panel ─────────────────────────────────────────────────────
+function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, onFullPractice }) {
+    const [activeLevel, setActiveLevel] = useState(null);
+    const [questions, setQuestions]     = useState(null);
+    const [loadingQ, setLoadingQ]       = useState(false);
+
+    const LEVELS = [
+        { key: 'struggling', label: 'Struggling', color: '#EF4444', icon: <AlertCircle size={11}/>,  desc: 'Basics' },
+        { key: 'partial',    label: 'Partial',    color: '#F59E0B', icon: <MinusCircle size={11}/>,  desc: 'Standard' },
+        { key: 'mastered',   label: 'Mastered',   color: '#10B981', icon: <CheckCircle2 size={11}/>, desc: 'Advanced' },
+    ];
+    const statusColors = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
+
+    const fetchLevel = async (lk) => {
+        if (activeLevel === lk) { setActiveLevel(null); setQuestions(null); return; }
+        setActiveLevel(lk); setLoadingQ(true); setQuestions(null);
+        try {
+            const res = await fetch(`${API}/api/concept-practice`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({ concept_name: node.label, level: lk }),
+            });
+            const data = await res.json();
+            setQuestions(data.questions || []);
+        } catch { setQuestions([]); }
+        setLoadingQ(false);
+    };
+
+    return (
+        <div style={{ background: 'var(--bg)', borderRadius: 12, border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', margin: '0 12px 12px', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{node.label}</div>
+                    <div style={{ fontSize: 10, color: statusColors[node.status] || '#9CA3AF', fontWeight: 600, marginTop: 2, textTransform: 'capitalize' }}>&#9679; {node.status}</div>
+                </div>
                 <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 0 }}><X size={14} /></button>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>Set mastery level:</div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                {opts.map(s => (
-                    <button key={s} onClick={() => onStatusChange(node, s)} style={{ flex: 1, padding: '6px 4px', borderRadius: 7, border: `1px solid ${node.status === s ? colors[s] : 'var(--border)'}`, background: node.status === s ? colors[s] + '22' : 'transparent', color: node.status === s ? colors[s] : 'var(--text3)', fontSize: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                        {icons[s]} {s}
-                    </button>
-                ))}
+            <div style={{ padding: '10px 14px', maxHeight: 520, overflowY: 'auto' }}>
+                {/* Set mastery */}
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Set mastery</div>
+                <div style={{ display: 'flex', gap: 5, marginBottom: 10 }}>
+                    {LEVELS.map(l => (
+                        <button key={l.key} onClick={() => onStatusChange(node, l.key)} style={{ flex: 1, padding: '5px 3px', borderRadius: 7, border: `1px solid ${node.status === l.key ? l.color : 'var(--border)'}`, background: node.status === l.key ? l.color + '18' : 'transparent', color: node.status === l.key ? l.color : 'var(--text3)', fontSize: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                            {node.status === l.key && l.icon} {l.label}
+                        </button>
+                    ))}
+                </div>
+                {/* Jump to notes */}
+                <button onClick={() => onJumpToSection(node.label)} style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 12 }}>
+                    <ChevronRight size={12} /> Jump to Concept in Notes
+                </button>
+                {/* Practice level picker */}
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>🎯 Practice Questions</div>
+                <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                    {LEVELS.map(l => (
+                        <button key={l.key} onClick={() => fetchLevel(l.key)} style={{ flex: 1, padding: '7px 4px', borderRadius: 8, border: `1px solid ${activeLevel === l.key ? l.color : 'var(--border)'}`, background: activeLevel === l.key ? l.color + '18' : 'var(--surface)', color: activeLevel === l.key ? l.color : 'var(--text3)', fontSize: 10, fontWeight: 600, cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}>
+                            <div>{l.label}</div>
+                            <div style={{ fontSize: 9, opacity: 0.7, marginTop: 1 }}>{l.desc}</div>
+                        </button>
+                    ))}
+                </div>
+                {loadingQ && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 0', fontSize: 12, color: 'var(--text3)' }}>
+                        <Loader2 className="spin" size={13} /> Generating {activeLevel} questions…
+                    </div>
+                )}
+                {questions && !loadingQ && (
+                    questions.length === 0
+                        ? <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>No questions returned — try again.</div>
+                        : <QuestionCards questions={questions} level={activeLevel} />
+                )}
+                {/* Full practice paper */}
+                <button onClick={() => onFullPractice(node.label)} style={{ width: '100%', marginTop: 14, padding: '8px 0', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5 }}>
+                    <Brain size={12} /> Full Practice Paper (5 Qs)
+                </button>
             </div>
-            <button onClick={() => onJumpToSection(node.label)} style={{ width: '100%', padding: 7, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 8 }}>
-                <ChevronRight size={11} /> Jump to this section in notes
-            </button>
-            <button onClick={() => onExamine(node.label)} style={{ width: '100%', padding: 8, borderRadius: 8, border: 'none', background: node.status === 'struggling' ? '#EF4444' : 'var(--text)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <Brain size={13} /> Generate Practice Questions
-            </button>
         </div>
     );
 }
@@ -421,7 +529,7 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0 0' }}>
                 <KnowledgeGraph nodes={nodes} edges={edges} onNodeClick={handleNodeClick} selectedNodeId={selectedNode?.id} />
-                {selectedNode && <NodePopover node={selectedNode} onClose={() => setSelectedNode(null)} onExamine={label => { setExaminerConcept(label); setSelectedNode(null); }} onStatusChange={handleStatusChange} onJumpToSection={label => { onJumpToSection(label); setSelectedNode(null); }} />}
+                {selectedNode && <ConceptDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} onStatusChange={handleStatusChange} onJumpToSection={label => { onJumpToSection(label); setSelectedNode(null); }} onFullPractice={label => { setExaminerConcept(label); setSelectedNode(null); }} />}
                 {nodes.length > 0 && (
                     <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', marginTop: 8 }}>
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>All Concepts</div>
@@ -634,6 +742,7 @@ export default function NotebookWorkspace() {
     const [noteSource, setNoteSource] = useState('azure');      // 'azure' | 'local'
     const [fallbackWarning, setFallbackWarning] = useState(''); // non-empty = show banner
     const [viewMode, setViewMode] = useState('single');         // 'single' | 'two' | 'scroll'
+    const [jumpHighlightSet, setJumpHighlightSet] = useState(new Set()); // page indices to pulse
     const noteScrollRef = useRef();
 
     const pages = useMemo(() => {
@@ -829,7 +938,11 @@ export default function NotebookWorkspace() {
     const handleJumpToSection = useCallback((label) => {
         const ll = label.toLowerCase();
         const idx = pages.findIndex(p => p.toLowerCase().includes(ll));
-        if (idx !== -1) setCurrentPage(idx);
+        if (idx !== -1) {
+            setCurrentPage(idx);
+            setJumpHighlightSet(new Set([idx]));
+            setTimeout(() => setJumpHighlightSet(new Set()), 1800);
+        }
     }, [pages]);
 
     if (!notebook) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)' }}><Loader2 className="spin" size={28} color="var(--text3)" /></div>;
@@ -935,8 +1048,9 @@ export default function NotebookWorkspace() {
                             const onDoubtLink = (doubtId) => { setRightTab('doubts'); setTimeout(() => { document.getElementById(doubtId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150); };
                             const renderPage = (idx) => {
                                 if (idx < 0 || idx >= pages.length) return <div key={`empty-${idx}`} style={{ flex: 1, minWidth: 0 }} />;
+                                const isHighlighted = jumpHighlightSet.has(idx);
                                 return (
-                                    <div key={idx} style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: '1px solid #d0d0d0', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                                    <div key={idx} style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: isHighlighted ? '0 0 0 3px #7C3AED, 0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: isHighlighted ? '1px solid #7C3AED' : '1px solid #d0d0d0', overflow: 'hidden', flex: 1, minWidth: 0, transition: 'box-shadow 0.4s, border-color 0.4s' }}>
                                         <div style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
                                             {[0,1,2,3,4,5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />)}
                                         </div>

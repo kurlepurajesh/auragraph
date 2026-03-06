@@ -32,6 +32,30 @@ Use ONLY `$...$` for inline math and `$$` on its own line for display math. NEVE
 """
 
 
+CONCEPT_PRACTICE_PROMPT = """\
+You are AuraGraph's Concept Practice Engine. Generate exactly 3 targeted MCQ questions.
+
+CONCEPT: {{$concept_name}}
+DIFFICULTY: {{$level}}
+
+DIFFICULTY GUIDE:
+  struggling  → Foundational — definitions, basic recall, single-step application.
+  partial     → Standard — formula application, typical exam-style problems.
+  mastered    → Advanced — edge cases, derivations, tricky variants, subtle distinctions.
+
+Output ONLY a valid JSON array of exactly 3 objects.
+No markdown code fences, no prose, no backticks — raw JSON only.
+
+Each object must have EXACTLY these keys:
+  "question"    : the full question text (string)
+  "options"     : object with exactly keys A, B, C, D (all strings)
+  "correct"     : the letter of the correct option ("A", "B", "C", or "D")
+  "explanation" : one clear sentence explaining why the answer is correct
+
+Math rules: inline $...$, display on its own line $$...$$. NEVER use \\( \\) or \\[ \\].
+"""
+
+
 class ExaminerAgent:
     def __init__(self, kernel: Kernel):
         self._kernel = kernel
@@ -47,8 +71,26 @@ class ExaminerAgent:
             plugin_name="ExaminerAgent",
             prompt_template_config=config,
         )
+        practice_config = PromptTemplateConfig(
+            template=CONCEPT_PRACTICE_PROMPT,
+            template_format="semantic-kernel",
+            input_variables=[
+                InputVariable(name="concept_name", description="Concept to generate questions for"),
+                InputVariable(name="level", description="Difficulty level: struggling / partial / mastered"),
+            ],
+        )
+        self._practice_fn = kernel.add_function(
+            function_name="concept_practice",
+            plugin_name="ExaminerAgent",
+            prompt_template_config=practice_config,
+        )
 
     async def examine(self, concept_name: str) -> str:
         args = KernelArguments(concept_name=concept_name)
         result = await self._kernel.invoke(self._fn, args)
+        return str(result).strip()
+
+    async def concept_practice(self, concept_name: str, level: str) -> str:
+        args = KernelArguments(concept_name=concept_name, level=level)
+        result = await self._kernel.invoke(self._practice_fn, args)
         return str(result).strip()
