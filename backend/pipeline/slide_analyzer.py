@@ -60,19 +60,20 @@ Rules:
   3. Ignore metadata slides (title slide, table of contents, references, thank you).
   4. Each topic must correspond to actual teaching content from the slides.
   5. key_points must come FROM the slides, not invented.
-  6. Output ONLY valid JSON — a list of topic objects. No preamble, no markdown fences.
+  6. Output ONLY valid JSON in this exact format — a JSON object with a "topics" key containing the array.
+     No preamble, no markdown fences, no extra keys.
 
-Example output format:
-[
+Required output format:
+{"topics": [
   {
     "topic": "Fourier Transform",
     "key_points": [
       "converts time domain to frequency domain",
       "F(omega) = integral of f(t) times complex exponential"
     ],
-    "slide_text": "--- Slide 3: Fourier Transform ---\\nF(\\u03c9) = \\u222b..."
+    "slide_text": "--- Slide 3: Fourier Transform ---\\nContent here..."
   }
-]
+]}
 
 SLIDE TEXT:
 {slides}
@@ -169,7 +170,7 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
             ],
             "max_tokens":     4096,
             "temperature":    0.1,
-            "response_format": {"type": "json_object"},
+            "response_format": {"type": "json_object"},  # forces valid JSON object output
         }
         headers = {"api-key": api_key, "Content-Type": "application/json"}
         for attempt in range(2):
@@ -181,7 +182,11 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
                 await _asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
-            return _parse_topics_json(resp.json()["choices"][0]["message"]["content"].strip())
+            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            logger.info("slide_analyzer Azure raw response (first 300 chars): %r", raw[:300])
+            topics = _parse_topics_json(raw)
+            logger.info("slide_analyzer Azure parsed %s topics", len(topics) if topics else 0)
+            return topics
     except Exception as e:
         logger.warning("slide_analyzer Azure call failed: %s", e)
     return None
@@ -201,7 +206,7 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
         model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
         user_prompt = (
             _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:35_000])
-            + "\n\nIMPORTANT: Output ONLY a valid JSON array. No markdown fences. No explanation."
+            + "\n\nIMPORTANT: Output ONLY valid JSON with a \"topics\" key. No markdown fences. No explanation."
         )
         payload = {
             "model":       model,
@@ -225,7 +230,11 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
                 await _asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
-            return _parse_topics_json(resp.json()["choices"][0]["message"]["content"].strip())
+            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            logger.info("slide_analyzer Groq raw response (first 300 chars): %r", raw[:300])
+            topics = _parse_topics_json(raw)
+            logger.info("slide_analyzer Groq parsed %s topics", len(topics) if topics else 0)
+            return topics
     except Exception as e:
         logger.warning("slide_analyzer Groq call failed: %s", e)
     return None
