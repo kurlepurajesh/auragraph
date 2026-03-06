@@ -244,6 +244,46 @@ NOTES:
 {notes}
 """
 
+# ── Post-generation self-verification prompts ─────────────────────────────────
+
+_VERIFY_NOTES_SYSTEM = """\
+You are a senior engineering professor and fact-checker.
+You have been given AI-generated study notes. Your ONLY job is to find and
+silently fix factual errors — do not change anything that is already correct.
+
+You are the ground truth. Your own knowledge overrides whatever the notes say.
+
+CHECK every single claim against your knowledge:
+  FORMULAS        — sign, operator (+/−/×/÷), exponent, argument, fraction orientation,
+                    missing factors, extra factors.
+                    Common LLM error: using division where multiplication is required,
+                    e.g.  f_Y(y) = f_X(f⁻¹(y)) / |...|   →  must be  × |...|
+  DEFINITIONS     — are all conditions present? (e.g. "monotonic" → "strictly monotonic
+                    and differentiable"; "linear" → "linear and time-invariant")
+  THEOREM STATEMENTS — direction of implication correct? equality vs inequality correct?
+                    all hypotheses listed?
+  CONCEPTUAL CLAIMS — cause/effect, direction, units, domains, convergence conditions.
+  WORKED EXAMPLES — re-run every calculation. If the answer or any step is wrong, fix it.
+
+RULES:
+  • Fix errors silently — do NOT say "the original notes said X" or "I corrected".
+  • Do NOT remove any ## sections, alter the order, or shorten any section.
+  • Do NOT change correct content.
+  • Ensure every formula remains in valid LaTeX ($...$ or $$...$$).
+  • Output ONLY the corrected notes — no preamble, no commentary, no labels.
+
+If no errors are found, output the notes unchanged.
+"""
+
+_VERIFY_NOTES_USER = """\
+These are AI-generated study notes. Fact-check every formula, definition,
+theorem statement, conceptual claim, and worked example against your knowledge.
+Fix all errors silently. Return the complete corrected notes.
+
+NOTES:
+{notes}
+"""
+
 # ── Textbook instruction builder ─────────────────────────────────────────────
 
 def _textbook_instruction_block(textbook_context: str, max_chars: int = 7_000) -> str:
@@ -527,6 +567,55 @@ async def refine_notes(notes: str) -> str:
     return notes
 
 
+# ── Post-generation fact-verification pass ────────────────────────────────────
+
+async def verify_notes(notes: str) -> str:
+    """
+    Step 9 — Self-verification pass.
+
+    A second LLM call reads the already-generated (and refined) notes with a
+    purely critical eye: it uses its own knowledge as ground truth and silently
+    rewrites every formula, definition, theorem statement, worked example, or
+    conceptual claim that is factually wrong.
+
+    This catches errors the generation prompt may have missed, especially:
+      • Wrong operator  (÷ instead of ×, − instead of +)
+      • Missing factors / conditions
+      • Wrong worked-example arithmetic
+      • Imprecise definitions
+
+    Azure is preferred (larger context window).
+    Falls back to Groq only for notes ≤ 12 000 chars (output token budget).
+    Returns original notes untouched on any failure.
+    """
+    if len(notes) < 200:
+        return notes
+
+    groq_verify_ok = _groq_available() and len(notes) <= 12_000
+    user = _VERIFY_NOTES_USER.format(notes=notes[:28_000])
+
+    if _azure_available():
+        verified = await _call_azure(_VERIFY_NOTES_SYSTEM, user, max_tokens=8192)
+        if verified and len(verified) > len(notes) * 0.3:
+            logger.info("Verification pass: %d → %d chars (azure)", len(notes), len(verified))
+            return fix_latex_delimiters(_fix_tables(verified))
+        if verified:
+            logger.warning("Azure verification unexpectedly short (%d vs %d) — keeping original",
+                           len(verified), len(notes))
+
+    if groq_verify_ok:
+        verified = await _call_groq(_VERIFY_NOTES_SYSTEM, user, max_tokens=8192)
+        if verified and len(verified) > len(notes) * 0.3:
+            logger.info("Verification pass: %d → %d chars (groq)", len(notes), len(verified))
+            return fix_latex_delimiters(_fix_tables(verified))
+        if verified:
+            logger.warning("Groq verification unexpectedly short (%d vs %d) — keeping original",
+                           len(verified), len(notes))
+
+    logger.info("Verification pass skipped/failed — keeping %d-char notes", len(notes))
+    return notes
+
+
 # ── Full pipeline orchestration ────────────────────────────────────────────
 
 async def run_generation_pipeline(
@@ -576,5 +665,12 @@ async def run_generation_pipeline(
     if refine and (_azure_available() or _groq_available()):
         logger.info("Running refinement pass on %d chars (source=%s)", len(merged), source)
         merged = await refine_notes(merged)
+
+    # Step 9 — Post-generation self-verification
+    # A separate LLM call fact-checks every formula, definition, and claim
+    # against the model's own knowledge and silently fixes any errors found.
+    if _azure_available() or _groq_available():
+        logger.info("Running verification pass on %d chars", len(merged))
+        merged = await verify_notes(merged)
 
     return merged, source
