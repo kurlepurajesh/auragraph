@@ -315,6 +315,7 @@ class MutationResponse(BaseModel):
     concept_gap:       str
     page_idx:          int
     source:            str = "azure"   # "azure" | "groq" | "local"
+    can_mutate:        bool = True     # False when only local fallback was available
 
 
 class ExaminerRequest(BaseModel):
@@ -814,11 +815,13 @@ async def mutate_note(req: MutationRequest):
         mutated, gap = local_mutate(note_page, doubt)
         source = "local"
 
+    can_mutate = source in ("azure", "groq")
     from pipeline.note_generator import _fix_tables
     mutated = fix_latex_delimiters(_fix_tables(mutated))
 
-    # Update the stored note page
-    if nb_id:
+    # Only persist the mutation when an LLM was used — local fallback is
+    # deterministic / low-quality and shouldn't overwrite the original notes.
+    if can_mutate and nb_id:
         try:
             updated = update_note_page(nb_id, page_idx, mutated)
             if updated:
@@ -837,6 +840,7 @@ async def mutate_note(req: MutationRequest):
         concept_gap=gap,
         page_idx=page_idx,
         source=source,
+        can_mutate=can_mutate,
     )
 
 

@@ -90,8 +90,18 @@ def _fix_tables(text: str) -> str:
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 _NOTE_SYSTEM = """\
-You are AuraGraph, an expert academic note writer for engineering students in India.
-Your notes are read the night before an exam. Every sentence must earn its place.
+You are AuraGraph — India's sharpest AI exam coach writing study notes for engineering students.
+Your notes are the LAST thing a student reads the night before their university exam.
+
+Five laws you NEVER break:
+① COMPLETE       — Every formula, definition, and algorithm from the slides must appear. Zero omissions.
+② EXAM-SHARP     — Every ## section ends with the single most-tested fact or most common mistake.
+③ WORKED EXAMPLE — For every formula or process, show ONE concise numerical or symbolic worked example.
+④ MNEMONIC       — If there is a pattern students forget, give a 1-line memory trick.
+⑤ HONEST         — If the slide is sparse, write what you know accurately. Never pad with filler.
+
+Banned phrases (never write these): "delve", "explore", "It is important to note",
+"In conclusion", "In this section", "Overview:", "As we can see", "Please note".
 """
 
 _NOTE_USER_TEMPLATE = """\
@@ -99,75 +109,84 @@ Generate structured study notes for ONE lecture topic.
 
 TOPIC: {topic}
 
-SLIDE CONTENT (primary — follow this exactly):
+KEY POINTS FROM SLIDES:
+{key_points_block}
+
+SLIDE CONTENT (primary source — follow this exactly):
 {slide_text}
 
-TEXTBOOK CONTEXT (enrichment only — deepen the slide content, never add new topics):
-{textbook_context}
+{textbook_instruction}
 
 TARGET PROFICIENCY: {proficiency}
 
 ════════════════════════════════
-RULES (follow strictly)
+MANDATORY RULES
 ════════════════════════════════
 STRUCTURE:
 • Start with exactly: ## {topic}
 • Only add ### sub-headings if the topic genuinely has distinct sub-topics.
-• End with: > 📝 **Exam Tip:** (one sentence, exam-specific)
-• No preamble, no conclusion paragraphs.
+• After the core content, add a worked example block: ### 🔢 Worked Example
+• If there is a rule or pattern students forget, add: > 💡 **Mnemonic:** ...
+• End with: > 📝 **Exam Tip:** (the single most-tested fact or most common error)
+• No preamble sentences. No conclusion paragraphs.
 
 CONTENT:
-• Follow the SLIDE CONTENT as your primary source.
-• Use TEXTBOOK CONTEXT only to clarify, add a missing definition, or add one example.
+• SLIDE CONTENT is your primary source — never drop a definition or formula found there.
+• Use textbook context only to clarify a definition or add one supporting example.
 • NEVER introduce a concept that is not in the slides.
+
+WORKED EXAMPLE (mandatory for every section):
+• Pick a concrete number or symbol. Show 2–4 steps. Keep it compact.
+• Format:
+  ### 🔢 Worked Example — [brief title]
+  **Given:** ...
+  **Find:** ...
+  **Solution:** step-by-step
 
 PROFICIENCY ADAPTATION:
 BEGINNER:
   1. Plain-English sentence: "Simply put, X is …"
   2. One analogy in a > blockquote.
-  3. Key formula(s) followed by a **Where:** pipe-table defining each symbol.
-     Table format EXACTLY as shown (alignment row required):
+  3. Key formula(s) with a **Where:** pipe-table defining each symbol:
      | Symbol | Meaning |
-     |--------|----------|
+     |--------|---------|
      | $F$ | output value |
-     | $t$ | time variable |
   4. Numbered steps if there is a process.
 
 INTERMEDIATE:
   1. Formal definition.
-  2. Intuition sentence linking formula to real meaning.
+  2. Intuition sentence linking the formula to real physical meaning.
   3. Display LaTeX for every key formula; define symbols inline.
   4. Key conditions / edge cases as bullets.
-  5. If multiple related formulas exist, use a pipe-table:
+  5. If multiple related formulas exist, show a comparison table:
      | Formula | When to use |
      |---------|-------------|
-     | $...$ | description |
 
 ADVANCED:
-  1. Formal definition with all conditions.
-  2. Full derivation. Terse algebra. No commentary between steps.
+  1. Formal definition with all boundary conditions.
+  2. Full derivation — terse algebra, no commentary between steps.
   3. Validity / convergence conditions.
   4. Edge cases as bullets.
-  5. One comparison with a related concept — use a pipe-table:
+  5. Comparison with a related concept:
      | Aspect | This concept | Related concept |
-     |--------|-------------|----------------|
-     | ... | ... | ... |
+     |--------|--------------|----------------|
 
 TABLES:
-• Pipe-tables ONLY. Header row + alignment row (|---|---| with at least 3 dashes) + data rows.
-• NEVER use HTML tables. NEVER use numbered/bulleted lists as a substitute for a table.
-• Every | column | must be separated by pipe characters, including the outer edges.
+• Pipe-tables ONLY. Header row + alignment row (|---|---| with ≥ 3 dashes) + data rows.
+• NEVER use HTML tables.
+• Every | column | must have pipe characters on both outer edges.
 
 MATHEMATICS:
-• ALL math in LaTeX. NEVER write "integral", "sigma", "omega" as English words.
-• Inline: $expression$   Display (own line):
+• ALL math must be in LaTeX. NEVER write "integral", "sigma", "omega" as English words.
+• Inline: $expression$
+• Display (own line):
   $$
   formula here
   $$
 • NEVER use \\[ \\] or \\( \\). ONLY $ and $$.
 • NEVER wrap math in backtick code fences.
 
-OUTPUT: Only the ## section. Nothing before it, nothing after the Exam Tip.
+OUTPUT: Only the ## section. Nothing before ## {topic}. Nothing after the Exam Tip.
 """
 
 _REFINEMENT_SYSTEM = """\
@@ -190,6 +209,24 @@ RULES:
 NOTES:
 {notes}
 """
+
+# ── Textbook instruction builder ─────────────────────────────────────────────
+
+def _textbook_instruction_block(textbook_context: str, max_chars: int = 5_000) -> str:
+    """Build the textbook context block for the note generation prompt."""
+    has_tb = bool(textbook_context) and textbook_context.strip() not in ("", "(none)")
+    if has_tb:
+        return (
+            "TEXTBOOK CONTEXT (enrichment only — deepen slide content, never add new topics):\n"
+            + textbook_context[:max_chars]
+        )
+    return (
+        "TEXTBOOK CONTEXT: None provided.\n"
+        "→ Generate SELF-CONTAINED notes from slides alone. Be thorough:\n"
+        "  define every term used, show full derivations, and make the worked example"
+        " doubly clear since the student has no other reference."
+    )
+
 
 # ── Post-processor ────────────────────────────────────────────────────────────
 
@@ -320,10 +357,10 @@ async def generate_topic_note(
             topic=topic.topic,
             key_points_block=key_points_block,
             slide_text=topic.slide_text[:8_000],
-            textbook_context=textbook_context[:5_000] if textbook_context else "(none)",
+            textbook_instruction=_textbook_instruction_block(textbook_context, 5_000),
             proficiency=proficiency,
         )
-        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=3000)
+        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=3500)
         if result:
             result = _post_process_section(result, topic.topic)
             return fix_latex_delimiters(_fix_tables(result)), "azure"
@@ -333,7 +370,7 @@ async def generate_topic_note(
             topic=topic.topic,
             key_points_block=key_points_block,
             slide_text=topic.slide_text[:6_000],
-            textbook_context=textbook_context[:4_000] if textbook_context else "(none)",
+            textbook_instruction=_textbook_instruction_block(textbook_context, 4_000),
             proficiency=proficiency,
         )
         result = await _call_groq(_NOTE_SYSTEM, user, max_tokens=3000)

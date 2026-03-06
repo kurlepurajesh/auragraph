@@ -362,7 +362,7 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
 }
 
 // ─── Note Renderer ────────────────────────────────────────────────────────────
-function NoteRenderer({ content }) {
+function NoteRenderer({ content, onDoubtLink }) {
     const mk = {
         h1({ children }) { return <div style={{ marginBottom: 28 }}><div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#71717A', marginBottom: 6, fontFamily: '"DM Sans",sans-serif', fontWeight: 600 }}>AuraGraph · Study Notes</div><div style={{ fontSize: 22, fontWeight: 800, color: '#000', lineHeight: 1.25, fontFamily: '"Sora",sans-serif' }}>{children}</div></div>; },
         h2({ children }) { return <div style={{ marginTop: 36, marginBottom: 14 }}><div style={{ fontSize: 17, fontWeight: 700, color: '#000', lineHeight: 1.3, fontFamily: '"Sora",sans-serif' }}>{children}</div><div style={{ height: 1.5, background: '#E4E4E7', marginTop: 8 }} /></div>; },
@@ -378,7 +378,7 @@ function NoteRenderer({ content }) {
             const isExamTip = flat.includes('Exam Tip');
             const isFormula = flat.includes('Formulas for this topic');
             const isIntuition = flat.includes('💡') || flat.includes('Intuition') || flat.includes('Think of it') || flat.includes('mutation');
-            const isWarning = flat.includes('⚠️') || flat.includes('offline mode') || flat.includes('Offline');
+            const isWarning = flat.includes('⚠️') || flat.includes('⚠') || flat.includes('offline mode') || flat.includes('Offline') || flat.includes('Unresolved Doubt');
             if (isExamTip) return <div style={{ background: '#F4F4F5', border: '1px solid #E4E4E7', borderLeft: '4px solid #000', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}><span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>🎯</span><div style={{ fontSize: 13.5, color: '#18181B', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div></div>;
             if (isFormula) return <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderLeft: '4px solid #2563EB', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}><span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>🔢</span><div style={{ fontSize: 13, color: '#1E3A8A', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div></div>;
             if (isIntuition) return <div style={{ background: '#fff', border: '1px solid #E4E4E7', borderLeft: '4px solid #000', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}><span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>✨</span><div style={{ fontSize: 13.5, color: '#18181B', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div></div>;
@@ -420,6 +420,18 @@ function NoteRenderer({ content }) {
                     <span>{alt ? `Figure: ${alt}` : 'Figure'}</span>
                 </div>
             );
+        },
+        a({ href, children }) {
+            if (href?.startsWith('#doubt-')) {
+                const doubtId = href.slice(1);
+                return (
+                    <span
+                        onClick={() => onDoubtLink?.(doubtId)}
+                        style={{ color: '#7C3AED', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                    >{children}</span>
+                );
+            }
+            return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#2563EB', textDecoration: 'underline' }}>{children}</a>;
         },
         table({ children }) {
             return (
@@ -469,9 +481,9 @@ function DoubtsPanel({ doubts, currentPage }) {
                     const needsExp = d.insight.length > pl;
                     const preview = needsExp && !isExp ? d.insight.slice(0, pl).replace(/\*\*[^*]*$/, '').replace(/\$[^$]*$/, '') + '…' : d.insight;
                     return (
-                        <div key={d.id}>
+                        <div key={d.id} id={'doubt-' + d.id}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginBottom: 4 }}>
-                                {d.success ? <span style={{ fontSize: 9, color: '#7C3AED', fontWeight: 700 }}>✨ mutated</span> : <span style={{ fontSize: 9, color: '#EF4444', fontWeight: 600 }}>⚠ failed</span>}
+                                {d.success ? <span style={{ fontSize: 9, color: '#7C3AED', fontWeight: 700 }}>✨ mutated</span> : d.unresolved ? <span style={{ fontSize: 9, color: '#D97706', fontWeight: 600 }}>⏳ pending</span> : <span style={{ fontSize: 9, color: '#EF4444', fontWeight: 600 }}>⚠ failed</span>}
                                 {d.success && d.source && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 6, background: d.source === 'azure' ? '#EFF6FF' : d.source === 'groq' ? '#ECFDF5' : '#F5F5F5', color: d.source === 'azure' ? '#1D4ED8' : d.source === 'groq' ? '#065F46' : '#52525B', border: `1px solid ${d.source === 'azure' ? '#BFDBFE' : d.source === 'groq' ? '#A7F3D0' : '#D4D4D8'}` }}>{d.source}</span>}
                                 <span style={{ fontSize: 9, color: '#D1D5DB' }}>{d.time}</span>
                             </div>
@@ -488,8 +500,8 @@ function DoubtsPanel({ doubts, currentPage }) {
                                     </div>
                                 ) : (
                                     <div style={{ maxWidth: '90%', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '3px 14px 14px 14px', padding: '9px 13px', fontSize: 12, lineHeight: 1.7, color: '#991B1B' }}>
-                                        <div style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ Not delivered</div>
-                                        <div style={{ color: '#7F1D1D' }}>Backend was unreachable. Your doubt is saved — try re-submitting when the server is running.</div>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>{d.unresolved ? '⏳ Not yet resolved' : '⚠ Not delivered'}</div>
+                                        <div style={{ color: d.unresolved ? '#92400E' : '#7F1D1D' }}>{d.unresolved ? (d.insight || 'AI unavailable — doubt saved. Retry when online.') : 'Backend was unreachable. Your doubt is saved — try re-submitting when the server is running.'}</div>
                                     </div>
                                 )}
                             </div>
@@ -619,7 +631,7 @@ export default function NotebookWorkspace() {
     };
 
     const handleFuse = async () => {
-        if (!slidesFiles.length || !textbookFiles.length) return;
+        if (!slidesFiles.length) return;
         setFusing(true); setFuseProgress('Uploading files…');
         setMutatedPages(new Set()); setGraphNodes([]); setGraphEdges([]);
         try {
@@ -677,28 +689,42 @@ export default function NotebookWorkspace() {
             });
             const data = await res.json();
 
-            // Backend now returns the rewritten page — replace it in the full note
-            const trimmedPage = (pages[currentPage] || page).trim();
-            const noteIdx = note.indexOf(trimmedPage);
-            let newNote;
-            if (noteIdx !== -1) {
-                newNote = note.slice(0, noteIdx) + data.mutated_paragraph + note.slice(noteIdx + trimmedPage.length);
+            if (data.can_mutate === false) {
+                // LLM unavailable — don't clobber the original notes with a local fallback.
+                // Instead, inject a visible unresolved-doubt anchor into the current page.
+                const anchorMd = `\n\n> ⚠ **Unresolved Doubt** *(AI unavailable — will resolve automatically when online)*: "${doubt}" — [→ View in Doubts panel](#doubt-${lid})\n`;
+                const trimmedPage = (pages[currentPage] || page).trim();
+                const noteIdx = note.indexOf(trimmedPage);
+                const newNote = noteIdx !== -1
+                    ? note.slice(0, noteIdx) + trimmedPage + anchorMd + note.slice(noteIdx + trimmedPage.length)
+                    : note + anchorMd;
+                setNote(newNote);
+                await saveNote(newNote, prof);
+                const entry = { id: lid, pageIdx: currentPage, doubt, insight: 'AI unavailable — doubt saved. Your note has a reminder link. Retry when back online.', gap: data.concept_gap || '', source: 'local', time: ts, success: false, unresolved: true };
+                setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
+                setRightTab('doubts');
             } else {
-                newNote = note + '\n\n---\n\n**Amendment (page ' + (currentPage + 1) + '):**\n\n' + data.mutated_paragraph;
+                // LLM succeeded — replace the page with the rewritten version
+                const trimmedPage = (pages[currentPage] || page).trim();
+                const noteIdx = note.indexOf(trimmedPage);
+                let newNote;
+                if (noteIdx !== -1) {
+                    newNote = note.slice(0, noteIdx) + data.mutated_paragraph + note.slice(noteIdx + trimmedPage.length);
+                } else {
+                    newNote = note + '\n\n---\n\n**Amendment (page ' + (currentPage + 1) + '):**\n\n' + data.mutated_paragraph;
+                }
+                setNote(newNote); setGapText(data.concept_gap);
+                setMutatedPages(prev => new Set([...prev, currentPage]));
+                await saveNote(newNote, prof);
+                extractAndSaveGraph(newNote).catch(() => {});
+                const pl = data.mutated_paragraph.split('\n');
+                const bqs = pl.findIndex(l => l.includes('💡') || l.trimStart().startsWith('> '));
+                let insight = data.concept_gap || 'Page updated.';
+                if (bqs !== -1) { const bl = []; for (let i = bqs; i < pl.length; i++) { if (pl[i].startsWith('> ') || pl[i] === '>') bl.push(pl[i].replace(/^>\s?/, '')); else if (bl.length > 0) break; } if (bl.length) insight = bl.join(' ').trim(); }
+                const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true };
+                setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
+                setRightTab('doubts');
             }
-
-            setNote(newNote); setGapText(data.concept_gap);
-            setMutatedPages(prev => new Set([...prev, currentPage]));
-            await saveNote(newNote, prof);
-            extractAndSaveGraph(newNote).catch(() => {});
-
-            const pl = data.mutated_paragraph.split('\n');
-            const bqs = pl.findIndex(l => l.includes('💡') || l.trimStart().startsWith('> '));
-            let insight = data.concept_gap || 'Page updated.';
-            if (bqs !== -1) { const bl = []; for (let i = bqs; i < pl.length; i++) { if (pl[i].startsWith('> ') || pl[i] === '>') bl.push(pl[i].replace(/^>\s?/, '')); else if (bl.length > 0) break; } if (bl.length) insight = bl.join(' ').trim(); }
-            const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true };
-            setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
-            setRightTab('doubts');
         } catch {
             const entry = { id: lid, pageIdx: currentPage, doubt, insight: 'Could not reach backend. Your doubt has been recorded.', gap: 'Backend unreachable', time: ts, success: false };
             setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
@@ -786,7 +812,7 @@ export default function NotebookWorkspace() {
                             {!fusing && (<>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
                                     <FileDrop label="Professor's Slides & Notes" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />
-                                    <FileDrop label="Textbook (PDF / image)" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
+                                    <FileDrop label="Textbook / Reference (optional)" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
                                 </div>
                                 <div style={{ marginBottom: 24 }}>
                                     <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 10 }}>Proficiency Level</label>
@@ -799,7 +825,7 @@ export default function NotebookWorkspace() {
                                         ))}
                                     </div>
                                 </div>
-                                <button data-testid="generate-notes-btn" className="btn btn-primary btn-lg" style={{ width: '100%', gap: 8 }} onClick={handleFuse} disabled={fusing || !slidesFiles.length || !textbookFiles.length}>
+                                <button data-testid="generate-notes-btn" className="btn btn-primary btn-lg" style={{ width: '100%', gap: 8 }} onClick={handleFuse} disabled={fusing || !slidesFiles.length}>
                                     <Sparkles size={16} /> Generate Digital Notes
                                 </button>
                                 <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 12 }}>← → arrow keys to navigate pages · Ctrl+D to ask a doubt</p>
@@ -837,7 +863,10 @@ export default function NotebookWorkspace() {
                                             <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>Page {currentPage + 1} of {pages.length}</span>
                                         </div>
                                     </div>
-                                    <NoteRenderer content={pages[currentPage]} />
+                                    <NoteRenderer content={pages[currentPage]} onDoubtLink={(doubtId) => {
+                                        setRightTab('doubts');
+                                        setTimeout(() => { document.getElementById(doubtId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150);
+                                    }} />
                                     <div style={{ marginTop: 32, paddingTop: 10, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>{notebook?.course || ''}</span>
                                         <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>AuraGraph · {prof}</span>
