@@ -253,39 +253,88 @@ def _extract_bullets(text: str) -> list[str]:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+_SLIDE_CHUNK_SIZE = 38_000   # chars per LLM call — safe below GPT-4o 128k limit
+# FIX G2: no longer hard-truncate the full deck; instead split into chunks
+# and merge the resulting topic lists.
+
+
+def _split_at_slide_boundary(text: str, max_chars: int) -> list[str]:
+    """
+    Split slide text at slide boundary markers so each chunk ends on a complete
+    slide, keeping chunk size ≤ max_chars. Falls back to hard split if no markers.
+    """
+    if len(text) <= max_chars:
+        return [text]
+    # Find all slide marker positions
+    boundaries = [m.start() for m in re.finditer(
+        r'(?m)^---\s*(?:Slide|Page)\s+\d+', text
+    )]
+    if not boundaries:
+        # No markers — hard split
+        return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+
+    chunks, start = [], 0
+    current = 0
+    for boundary in boundaries[1:]:  # skip first (it IS the start)
+        if boundary - start > max_chars:
+            # Cut here — take up to this boundary
+            chunks.append(text[start:boundary])
+            start = boundary
+            current = 0
+        current = boundary - start
+    # Add remainder
+    if start < len(text):
+        chunks.append(text[start:])
+    return chunks if chunks else [text]
+
+
 async def analyse_slides(slides_text: str) -> list[SlideTopic]:
     """
     Extract structured topics from slide text.
 
-    Priority: Azure → Groq → deterministic regex parser.
+    FIX G2: For long decks (> 38 k chars), the text is split at slide
+    boundaries and analysed in multiple LLM calls. Topics from all chunks are
+    concatenated in order.  No slide is silently dropped.
+
+    Priority per chunk: Azure → Groq → deterministic regex parser.
     Returns a list of SlideTopic objects in lecture order.
     """
     if not slides_text.strip():
         return []
 
-    # Try Azure first, then Groq
-    raw_topics = await _call_azure_json(slides_text)
-    if not raw_topics:
-        raw_topics = await _call_groq_json(slides_text)
+    chunks = _split_at_slide_boundary(slides_text, _SLIDE_CHUNK_SIZE)
+    all_topics: list[SlideTopic] = []
 
-    if raw_topics:
-        topics: list[SlideTopic] = []
-        for item in raw_topics:
-            if not isinstance(item, dict):
-                continue
-            topic_name = str(item.get("topic", "")).strip()
-            if not topic_name:
-                continue
-            topics.append(SlideTopic(
-                topic=topic_name,
-                slide_text=str(item.get("slide_text", "")).strip(),
-                key_points=[str(kp) for kp in item.get("key_points", []) if kp],
-            ))
-        if topics:
-            logger.info("slide_analyzer: extracted %d topics via LLM", len(topics))
-            return topics
+    for chunk_idx, chunk_text in enumerate(chunks):
+        logger.info(
+            "slide_analyzer: analysing chunk %d/%d (%d chars)",
+            chunk_idx + 1, len(chunks), len(chunk_text),
+        )
+        raw_topics = await _call_azure_json(chunk_text)
+        if not raw_topics:
+            raw_topics = await _call_groq_json(chunk_text)
 
-    # Fallback
+        if raw_topics:
+            for item in raw_topics:
+                if not isinstance(item, dict):
+                    continue
+                topic_name = str(item.get("topic", "")).strip()
+                if not topic_name:
+                    continue
+                all_topics.append(SlideTopic(
+                    topic=topic_name,
+                    slide_text=str(item.get("slide_text", "")).strip(),
+                    key_points=[str(kp) for kp in item.get("key_points", []) if kp],
+                ))
+        else:
+            # Fallback for this chunk
+            all_topics.extend(_deterministic_parse(chunk_text))
+
+    if all_topics:
+        logger.info("slide_analyzer: extracted %d topics total (across %d chunks)",
+                    len(all_topics), len(chunks))
+        return all_topics
+
     logger.info("slide_analyzer: using deterministic fallback parser")
     topics = _deterministic_parse(slides_text)
     logger.info("slide_analyzer: extracted %d topics via fallback", len(topics))

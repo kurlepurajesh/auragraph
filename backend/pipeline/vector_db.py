@@ -129,28 +129,46 @@ class VectorDB:
 
     # ── Persistence ───────────────────────────────────────────────────────────
 
-    def save(self, nb_id: str) -> None:
-        """Persist the vector index for a notebook to disk."""
+    def save(self, nb_id: str, textbook_hash: str = "") -> None:
+        """
+        Persist the vector index for a notebook to disk.
+        FIX F3: stores textbook_hash so load() can detect stale indexes.
+        """
         if not self._chunks:
+            logger.warning("VectorDB.save: no chunks to save for %s", nb_id)
             return
         path = STORE_DIR / f"{nb_id}_vectors.json"
         data = {
-            "dim":    self._dim,
-            "chunks": [c.to_dict() for c in self._chunks],
+            "dim":            self._dim,
+            "textbook_hash":  textbook_hash,
+            "chunks":         [c.to_dict() for c in self._chunks],
         }
         path.write_text(json.dumps(data, ensure_ascii=False))
-        logger.info("VectorDB saved %d chunks to %s", len(self._chunks), path.name)
+        logger.info("VectorDB saved %d chunks to %s (hash=%s)",
+                    len(self._chunks), path.name, textbook_hash or "none")
 
-    def load(self, nb_id: str) -> bool:
+    def load(self, nb_id: str, expected_hash: str = "") -> bool:
         """
         Load a persisted vector index for a notebook.
-        Returns True if successful, False if no index exists.
+        FIX F3: If expected_hash is provided and differs from the stored hash,
+        the index is considered stale and False is returned, forcing re-embedding.
+        Returns True if successful and fresh, False otherwise.
         """
         path = STORE_DIR / f"{nb_id}_vectors.json"
         if not path.exists():
             return False
         try:
-            data   = json.loads(path.read_text())
+            data = json.loads(path.read_text())
+            # Staleness check
+            if expected_hash:
+                stored_hash = data.get("textbook_hash", "")
+                if stored_hash and stored_hash != expected_hash:
+                    logger.info(
+                        "VectorDB: stale index for %s (stored=%s, expected=%s) — re-embedding",
+                        nb_id, stored_hash, expected_hash,
+                    )
+                    path.unlink()   # remove stale file
+                    return False
             chunks = [TextChunk.from_dict(d) for d in data["chunks"]]
             self.add_chunks(chunks)
             logger.info("VectorDB loaded %d chunks from %s", len(self._chunks), path.name)

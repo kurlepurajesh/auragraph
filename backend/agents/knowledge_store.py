@@ -119,10 +119,12 @@ def store_source_chunks(
     nb_id: str,
     slide_chunks: list[str],
     textbook_chunks: list[str],
+    textbook_hash: str = "",
 ) -> dict:
     """
     Store ALL slide and textbook chunks verbatim for a notebook.
     Each call REPLACES existing chunks (re-upload scenario).
+    FIX F3: textbook_hash is stored so VectorDB.load() can detect staleness.
     Returns summary: {"slides": N, "textbook": M, "total": N+M}
     """
     all_chunks = []
@@ -161,8 +163,9 @@ def store_source_chunks(
         ).to_dict())
 
     store = _load_store(nb_id)
-    store["chunks"]     = all_chunks
-    store["stored_at"]  = datetime.now().isoformat()
+    store["chunks"]        = all_chunks
+    store["stored_at"]     = datetime.now().isoformat()
+    store["textbook_hash"] = textbook_hash   # FIX F3
     # Preserve existing note pages
     _save_store(nb_id, store)
 

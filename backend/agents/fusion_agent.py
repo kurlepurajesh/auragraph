@@ -231,6 +231,27 @@ class FusionAgent:
         ))
         return str(result).strip()
 
+    @staticmethod
+    def _parse_mutate_response(text: str) -> tuple[str, str]:
+        """
+        FIX L3: Single canonical parser for the ||| separator output.
+        Used by both FusionAgent.mutate (Azure SK path) and the direct
+        Groq path in main.py — no duplicate parsing logic anywhere.
+        """
+        parts = text.split("|||")
+        if len(parts) >= 2:
+            rewrite = parts[0].strip()
+            gap     = " ".join(p.strip() for p in parts[1:]).strip()
+            if rewrite and gap:
+                return rewrite, gap
+        # Fallback: last short paragraph = gap sentence
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        if len(paragraphs) >= 2:
+            last = paragraphs[-1]
+            if len(last) < 250 and not last.startswith(("#", "$", "|")):
+                return "\n\n".join(paragraphs[:-1]).strip(), last
+        return text, "Student required additional clarification."
+
     async def mutate(
         self,
         note_page: str,
@@ -244,17 +265,4 @@ class FusionAgent:
             slide_context=slide_context,
             textbook_context=textbook_context,
         ))
-        text = str(result).strip()
-        parts = text.split("|||")
-        if len(parts) >= 2:
-            rewrite = parts[0].strip()
-            gap     = " ".join(p.strip() for p in parts[1:]).strip()
-            if rewrite and gap:
-                return rewrite, gap
-        # Fallback: treat whole response as rewrite
-        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-        if len(paragraphs) >= 2:
-            last = paragraphs[-1]
-            if len(last) < 250 and not last.startswith(("#", "$")):
-                return "\n\n".join(paragraphs[:-1]).strip(), last
-        return text, "Student required additional clarification."
+        return self._parse_mutate_response(str(result).strip())

@@ -1,34 +1,57 @@
 """
-AuraGraph - FastAPI + Semantic Kernel Backend  v4
+AuraGraph — FastAPI + Semantic Kernel Backend  v5
 Team: Wowffulls | IIT Roorkee | Challenge: AI Study Buddy
 
-New in v4: Knowledge Store Architecture
-────────────────────────────────────────
-Every upload now stores ALL source material verbatim in a per-notebook
-knowledge store (JSON files in knowledge_store/).
+All 32 critic findings resolved:
+  A1  /knowledge-stats — added ownership check
+  A2  /api/graph       — requires auth
+  A3  /api/doubt       — requires auth
+  A4  /api/mutate      — requires auth
+  A5  /api/examine     — requires auth
+  A6  Hardcoded mock credentials removed from lifespan
+  A7  Hardcoded "Convolution Theorem" replaced with dynamic concept extraction
 
-Pipeline:
-  1. Upload  → extract text → chunk → store ALL chunks
-  2. Generate → retrieve relevant chunks → GPT generates notes by proficiency
-  3. Doubt   → retrieve relevant chunks + get exact note page → GPT answers
-  4. Mutate  → retrieve relevant chunks + exact note page → GPT rewrites page
+  B1  _note_to_pages: re.split(r'(?m)^(?=## )') — first ## section no longer lost
+  B3  Image annotation happens BEFORE chunking — knowledge store sees figure refs
+  B4  Fresh Embedder + loaded VectorDB: embedder.rebuild_from_chunks() called
+  (B2 was already correct; B5/B6 were already correct)
 
-This gives every agent full context: what the professor taught, what the
-textbook says, and exactly what the student is reading — combined with
-OpenAI's own knowledge.
+  C1  note_generator: asyncio.to_thread replaced with httpx async calls
+  C2  refine_notes threshold 0.6 → 0.3 (good compressions kept)
+  C3  Semaphore reads LLM_CONCURRENCY env var (default 1 for Groq free tier)
+
+  D1–D4  slide_images.py: EMU calc, doc.close order, per-page budget, clear_existing
+  E1–E3  image_ocr.py: to_thread in caller, image resize, magic-byte MIME
+  F3     vector_db save/load store textbook_hash for staleness detection
+  G2     slide_analyzer: chunked analysis — no more 40 k hard truncation
+
+  H1–H4  lecture_notes_generator/ standalone (separate files, see that dir)
+
+  L1  /api/fuse now stores source chunks (doubt/mutate work after it)
+  L2  VectorDB.delete called on notebook deletion
+  L3  Single mutate parser via FusionAgent._parse_mutate_response
+  L4  /api/fuse delegates to run_generation_pipeline
+
+  J1  handleDoubt page_idx bug is in frontend NotebookWorkspace.jsx
+      (MutateModal already sends page_idx correctly; the standalone
+       "Ask doubt" path in the modal also sends page_idx — see jsx fix)
+
+  K1–K9  Missing tests added to test_notes_pipeline.py (separate file)
 """
 
 import asyncio
+import hashlib
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
+from typing import Optional, List
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional, List
 
 import semantic_kernel as sk
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
@@ -39,7 +62,7 @@ from agents.mock_cosmos import get_db, update_node_status
 from agents.pdf_utils import extract_text_from_file, chunk_text
 from agents.knowledge_store import (
     store_source_chunks, retrieve_relevant_chunks,
-    get_chunk_stats, get_all_chunks,
+    get_chunk_stats,
     store_note_pages, get_note_page, get_all_note_pages, update_note_page,
     delete_notebook_store,
 )
@@ -61,17 +84,11 @@ load_dotenv()
 logger = logging.getLogger("auragraph")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
-# ── Context budget ─────────────────────────────────────────────────────────────
-# How many chars of retrieved chunks to pass to GPT per source per call.
-# Retrieval selects the most relevant chunks first so this is not a hard limit
-# on what's STORED — it only limits what goes into the prompt.
-_PROMPT_SLIDES_BUDGET   = 24_000   # chars
-_PROMPT_TEXTBOOK_BUDGET = 24_000   # chars
+_PROMPT_SLIDES_BUDGET   = 24_000
+_PROMPT_TEXTBOOK_BUDGET = 24_000
 
-
-# ── Kernel singleton ───────────────────────────────────────────────────────────
-kernel        = None
-fusion_agent  = None
+kernel         = None
+fusion_agent   = None
 examiner_agent = None
 
 
@@ -79,40 +96,40 @@ examiner_agent = None
 async def lifespan(app):
     global kernel, fusion_agent, examiner_agent
 
+    # FIX A6: No hardcoded "mock-key" fallback — if env vars absent the kernel
+    # is initialised with placeholder strings and _is_azure_available() returns False.
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "https://placeholder.invalid/")
+    api_key  = os.environ.get("AZURE_OPENAI_API_KEY",  "placeholder")
+
     kernel = sk.Kernel()
     kernel.add_service(
         AzureChatCompletion(
             service_id="gpt4o",
             deployment_name=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
-            endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", "https://mock-endpoint.com/"),
-            api_key=os.environ.get("AZURE_OPENAI_API_KEY", "mock-key"),
+            endpoint=endpoint,
+            api_key=api_key,
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),
         )
     )
-
     fusion_agent   = FusionAgent(kernel)
     examiner_agent = ExaminerAgent(kernel)
-
-    logger.info("✅  AuraGraph v4 – Knowledge Store + Azure kernel ready")
+    logger.info("✅  AuraGraph v5 — all 32 critic fixes applied")
     yield
     logger.info("⏹  AuraGraph shutting down")
 
 
-# ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="AuraGraph API",
-    version="0.4.0",
-    description="Digital Knowledge Twin – Knowledge Store + Context-Aware Agents",
+    version="0.5.0",
+    description="Digital Knowledge Twin — fully hardened v5",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
+        "http://localhost:5173", "http://127.0.0.1:5173",
+        "http://localhost:5174", "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -120,7 +137,8 @@ app.add_middleware(
 )
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+# ── Auth helpers ───────────────────────────────────────────────────────────────
+
 def get_current_user(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Missing or invalid token")
@@ -131,20 +149,36 @@ def get_current_user(authorization: Optional[str] = Header(None)):
     return user
 
 
+def _require_notebook_owner(nb_id: str, user: dict) -> dict:
+    """Load notebook and assert it belongs to the requesting user."""
+    nb = get_notebook(nb_id)
+    if not nb or nb["user_id"] != user["id"]:
+        raise HTTPException(404, "Notebook not found")
+    return nb
+
+
+# ── LLM availability ───────────────────────────────────────────────────────────
+
 def _is_azure_available() -> bool:
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
-    api_key  = os.environ.get("AZURE_OPENAI_API_KEY", "")
+    api_key  = os.environ.get("AZURE_OPENAI_API_KEY",  "")
     return (
         bool(fusion_agent)
-        and "mock-endpoint" not in endpoint
-        and api_key not in ("", "mock-key")
+        and bool(endpoint)
+        and bool(api_key)
+        and "placeholder" not in endpoint.lower()
+        and "mock"        not in endpoint.lower()
+        and "placeholder" not in api_key.lower()
+        and "mock"        not in api_key.lower()
     )
 
 
 def _is_groq_available() -> bool:
     key = os.environ.get("GROQ_API_KEY", "")
-    return key not in ("", "your-groq-api-key-here")
+    return bool(key) and not key.startswith("your-")
 
+
+# ── Groq helpers ───────────────────────────────────────────────────────────────
 
 async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
     from openai import OpenAI as _OpenAI
@@ -153,9 +187,9 @@ async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
             base_url="https://api.groq.com/openai/v1",
             api_key=os.environ.get("GROQ_API_KEY", ""),
         )
-        model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-        resp  = client.chat.completions.create(
-            model=model, messages=messages, max_tokens=max_tokens,
+        resp = client.chat.completions.create(
+            model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            messages=messages, max_tokens=max_tokens,
         )
         return resp.choices[0].message.content.strip()
     return await asyncio.to_thread(_sync)
@@ -172,57 +206,16 @@ async def _groq_fuse(slide_content: str, textbook_content: str, proficiency: str
     return await _groq_chat([{"role": "user", "content": prompt}])
 
 
-async def _groq_doubt(
-    doubt: str, slide_context: str, textbook_context: str, note_page: str
-) -> str:
+async def _groq_doubt(doubt, slide_ctx, textbook_ctx, note_page) -> str:
     from agents.fusion_agent import DOUBT_ANSWER_PROMPT
     prompt = (
         DOUBT_ANSWER_PROMPT
         .replace("{{$doubt}}",            doubt)
-        .replace("{{$slide_context}}",    slide_context)
-        .replace("{{$textbook_context}}", textbook_context)
+        .replace("{{$slide_context}}",    slide_ctx)
+        .replace("{{$textbook_context}}", textbook_ctx)
         .replace("{{$note_page}}",        note_page)
     )
     return await _groq_chat([{"role": "user", "content": prompt}])
-
-
-async def _groq_mutate(
-    note_page: str, doubt: str, slide_context: str, textbook_context: str
-) -> tuple[str, str]:
-    from agents.fusion_agent import MUTATION_PROMPT
-    import re as _re
-    prompt = (
-        MUTATION_PROMPT
-        .replace("{{$note_page}}",        note_page)
-        .replace("{{$doubt}}",            doubt)
-        .replace("{{$slide_context}}",    slide_context)
-        .replace("{{$textbook_context}}", textbook_context)
-    )
-    text = await _groq_chat([{"role": "user", "content": prompt}])
-
-    # Strategy 1: exact ||| separator (as instructed)
-    parts = text.split("|||")
-    if len(parts) >= 2:
-        rewrite = parts[0].strip()
-        gap     = " ".join(p.strip() for p in parts[1:]).strip()
-        if rewrite and gap:
-            return rewrite, gap
-
-    # Strategy 2: labelled sections (Gap: / Rewritten:)
-    gap_match     = _re.search(r'(?:^|\n)(?:Gap|Conceptual\s+Gap|Diagnosed\s+Gap|Issue)[:\s]+(.+)', text, _re.IGNORECASE)
-    rewrite_match = _re.search(r'(?:^|\n)(?:Rewritten?(?:\s+Section)?)[:\s]+([\s\S]+?)(?=\n(?:Gap|\||$)|$)', text, _re.IGNORECASE)
-    if gap_match and rewrite_match:
-        return rewrite_match.group(1).strip(), gap_match.group(1).strip()
-
-    # Strategy 3: last short paragraph is the gap sentence
-    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-    if len(paragraphs) >= 2:
-        last = paragraphs[-1]
-        if len(last) < 250 and not last.startswith(('#', '$', '|')):
-            return '\n\n'.join(paragraphs[:-1]).strip(), last
-
-    # Strategy 4: whole response is the rewrite
-    return text, "Student required additional clarification."
 
 
 async def _groq_examine(concept_name: str) -> str:
@@ -231,19 +224,54 @@ async def _groq_examine(concept_name: str) -> str:
     return await _groq_chat([{"role": "user", "content": prompt}])
 
 
+# FIX L3: single mutate path — delegates to FusionAgent._parse_mutate_response
+async def _llm_mutate(
+    note_page: str, doubt: str, slide_ctx: str, textbook_ctx: str
+) -> tuple[Optional[str], Optional[str], str]:
+    """
+    Try Azure (via SK) then Groq for mutation.
+    Both use FusionAgent._parse_mutate_response — no duplicate parsers.
+    Returns (mutated_text, gap, source) where source is 'azure'|'groq'|'none'.
+    """
+    if _is_azure_available():
+        try:
+            mutated, gap = await fusion_agent.mutate(
+                note_page=note_page, doubt=doubt,
+                slide_context=slide_ctx, textbook_context=textbook_ctx,
+            )
+            return mutated, gap, "azure"
+        except Exception as e:
+            logger.warning("Azure mutation failed: %s", e)
+
+    if _is_groq_available():
+        try:
+            from agents.fusion_agent import MUTATION_PROMPT
+            prompt = (
+                MUTATION_PROMPT
+                .replace("{{$note_page}}",        note_page)
+                .replace("{{$doubt}}",            doubt)
+                .replace("{{$slide_context}}",    slide_ctx)
+                .replace("{{$textbook_context}}", textbook_ctx)
+            )
+            text = await _groq_chat([{"role": "user", "content": prompt}])
+            # FIX L3: reuse the canonical parser
+            mutated, gap = FusionAgent._parse_mutate_response(text)
+            return mutated, gap, "groq"
+        except Exception as e:
+            logger.warning("Groq mutation failed: %s", e)
+
+    return None, None, "none"
+
+
+# ── Utility helpers ────────────────────────────────────────────────────────────
+
 def _format_chunks_for_prompt(chunks: list[dict], budget: int) -> str:
-    """
-    Format retrieved chunks into a compact string for GPT.
-    Respects char budget — most-relevant chunks go first.
-    """
-    parts = []
-    used  = 0
+    parts, used = [], 0
     for c in chunks:
         header = f"[{c['source'].upper()} — {c.get('heading','') or 'chunk'}]\n"
         body   = c["text"]
         block  = header + body + "\n"
         if used + len(block) > budget:
-            # Try to fit a truncated version
             remaining = budget - used - len(header) - 10
             if remaining > 100:
                 block = header + body[:remaining].rsplit(" ", 1)[0] + " …\n"
@@ -254,19 +282,15 @@ def _format_chunks_for_prompt(chunks: list[dict], budget: int) -> str:
     return "\n---\n".join(parts) if parts else "(no relevant content found)"
 
 
-def _match_image_to_topic(description: str, topics) -> str | None:
-    """
-    Match an image description to the most likely lecture topic using
-    tokenised word overlap (Jaccard similarity). Zero-dependency.
-    Returns the best topic name, or None if no meaningful match found.
-    """
-    import re as _re
-    STOP = {'a','an','the','is','are','of','in','on','at','to','for','with',
-            'its','this','that','these','those','it','as','by','be','was',
-            'were','showing','shows','figure','diagram','image','graph',
-            'chart','plot','from','and','or','not','each','which','where'}
-    def _tokens(s: str) -> set:
-        return set(_re.sub(r'[^\w\s]', '', s.lower()).split()) - STOP
+def _match_image_to_topic(description: str, topics) -> Optional[str]:
+    STOP = {
+        'a','an','the','is','are','of','in','on','at','to','for','with',
+        'its','this','that','these','those','it','as','by','be','was',
+        'were','showing','shows','figure','diagram','image','graph',
+        'chart','plot','from','and','or','not','each','which','where',
+    }
+    def _tokens(s):
+        return set(re.sub(r'[^\w\s]', '', s.lower()).split()) - STOP
 
     desc_tokens = _tokens(description)
     if not desc_tokens:
@@ -286,17 +310,10 @@ def _match_image_to_topic(description: str, topics) -> str | None:
 
 
 def _inject_figures_into_sections(note: str, topic_figures: dict) -> str:
-    """
-    Inject figure markdown blocks directly after the ## heading of their
-    matching topic section. Figures appear inline in the note right where
-    the topic starts, not dumped at the end.
-    topic_figures: { topic_name: [(description, url), ...] }
-    """
     if not topic_figures:
         return note
-    lines = note.split('\n')
     result = []
-    for line in lines:
+    for line in note.split('\n'):
         result.append(line)
         if line.startswith('## '):
             heading_text = line[3:].strip().lower()
@@ -307,7 +324,7 @@ def _inject_figures_into_sections(note: str, topic_figures: dict) -> str:
                     matched_figs = figs
                     break
             if matched_figs:
-                result.append('')  # blank line after heading before figures
+                result.append('')
                 for description, url in matched_figs:
                     safe_alt = description.replace('"', "'")
                     result.append(f'![{safe_alt}]({url})')
@@ -316,27 +333,40 @@ def _inject_figures_into_sections(note: str, topic_figures: dict) -> str:
     return '\n'.join(result)
 
 
+# FIX B1: use re.split on ^## so the first heading is never swallowed
 def _note_to_pages(note: str) -> list[str]:
-    """Split a note string into pages the same way the frontend does."""
-    by_h2 = note.split("\n## ")
-    if len(by_h2) > 1:
-        pages = [by_h2[0]] + ["## " + s for s in by_h2[1:]]
-        # Merge very short pages (< 200 chars) into previous
-        merged, buf = [], ""
-        for p in pages:
-            if buf and len(p) < 200:
-                buf += "\n\n" + p
-            else:
-                if buf:
-                    merged.append(buf.strip())
-                buf = p
-        if buf:
-            merged.append(buf.strip())
-        return [p for p in merged if p.strip()]
-    return [note] if note.strip() else []
+    """
+    Split a note into pages mirroring the frontend logic.
+
+    FIX B1: The old split("\n## ") required a leading newline, so a note
+    that starts with '## Section' was never split — all topics merged into
+    one page. re.split(r'(?m)^(?=## )') splits at every ## at line-start,
+    including the very first one.
+    """
+    if not note.strip():
+        return []
+
+    raw_parts = re.split(r'(?m)^(?=## )', note.strip())
+    parts = [p.strip() for p in raw_parts if p.strip()]
+
+    if not parts:
+        return [note.strip()]
+
+    merged, buf = [], ""
+    for p in parts:
+        if buf and len(p) < 200:
+            buf += "\n\n" + p
+        else:
+            if buf:
+                merged.append(buf.strip())
+            buf = p
+    if buf:
+        merged.append(buf.strip())
+    return [p for p in merged if p.strip()]
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
+
 class AuthRequest(BaseModel):
     email:    Optional[str] = None
     username: Optional[str] = None
@@ -351,33 +381,33 @@ class FusionResponse(BaseModel):
     fused_note:      str
     source:          str = "azure"
     fallback_reason: Optional[str] = None
-    chunks_stored:   Optional[dict] = None   # {"slides": N, "textbook": M}
+    chunks_stored:   Optional[dict] = None
 
 
 class DoubtRequest(BaseModel):
     notebook_id: str
     doubt:       str
-    page_idx:    int = 0   # which note page the student is viewing
+    page_idx:    int = 0
 
 
 class DoubtResponse(BaseModel):
-    answer:      str
-    source:      str = "azure"   # "azure" | "local"
+    answer: str
+    source: str = "azure"
 
 
 class MutationRequest(BaseModel):
     notebook_id:        str
     doubt:              str
     page_idx:           int = 0
-    original_paragraph: Optional[str] = None   # kept for backward compat
+    original_paragraph: Optional[str] = None
 
 
 class MutationResponse(BaseModel):
     mutated_paragraph: str
     concept_gap:       str
     page_idx:          int
-    source:            str = "azure"   # "azure" | "groq" | "local"
-    can_mutate:        bool = True     # False when only local fallback was available
+    source:            str = "azure"
+    can_mutate:        bool = True
 
 
 class ExaminerRequest(BaseModel):
@@ -408,12 +438,13 @@ class NotebookUpdateRequest(BaseModel):
     proficiency: Optional[str] = None
 
 
-# ── Auth Routes ────────────────────────────────────────────────────────────────
+# ── Auth routes ────────────────────────────────────────────────────────────────
+
 @app.get("/health")
 async def health():
     return {
-        "status": "ok",
-        "service": "AuraGraph v0.4",
+        "status":           "ok",
+        "service":          "AuraGraph v0.5",
         "azure_configured": _is_azure_available(),
         "groq_configured":  _is_groq_available(),
     }
@@ -439,7 +470,8 @@ async def auth_login(req: AuthRequest):
     return user
 
 
-# ── Notebook Routes ────────────────────────────────────────────────────────────
+# ── Notebook routes ────────────────────────────────────────────────────────────
+
 @app.post("/notebooks")
 async def new_notebook(req: NotebookCreateRequest, authorization: Optional[str] = Header(None)):
     user = get_current_user(authorization)
@@ -455,42 +487,41 @@ async def list_notebooks(authorization: Optional[str] = Header(None)):
 @app.get("/notebooks/{nb_id}")
 async def fetch_notebook(nb_id: str, authorization: Optional[str] = Header(None)):
     user = get_current_user(authorization)
-    nb   = get_notebook(nb_id)
-    if not nb or nb["user_id"] != user["id"]:
-        raise HTTPException(404, "Notebook not found")
-    return nb
+    return _require_notebook_owner(nb_id, user)
 
 
 @app.patch("/notebooks/{nb_id}/note")
-async def save_notebook_note(nb_id: str, req: NotebookUpdateRequest, authorization: Optional[str] = Header(None)):
+async def save_notebook_note(
+    nb_id: str, req: NotebookUpdateRequest,
+    authorization: Optional[str] = Header(None),
+):
     user = get_current_user(authorization)
-    nb   = get_notebook(nb_id)
-    if not nb or nb["user_id"] != user["id"]:
-        raise HTTPException(404, "Notebook not found")
+    _require_notebook_owner(nb_id, user)
     return update_notebook_note(nb_id, req.note, req.proficiency)
 
 
 @app.delete("/notebooks/{nb_id}")
 async def remove_notebook(nb_id: str, authorization: Optional[str] = Header(None)):
     user = get_current_user(authorization)
-    nb   = get_notebook(nb_id)
-    if not nb or nb["user_id"] != user["id"]:
-        raise HTTPException(404, "Notebook not found")
+    _require_notebook_owner(nb_id, user)
     delete_notebook(nb_id)
-    delete_notebook_store(nb_id)   # also wipe the knowledge store
+    delete_notebook_store(nb_id)
+    # FIX L2: also wipe vector index from disk
+    from pipeline.vector_db import VectorDB
+    VectorDB.delete(nb_id)
     return {"status": "deleted"}
 
 
+# FIX A1: added ownership check (was only checking existence)
 @app.get("/notebooks/{nb_id}/knowledge-stats")
 async def get_knowledge_stats(nb_id: str, authorization: Optional[str] = Header(None)):
-    """Return stats about what's stored in the knowledge store for this notebook."""
-    nb = get_notebook(nb_id)
-    if not nb:
-        raise HTTPException(404, "Notebook not found")
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)   # FIX A1
     return get_chunk_stats(nb_id)
 
 
 # ── Upload + Generate Notes ────────────────────────────────────────────────────
+
 @app.post("/api/upload-fuse-multi", response_model=FusionResponse)
 async def upload_fuse_multi(
     slides_pdfs:   List[UploadFile] = File(...),
@@ -499,23 +530,19 @@ async def upload_fuse_multi(
     notebook_id:   str = Form(""),
 ):
     """
-    Main upload-and-generate endpoint.
-    Implements the full 8-step semantic pipeline from the architecture spec:
-
-      Step 1 — Text Extraction
-      Step 2 — Textbook Chunking (400-700 token chunks with chapter/section metadata)
-      Step 3 — Embeddings (Azure text-embedding-3-large or TF-IDF fallback)
-      Step 4 — Slide Understanding (1 GPT call → structured topic list)
-      Step 5 — Topic-Based Retrieval (semantic search per topic)
-      Step 6 — Per-Topic Note Generation (N GPT calls, one per topic)
-      Step 7 — Merge Notes
-      Step 8 — Refinement (1 GPT call)
-
-    Everything is also stored verbatim in the knowledge store so that
-    doubt answering and mutation have full source context.
-
-    LLM budget: 1 (slide analysis) + N (topic notes) + 1 (refinement) calls.
-    Everything else (chunking, embedding, retrieval) is deterministic.
+    Full 8-step semantic pipeline with all critic fixes applied.
+    Key order of operations (all order-dependent fixes marked):
+      Step 1   — extract text + images from all files
+      Step 1b  — describe images async (FIX E1: to_thread)
+                 annotate slide text (FIX B3: BEFORE chunking)
+      Step 2   — chunk raw text and store verbatim in knowledge store
+                 (FIX B3: annotation already in text; FIX F3: textbook_hash)
+      Step 2b  — semantic chunking for vector search
+      Step 3   — embed chunks (FIX F3: hash-aware load; FIX B4: rebuild TF-IDF)
+      Step 4   — slide analysis (FIX G2: chunked, no 40k truncation)
+      Step 5   — topic retrieval
+      Step 5b  — figure→topic matching
+      Steps 6+7+8 — note generation + merge + refinement (FIX C1/C2/C3)
     """
     from pipeline.chunker import chunk_textbook
     from pipeline.embedder import Embedder
@@ -524,13 +551,13 @@ async def upload_fuse_multi(
     from pipeline.topic_retriever import TopicRetriever
     from pipeline.note_generator import run_generation_pipeline
 
-    # ── Step 1: Text Extraction ───────────────────────────────────────────────
+    # ── Step 1: Text + image extraction ──────────────────────────────────────
     all_slides_text   = ""
     all_textbook_text = ""
     extraction_errors: list[str] = []
-    all_slide_images        = []    # ExtractedImage objects from all slides files
-    all_textbook_images     = []    # ExtractedImage objects from all textbook files
-    textbook_figures_items  = []    # (ExtractedImage, url_str) for unified figures section
+    all_slide_images:     list = []
+    all_textbook_images:  list = []
+    textbook_figures_items: list = []
 
     for upload in slides_pdfs:
         raw   = await upload.read()
@@ -540,7 +567,6 @@ async def upload_fuse_multi(
         except ValueError as e:
             extraction_errors.append(f"{fname}: {e}")
             logger.warning("Slides extraction failed %s: %s", fname, e)
-        # Extract embedded images (PDF / PPTX only — skip raw image uploads)
         try:
             imgs = extract_images_from_file(raw, fname)
             all_slide_images.extend(imgs)
@@ -555,11 +581,10 @@ async def upload_fuse_multi(
         except ValueError as e:
             extraction_errors.append(f"{fname}: {e}")
             logger.warning("Textbook extraction failed %s: %s", fname, e)
-        # Extract embedded images (circuit diagrams, figures, graphs, etc.)
         try:
             tb_imgs = extract_images_from_file(raw, fname)
             for img in tb_imgs:
-                img.img_id       = f"tb_{img.img_id}"          # avoid ID collision with slide images
+                img.img_id       = f"tb_{img.img_id}"
                 img.source_label = f"Textbook — {img.source_label}"
             all_textbook_images.extend(tb_imgs)
         except Exception as e:
@@ -571,149 +596,160 @@ async def upload_fuse_multi(
             detail += " Errors: " + "; ".join(extraction_errors)
         raise HTTPException(422, detail)
 
-    # ── Step 1b: Describe + save extracted slide images ───────────────────────
+    # ── Step 1b: Describe images + annotate slide text (FIX B3 + E1) ─────────
+    # FIX E1: describe_slide_image is sync — wrap in to_thread
+    # FIX B3: annotation MUST happen before chunk_text() below
     if all_slide_images and notebook_id:
-        logger.info("Describing %d extracted slide images…", len(all_slide_images))
-        for img in all_slide_images:
-            try:
-                img.description = describe_slide_image(img.data, img.source_label)
-            except Exception as e:
-                img.description = f"Figure from {img.source_label}"
-                logger.debug("describe_slide_image failed: %s", e)
-        # Save to disk for serving
-        try:
-            save_images(notebook_id, all_slide_images)
-        except Exception as e:
-            logger.warning("Image save failed: %s", e)
-            all_slide_images = []  # can't serve them, don't add broken links
+        logger.info("Describing %d slide images (async)…", len(all_slide_images))
 
-        if all_slide_images:
-            # Inject inline [Figure: ...] annotations into slide text so the LLM
-            # knows what diagrams existed on each slide during note generation
-            import re as _re
-            for img in all_slide_images:
-                marker_pattern = _re.compile(
-                    r'(---\s*' + img.source_label.replace(' ', '\\s+') + r'[^\n]*---)',
-                    _re.IGNORECASE,
-                )
-                annotation = f"\n[Figure: {img.description}]"
-                all_slides_text = marker_pattern.sub(
-                    lambda m, ann=annotation: m.group(0) + ann,
-                    all_slides_text, count=1,
-                )
-            logger.info("Annotated %d slide images into slide text for LLM context", len(all_slide_images))
-    elif all_slide_images:
-        logger.info("No notebook_id — skipping slide image save")
-    # ── Step 1c: Describe + save extracted textbook images ────────────────────
-    if all_textbook_images and notebook_id:
-        logger.info("Describing %d extracted textbook images…", len(all_textbook_images))
-        for img in all_textbook_images:
+        async def _desc(img):
             try:
-                img.description = describe_slide_image(img.data, img.source_label)
+                img.description = await asyncio.to_thread(
+                    describe_slide_image, img.data, img.source_label
+                )
             except Exception as e:
                 img.description = f"Figure from {img.source_label}"
-                logger.debug("describe_slide_image failed for textbook img: %s", e)
+                logger.debug("describe_slide_image error: %s", e)
+
+        await asyncio.gather(*[_desc(img) for img in all_slide_images])
+
+        # FIX D4: clear_existing=True so re-upload of same notebook doesn't accumulate stale files
         try:
-            save_images(notebook_id, all_textbook_images)
+            save_images(notebook_id, all_slide_images, clear_existing=True)
+        except Exception as e:
+            logger.warning("Slide image save failed: %s", e)
+            all_slide_images = []
+
+        # FIX B3: annotate slide text NOW — before chunk_text() on line below
+        for img in all_slide_images:
+            marker_pattern = re.compile(
+                r'(---\s*' + re.escape(img.source_label) + r'[^\n]*---)',
+                re.IGNORECASE,
+            )
+            all_slides_text = marker_pattern.sub(
+                lambda m, ann=f"\n[Figure: {img.description}]": m.group(0) + ann,
+                all_slides_text, count=1,
+            )
+        logger.info("Annotated %d slide images into slide text (before chunking)", len(all_slide_images))
+
+    elif all_slide_images:
+        logger.info("No notebook_id — slide image save skipped")
+
+    if all_textbook_images and notebook_id:
+        logger.info("Describing %d textbook images (async)…", len(all_textbook_images))
+
+        async def _desc_tb(img):
+            try:
+                img.description = await asyncio.to_thread(
+                    describe_slide_image, img.data, img.source_label
+                )
+            except Exception as e:
+                img.description = f"Figure from {img.source_label}"
+
+        await asyncio.gather(*[_desc_tb(img) for img in all_textbook_images])
+        try:
+            save_images(notebook_id, all_textbook_images, clear_existing=False)
             for img in all_textbook_images:
                 ext = img.mime.split("/")[-1].replace("jpeg", "jpg")
                 textbook_figures_items.append(
                     (img, f"/api/images/{notebook_id}/{img.img_id}.{ext}")
                 )
-            logger.info("Saved %d textbook images for notebook %s", len(all_textbook_images), notebook_id)
         except Exception as e:
             logger.warning("Textbook image save failed: %s", e)
             all_textbook_images = []
-    # ── Step 2: Chunk and Store EVERYTHING verbatim ───────────────────────────
-    # Store raw slide + textbook chunks for doubt/mutation retrieval
+
+    # ── Step 2: Chunk raw text + store in knowledge store (FIX B3, F3) ───────
     slide_raw_chunks    = chunk_text(all_slides_text,   max_chars=4000)
     textbook_raw_chunks = chunk_text(all_textbook_text, max_chars=4000)
+    textbook_hash       = hashlib.md5(all_textbook_text.encode()).hexdigest()[:16]
 
     chunks_stored = None
     if notebook_id:
         try:
-            chunks_stored = store_source_chunks(nb_id=notebook_id,
-                                                slide_chunks=slide_raw_chunks,
-                                                textbook_chunks=textbook_raw_chunks)
-            logger.info("Knowledge store: %d total chunks for notebook %s",
-                        chunks_stored["total"], notebook_id)
+            chunks_stored = store_source_chunks(
+                nb_id=notebook_id,
+                slide_chunks=slide_raw_chunks,
+                textbook_chunks=textbook_raw_chunks,
+                textbook_hash=textbook_hash,  # FIX F3
+            )
+            logger.info("Knowledge store: %d chunks for %s", chunks_stored["total"], notebook_id)
         except Exception as e:
             logger.warning("Knowledge store write failed: %s", e)
 
-    # ── Step 2b: Semantic chunking of textbook for vector search ─────────────
+    # ── Step 2b: Semantic chunking for vector search ──────────────────────────
     textbook_semantic_chunks = []
     if all_textbook_text.strip():
         try:
             textbook_semantic_chunks = chunk_textbook(all_textbook_text)
             logger.info("Textbook: %d semantic chunks", len(textbook_semantic_chunks))
         except Exception as e:
-            logger.warning("Textbook chunking failed: %s", e)
+            logger.warning("Textbook semantic chunking failed: %s", e)
 
-    # ── Step 3: Embeddings ────────────────────────────────────────────────────
-    embedder   = Embedder()
-    vector_db  = VectorDB()
-    embed_backend = "none"
+    # ── Step 3: Embeddings (FIX F3 staleness, FIX B4 TF-IDF rebuild) ─────────
+    embedder  = Embedder()
+    vector_db = VectorDB()
 
     if textbook_semantic_chunks:
-        # Try to load persisted vectors first (fast path on re-generation)
         loaded = False
         if notebook_id:
             try:
-                loaded = vector_db.load(notebook_id)
+                # FIX F3: pass hash — load() rejects stale index automatically
+                loaded = vector_db.load(notebook_id, expected_hash=textbook_hash)
                 if loaded:
-                    logger.info("Loaded persisted vector index for notebook %s", notebook_id)
+                    logger.info("Loaded fresh vector index for %s", notebook_id)
             except Exception:
                 pass
 
+        if loaded:
+            # FIX B4: rebuild TF-IDF so embed_query works on a fresh Embedder
+            try:
+                embedder.rebuild_from_chunks(vector_db.chunks)
+                logger.info("Rebuilt TF-IDF from %d loaded chunks", vector_db.size)
+            except Exception as e:
+                logger.warning("Embedder rebuild failed (%s) — re-embedding", e)
+                loaded = False
+
         if not loaded:
             try:
-                embed_backend = embedder.embed_chunks(textbook_semantic_chunks)
+                backend = embedder.embed_chunks(textbook_semantic_chunks)
                 vector_db.add_chunks(textbook_semantic_chunks)
                 if notebook_id:
-                    vector_db.save(notebook_id)
-                logger.info("Embedded %d textbook chunks via %s", len(textbook_semantic_chunks), embed_backend)
+                    vector_db.save(notebook_id, textbook_hash=textbook_hash)
+                logger.info("Embedded %d chunks via %s", len(textbook_semantic_chunks), backend)
             except Exception as e:
                 logger.warning("Embedding failed: %s", e)
 
-    # ── Step 4: Slide Understanding (1 LLM call) ──────────────────────────────
+    # ── Step 4: Slide understanding (FIX G2: no hard truncation) ─────────────
     topics = []
     try:
         topics = await analyse_slides(all_slides_text)
-        logger.info("Slide analysis: %d topics extracted", len(topics))
+        logger.info("Slide analysis: %d topics", len(topics))
     except Exception as e:
         logger.warning("Slide analysis failed: %s", e)
 
-    # ── Step 5: Topic-Based Retrieval ─────────────────────────────────────────
+    # ── Step 5: Topic-based retrieval ─────────────────────────────────────────
     topic_contexts: dict[str, str] = {}
     if topics and vector_db.size > 0:
         try:
             retriever = TopicRetriever(vector_db, embedder)
             topic_contexts = retriever.retrieve_all_topics(topics)
-            logger.info("Retrieved textbook context for %d topics", len(topic_contexts))
+            logger.info("Retrieved context for %d topics", len(topic_contexts))
         except Exception as e:
             logger.warning("Topic retrieval failed: %s", e)
 
-    # ── Step 5b: Match textbook figures to topics, inject into context ─────────
+    # ── Step 5b: Match textbook figures to topics ─────────────────────────────
     if textbook_figures_items and topics:
         for img, img_url in textbook_figures_items:
-            best_topic = _match_image_to_topic(img.description, topics)
-            if best_topic is not None:
-                ref = (
-                    f"\n\n[Textbook Figure: {img.description}]"
-                    f"\n![{img.description}]({img_url})"
-                )
-                if best_topic in topic_contexts:
-                    topic_contexts[best_topic] += ref
-                else:
-                    topic_contexts[best_topic] = ref.strip()
-        logger.info("Matched %d textbook figures to topics", len(textbook_figures_items))
+            best = _match_image_to_topic(img.description, topics)
+            if best is not None:
+                ref = f"\n\n[Textbook Figure: {img.description}]\n![{img.description}]({img_url})"
+                topic_contexts[best] = topic_contexts.get(best, "") + ref
 
     # ── Step 5c: Build topic_figures map for inline injection ─────────────────
-    topic_figures: dict[str, list[tuple[str, str]]] = {}
+    topic_figures: dict[str, list] = {}
     if topics and notebook_id:
-        # Slide figures: match by checking if source_label appears in topic's slide_text
         for img in all_slide_images:
-            ext = img.mime.split("/")[-1].replace("jpeg", "jpg")
+            ext     = img.mime.split("/")[-1].replace("jpeg", "jpg")
             img_url = f"/api/images/{notebook_id}/{img.img_id}.{ext}"
             matched = None
             for t in topics:
@@ -724,19 +760,18 @@ async def upload_fuse_multi(
                 matched = _match_image_to_topic(img.description, topics)
             if matched:
                 topic_figures.setdefault(matched, []).append((img.description, img_url))
-        # Textbook figures: use description-based Jaccard match
         for img, img_url in textbook_figures_items:
-            best_topic = _match_image_to_topic(img.description, topics)
-            if best_topic:
-                topic_figures.setdefault(best_topic, []).append((img.description, img_url))
+            best = _match_image_to_topic(img.description, topics)
+            if best:
+                topic_figures.setdefault(best, []).append((img.description, img_url))
         if topic_figures:
-            logger.info("Inline figures: %d topics, %d total figures",
+            logger.info("Inline figures: %d topics, %d figures total",
                         len(topic_figures), sum(len(v) for v in topic_figures.values()))
 
-    # ── Steps 6+7+8: Note Generation + Merge + Refinement ────────────────────
-    fused_note  = None
-    source      = "local"
-    pipe_error  = None
+    # ── Steps 6+7+8: Generate + merge + refine ────────────────────────────────
+    fused_note = None
+    source     = "local"
+    pipe_error = None
 
     if topics:
         try:
@@ -744,22 +779,21 @@ async def upload_fuse_multi(
                 topics=topics,
                 topic_contexts=topic_contexts,
                 proficiency=proficiency,
-                refine=True,   # pipeline checks availability internally
+                refine=True,
             )
-            logger.info("Pipeline generated %d chars (source=%s)", len(fused_note or ""), source)
+            logger.info("Pipeline: %d chars (source=%s)", len(fused_note or ""), source)
         except Exception as exc:
             pipe_error = f"{type(exc).__name__}: {exc}"
             logger.warning("Pipeline generation failed: %s", pipe_error)
 
-    # Final fallback to local summariser if pipeline produced nothing
     if not fused_note or len(fused_note.strip()) < 100:
         logger.info("Falling back to local summarizer")
         fused_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
         source     = "local"
 
-    fused_note = fix_latex_delimiters(fused_note)
+    from pipeline.note_generator import _fix_tables
+    fused_note = fix_latex_delimiters(_fix_tables(fused_note))
 
-    # ── Inject figures inline into their matching topic sections ──────────────
     if fused_note and topic_figures:
         fused_note = _inject_figures_into_sections(fused_note, topic_figures)
 
@@ -768,10 +802,9 @@ async def upload_fuse_multi(
         try:
             pages = _note_to_pages(fused_note)
             store_note_pages(notebook_id, pages)
-            logger.info("Stored %d note pages for notebook %s", len(pages), notebook_id)
+            logger.info("Stored %d pages for %s", len(pages), notebook_id)
         except Exception as e:
             logger.warning("Note page store failed: %s", e)
-
         try:
             update_notebook_note(notebook_id, fused_note, proficiency)
         except Exception:
@@ -782,7 +815,6 @@ async def upload_fuse_multi(
         fallback_warning = f"AI unavailable ({pipe_error}) — offline notes used."
     elif source == "local":
         fallback_warning = "No AI configured — offline summariser used."
-    # groq / azure sources are valid — no warning
 
     return FusionResponse(
         fused_note=fused_note,
@@ -793,23 +825,20 @@ async def upload_fuse_multi(
 
 
 # ── Image serving ──────────────────────────────────────────────────────────────
+
 @app.get("/api/images/{notebook_id}/{img_filename}")
 async def serve_slide_image(notebook_id: str, img_filename: str):
-    """
-    Serve a slide image extracted during upload.
-    Images live in /tmp/auragraph_imgs/{notebook_id}/ and are ephemeral
-    (cleared on server restart).  Frontend notes embed these URLs.
-    """
     path = get_image_path(notebook_id, img_filename)
     if not path:
-        raise HTTPException(404, f"Image {img_filename} not found for notebook {notebook_id}")
+        raise HTTPException(404, f"Image {img_filename} not found")
     ext  = img_filename.rsplit(".", 1)[-1].lower()
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
             "webp": "image/webp", "gif": "image/gif"}.get(ext, "image/png")
     return FileResponse(path, media_type=mime, headers={"Cache-Control": "max-age=3600"})
 
 
-# Backward-compat alias
+# ── Backward-compat single-file upload ────────────────────────────────────────
+
 @app.post("/api/upload-fuse", response_model=FusionResponse)
 async def upload_fuse(
     slides_pdf:   UploadFile = File(...),
@@ -817,179 +846,161 @@ async def upload_fuse(
     proficiency:  str = Form("Intermediate"),
     notebook_id:  str = Form(""),
 ):
-    """Single-file version — delegates to upload_fuse_multi."""
     slides_pdf.filename   = slides_pdf.filename   or "slides.pdf"
     textbook_pdf.filename = textbook_pdf.filename or "textbook.pdf"
     return await upload_fuse_multi(
-        slides_pdfs=[slides_pdf],
-        textbook_pdfs=[textbook_pdf],
-        proficiency=proficiency,
-        notebook_id=notebook_id,
+        slides_pdfs=[slides_pdf], textbook_pdfs=[textbook_pdf],
+        proficiency=proficiency, notebook_id=notebook_id,
     )
 
 
-# ── Doubt Answering ────────────────────────────────────────────────────────────
+# ── Doubt answering (FIX A3: auth required) ───────────────────────────────────
+
 @app.post("/api/doubt", response_model=DoubtResponse)
-async def answer_doubt(req: DoubtRequest):
-    """
-    Answer a student's doubt using:
-    - Relevant slide chunks from the knowledge store
-    - Relevant textbook chunks from the knowledge store
-    - The exact note page the student is reading
-    - OpenAI's own knowledge (via the prompt context)
-    """
-    nb_id    = req.notebook_id
-    doubt    = req.doubt
-    page_idx = req.page_idx
+async def answer_doubt(
+    req: DoubtRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """FIX A3: Bearer token required."""
+    get_current_user(authorization)
 
-    # Retrieve relevant source chunks
-    slide_hits    = retrieve_relevant_chunks(nb_id, doubt, top_k=6, source_filter="slides")
-    textbook_hits = retrieve_relevant_chunks(nb_id, doubt, top_k=6, source_filter="textbook")
-    slide_context    = _format_chunks_for_prompt(slide_hits,    8_000)
-    textbook_context = _format_chunks_for_prompt(textbook_hits, 8_000)
-
-    # Get the exact note page
-    note_page = get_note_page(nb_id, page_idx) or ""
+    slide_hits    = retrieve_relevant_chunks(req.notebook_id, req.doubt, top_k=6, source_filter="slides")
+    textbook_hits = retrieve_relevant_chunks(req.notebook_id, req.doubt, top_k=6, source_filter="textbook")
+    slide_ctx    = _format_chunks_for_prompt(slide_hits,    8_000)
+    textbook_ctx = _format_chunks_for_prompt(textbook_hits, 8_000)
+    note_page    = get_note_page(req.notebook_id, req.page_idx) or ""
 
     if _is_azure_available():
         try:
             answer = await fusion_agent.answer_doubt(
-                doubt=doubt,
-                slide_context=slide_context,
-                textbook_context=textbook_context,
-                note_page=note_page,
+                doubt=req.doubt, slide_context=slide_ctx,
+                textbook_context=textbook_ctx, note_page=note_page,
             )
             return DoubtResponse(answer=fix_latex_delimiters(answer), source="azure")
-        except Exception as exc:
-            logger.warning("Azure doubt failed: %s", exc)
+        except Exception as e:
+            logger.warning("Azure doubt failed: %s", e)
 
     if _is_groq_available():
         try:
-            answer = await _groq_doubt(doubt, slide_context, textbook_context, note_page)
+            answer = await _groq_doubt(req.doubt, slide_ctx, textbook_ctx, note_page)
             return DoubtResponse(answer=fix_latex_delimiters(answer), source="groq")
-        except Exception as exc:
-            logger.warning("Groq doubt failed: %s", exc)
+        except Exception as e:
+            logger.warning("Groq doubt failed: %s", e)
 
-    # Local fallback: combine contexts into a simple response
     from agents.local_mutation import _diagnose_gap, _build_analogy_hint
-    gap     = _diagnose_gap(doubt)
-    analogy = _build_analogy_hint(doubt)
+    gap     = _diagnose_gap(req.doubt)
+    analogy = _build_analogy_hint(req.doubt)
     answer  = f"**{gap}**\n\n{analogy}"
     if note_page:
         answer += f"\n\n*From your notes:* {note_page[:300]}…"
     return DoubtResponse(answer=fix_latex_delimiters(answer), source="local")
 
 
-# ── Mutation ───────────────────────────────────────────────────────────────────
-@app.post("/api/mutate", response_model=MutationResponse)
-async def mutate_note(req: MutationRequest):
-    """
-    Rewrite a note page using full source context.
-    Uses:
-    - The exact note page from the knowledge store (by page_idx)
-    - Relevant slide chunks about the doubted topic
-    - Relevant textbook chunks about the doubted topic
-    - The student's doubt
-    """
-    nb_id    = req.notebook_id
-    doubt    = req.doubt
-    page_idx = req.page_idx
+# ── Mutation (FIX A4, A7, L3: auth + dynamic concept + single parser) ─────────
 
-    # Get exact note page from store (more reliable than what frontend sends)
-    note_page = get_note_page(nb_id, page_idx)
+@app.post("/api/mutate", response_model=MutationResponse)
+async def mutate_note(
+    req: MutationRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    FIX A4: Bearer token required.
+    FIX A7: No hardcoded "Convolution Theorem" — extracts real concept from note.
+    FIX L3: Single mutate parser via FusionAgent._parse_mutate_response.
+    """
+    get_current_user(authorization)  # FIX A4
+
+    note_page = get_note_page(req.notebook_id, req.page_idx)
     if note_page is None:
-        # Fallback: use original_paragraph from request if page not in store
         note_page = req.original_paragraph or ""
 
-    # Retrieve relevant source chunks for this doubt
-    slide_hits    = retrieve_relevant_chunks(nb_id, doubt + " " + note_page[:200], top_k=6, source_filter="slides")
-    textbook_hits = retrieve_relevant_chunks(nb_id, doubt + " " + note_page[:200], top_k=6, source_filter="textbook")
-    slide_context    = _format_chunks_for_prompt(slide_hits,    8_000)
-    textbook_context = _format_chunks_for_prompt(textbook_hits, 8_000)
+    query = req.doubt + " " + note_page[:200]
+    slide_hits    = retrieve_relevant_chunks(req.notebook_id, query, top_k=6, source_filter="slides")
+    textbook_hits = retrieve_relevant_chunks(req.notebook_id, query, top_k=6, source_filter="textbook")
+    slide_ctx    = _format_chunks_for_prompt(slide_hits,    8_000)
+    textbook_ctx = _format_chunks_for_prompt(textbook_hits, 8_000)
 
-    mutated = None
-    gap     = ""
-    source  = "local"
-
-    if _is_azure_available():
-        try:
-            mutated, gap = await fusion_agent.mutate(
-                note_page=note_page,
-                doubt=doubt,
-                slide_context=slide_context,
-                textbook_context=textbook_context,
-            )
-            source = "azure"
-        except Exception as exc:
-            logger.warning("Azure mutation failed: %s", exc)
-
-    if mutated is None and _is_groq_available():
-        try:
-            mutated, gap = await _groq_mutate(note_page, doubt, slide_context, textbook_context)
-            source = "groq"
-        except Exception as exc:
-            logger.warning("Groq mutation failed: %s", exc)
+    mutated, gap, llm_source = await _llm_mutate(note_page, req.doubt, slide_ctx, textbook_ctx)
 
     if mutated is None:
-        mutated, gap = local_mutate(note_page, doubt)
-        source = "local"
+        mutated, gap = local_mutate(note_page, req.doubt)
+        llm_source   = "local"
 
-    can_mutate = source in ("azure", "groq")
+    can_mutate = llm_source in ("azure", "groq")
+
     from pipeline.note_generator import _fix_tables
     mutated = fix_latex_delimiters(_fix_tables(mutated))
 
-    # Only persist the mutation when an LLM was used — local fallback is
-    # deterministic / low-quality and shouldn't overwrite the original notes.
-    if can_mutate and nb_id:
+    if can_mutate and req.notebook_id:
         try:
-            updated = update_note_page(nb_id, page_idx, mutated)
+            updated = update_note_page(req.notebook_id, req.page_idx, mutated)
             if updated:
-                # Rebuild full note from pages and persist
-                pages = get_all_note_pages(nb_id)
-                full_note = "\n\n".join(pages)
-                update_notebook_note(nb_id, full_note)
-                logger.info("Mutated page %d for notebook %s", page_idx, nb_id)
+                full_note = "\n\n".join(get_all_note_pages(req.notebook_id))
+                update_notebook_note(req.notebook_id, full_note)
+                logger.info("Mutated page %d for %s", req.page_idx, req.notebook_id)
         except Exception as e:
             logger.warning("Page update failed: %s", e)
 
-    update_node_status("Convolution Theorem", "partial")
+    # FIX A7: dynamically extract real concept from the mutated note section
+    if req.notebook_id and mutated:
+        try:
+            graph = extract_concepts(mutated)
+            if graph.get("nodes"):
+                top_concept = graph["nodes"][0]["label"]
+                update_node_status(top_concept, "partial")
+        except Exception:
+            pass   # non-critical — don't break mutation over graph update failure
 
     return MutationResponse(
         mutated_paragraph=mutated,
-        concept_gap=gap,
-        page_idx=page_idx,
-        source=source,
+        concept_gap=gap or "Student required additional clarification.",
+        page_idx=req.page_idx,
+        source=llm_source,
         can_mutate=can_mutate,
     )
 
 
-# ── Examiner ───────────────────────────────────────────────────────────────────
+# ── Examiner (FIX A5: auth required) ─────────────────────────────────────────
+
 @app.post("/api/examine", response_model=ExaminerResponse)
-async def examine_concept(req: ExaminerRequest):
+async def examine_concept(
+    req: ExaminerRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """FIX A5: Bearer token required to prevent free LLM abuse."""
+    get_current_user(authorization)
+
     if examiner_agent and _is_azure_available():
         try:
-            questions = await examiner_agent.examine(req.concept_name)
-            return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
-        except Exception as exc:
-            logger.warning("Azure examiner failed: %s", exc)
+            q = await examiner_agent.examine(req.concept_name)
+            return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
+        except Exception as e:
+            logger.warning("Azure examiner failed: %s", e)
     if _is_groq_available():
         try:
-            questions = await _groq_examine(req.concept_name)
-            return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
-        except Exception as exc:
-            logger.warning("Groq examiner failed: %s", exc)
-    questions = local_examine(req.concept_name)
-    return ExaminerResponse(practice_questions=fix_latex_delimiters(questions))
+            q = await _groq_examine(req.concept_name)
+            return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
+        except Exception as e:
+            logger.warning("Groq examiner failed: %s", e)
+    q = local_examine(req.concept_name)
+    return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
 
 
-# ── Graph Routes ───────────────────────────────────────────────────────────────
+# ── Graph routes (FIX A2: auth required) ──────────────────────────────────────
+
 @app.get("/api/graph")
-async def get_graph():
+async def get_graph(authorization: Optional[str] = Header(None)):
+    """FIX A2: requires Bearer token."""
+    get_current_user(authorization)
     return get_db()
 
 
 @app.post("/api/graph/update")
-async def update_graph(req: NodeUpdateRequest):
+async def update_graph(
+    req: NodeUpdateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    get_current_user(authorization)
     updated = update_node_status(req.concept_name, req.status)
     if not updated:
         raise HTTPException(404, "Node not found")
@@ -997,7 +1008,11 @@ async def update_graph(req: NodeUpdateRequest):
 
 
 @app.post("/api/extract-concepts")
-async def extract_concepts_endpoint(req: ConceptExtractRequest):
+async def extract_concepts_endpoint(
+    req: ConceptExtractRequest,
+    authorization: Optional[str] = Header(None),
+):
+    get_current_user(authorization)
     graph = extract_concepts(req.note)
     if req.notebook_id:
         update_notebook_graph(req.notebook_id, graph)
@@ -1006,9 +1021,8 @@ async def extract_concepts_endpoint(req: ConceptExtractRequest):
 
 @app.get("/notebooks/{nb_id}/graph")
 async def get_notebook_graph(nb_id: str, authorization: Optional[str] = Header(None)):
-    nb = get_notebook(nb_id)
-    if not nb:
-        raise HTTPException(404, "Notebook not found")
+    user = get_current_user(authorization)
+    nb   = _require_notebook_owner(nb_id, user)
     return nb.get("graph", {"nodes": [], "edges": []})
 
 
@@ -1018,9 +1032,8 @@ async def update_notebook_graph_node(
     req: NodeUpdateRequest,
     authorization: Optional[str] = Header(None),
 ):
-    nb = get_notebook(nb_id)
-    if not nb:
-        raise HTTPException(404, "Notebook not found")
+    user  = get_current_user(authorization)
+    nb    = _require_notebook_owner(nb_id, user)
     graph = nb.get("graph", {"nodes": [], "edges": []})
     for node in graph["nodes"]:
         if node["label"].lower() == req.concept_name.lower():
@@ -1030,51 +1043,84 @@ async def update_notebook_graph_node(
     raise HTTPException(404, "Concept node not found")
 
 
-# ── Legacy /api/fuse (text-based) kept for compat ─────────────────────────────
+# ── Legacy /api/fuse (FIX L1 + L4) ───────────────────────────────────────────
+
 class FusionRequest(BaseModel):
-    slide_summary:       str
-    textbook_paragraph:  str
-    proficiency:         str = "Intermediate"
-    notebook_id:         Optional[str] = None
+    slide_summary:      str
+    textbook_paragraph: str
+    proficiency:        str = "Intermediate"
+    notebook_id:        Optional[str] = None
 
 
 @app.post("/api/fuse", response_model=FusionResponse)
 async def fuse_knowledge(req: FusionRequest):
+    """
+    Legacy text-based fusion.
+    FIX L1: now stores source chunks so /api/doubt and /api/mutate work.
+    FIX L4: now uses run_generation_pipeline (same path as upload-fuse-multi).
+    """
+    from pipeline.chunker import chunk_textbook
+    from pipeline.embedder import Embedder
+    from pipeline.vector_db import VectorDB
+    from pipeline.slide_analyzer import analyse_slides
+    from pipeline.topic_retriever import TopicRetriever
+    from pipeline.note_generator import run_generation_pipeline
+
     slide_content    = req.slide_summary[:_PROMPT_SLIDES_BUDGET]
     textbook_content = req.textbook_paragraph[:_PROMPT_TEXTBOOK_BUDGET]
+    nb_id            = req.notebook_id
 
-    fused_note  = None
-    source      = "local"
-    azure_error = None
-
-    if _is_azure_available():
+    # FIX L1: store raw chunks for doubt/mutate
+    if nb_id:
         try:
-            fused_note = await fusion_agent.fuse(slide_content, textbook_content, req.proficiency)
-            source     = "azure"
-        except Exception as exc:
-            azure_error = str(exc)
+            tb_hash = hashlib.md5(textbook_content.encode()).hexdigest()[:16]
+            store_source_chunks(
+                nb_id=nb_id,
+                slide_chunks=chunk_text(slide_content,    max_chars=4000),
+                textbook_chunks=chunk_text(textbook_content, max_chars=4000),
+                textbook_hash=tb_hash,
+            )
+        except Exception as e:
+            logger.warning("/api/fuse: chunk store failed: %s", e)
 
-    if fused_note is None and _is_groq_available():
-        try:
-            fused_note = await _groq_fuse(slide_content, textbook_content, req.proficiency)
-            source     = "groq"
-        except Exception as exc:
-            logger.warning("Groq fuse failed: %s", exc)
+    # FIX L4: run same pipeline as upload-fuse-multi
+    fused_note, source = None, "local"
+    try:
+        topics = await analyse_slides(slide_content)
+        if topics:
+            embedder  = Embedder()
+            vector_db = VectorDB()
+            tb_chunks = chunk_textbook(textbook_content) if textbook_content.strip() else []
+            if tb_chunks:
+                embedder.embed_chunks(tb_chunks)
+                vector_db.add_chunks(tb_chunks)
+            topic_contexts: dict[str, str] = {}
+            if vector_db.size > 0:
+                retriever     = TopicRetriever(vector_db, embedder)
+                topic_contexts = retriever.retrieve_all_topics(topics)
+            fused_note, source = await run_generation_pipeline(
+                topics=topics,
+                topic_contexts=topic_contexts,
+                proficiency=req.proficiency,
+                refine=True,
+            )
+    except Exception as exc:
+        logger.warning("/api/fuse pipeline failed: %s", exc)
 
-    if fused_note is None:
+    if not fused_note or len(fused_note.strip()) < 100:
         fused_note = generate_local_note(req.slide_summary, req.textbook_paragraph, req.proficiency)
+        source     = "local"
 
     fused_note = fix_latex_delimiters(fused_note)
 
-    if req.notebook_id:
+    if nb_id:
         try:
-            pages = _note_to_pages(fused_note)
-            store_note_pages(req.notebook_id, pages)
+            store_note_pages(nb_id, _note_to_pages(fused_note))
         except Exception:
             pass
 
     return FusionResponse(
         fused_note=fused_note,
         source=source,
-        fallback_reason=azure_error,
+        fallback_reason=None if source != "local" else "No AI configured — offline summariser used.",
     )

@@ -288,28 +288,35 @@ async def _call_azure(
     user:   str,
     max_tokens: int = 2500,
 ) -> Optional[str]:
-    """Azure OpenAI call via openai SDK. Returns text or None on failure."""
+    """
+    Azure OpenAI call via httpx async client (true async — no thread pool).
+    FIX C1: was asyncio.to_thread(_sync) which blocked thread pool under load.
+    """
     if not _azure_available():
         return None
     try:
-        from openai import AzureOpenAI
-        def _sync():
-            client = AzureOpenAI(
-                azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
-                api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
-                api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
+        import httpx
+        endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+        api_key    = os.environ.get("AZURE_OPENAI_API_KEY",  "")
+        api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
+        deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
+        payload = {
+            "messages":   [{"role": "system", "content": system},
+                           {"role": "user",   "content": user}],
+            "max_tokens": max_tokens,
+            "temperature": 0.3,
+        }
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                url, json=payload,
+                headers={"api-key": api_key, "Content-Type": "application/json"},
             )
-            resp = client.chat.completions.create(
-                model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
-                messages=[{"role": "system", "content": system},
-                          {"role": "user",   "content": user}],
-                max_tokens=max_tokens,
-                temperature=0.3,
-            )
-            return resp.choices[0].message.content.strip()
-        return await asyncio.to_thread(_sync)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        logger.warning("note_generator Azure call failed: %s", e)
+        logger.warning("note_generator Azure async call failed: %s", e)
         return None
 
 
@@ -318,28 +325,35 @@ async def _call_groq(
     user:   str,
     max_tokens: int = 2500,
 ) -> Optional[str]:
-    """Groq call via openai SDK. Returns text or None on failure."""
+    """
+    Groq call via httpx async client (true async — no thread pool).
+    FIX C1: was asyncio.to_thread(_sync) which blocked thread pool under load.
+    """
     if not _groq_available():
         return None
     try:
-        from openai import OpenAI
-        def _sync():
-            client = OpenAI(
-                base_url="https://api.groq.com/openai/v1",
-                api_key=os.environ.get("GROQ_API_KEY", ""),
+        import httpx
+        api_key = os.environ.get("GROQ_API_KEY", "")
+        model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        payload = {
+            "model":       model,
+            "messages":    [{"role": "system", "content": system},
+                            {"role": "user",   "content": user}],
+            "max_tokens":  max_tokens,
+            "temperature": 0.3,
+        }
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                json=payload,
+                headers={"Authorization": f"Bearer {api_key}",
+                         "Content-Type": "application/json"},
             )
-            model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "system", "content": system},
-                          {"role": "user",   "content": user}],
-                max_tokens=max_tokens,
-                temperature=0.3,
-            )
-            return resp.choices[0].message.content.strip()
-        return await asyncio.to_thread(_sync)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        logger.warning("note_generator Groq call failed: %s", e)
+        logger.warning("note_generator Groq async call failed: %s", e)
         return None
 
 
@@ -445,17 +459,19 @@ async def refine_notes(notes: str) -> str:
 
     if _azure_available():
         refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=8192)
-        if refined and len(refined) > len(notes) * 0.6:
+        # FIX C2: threshold 0.3 — good compressions are kept, not discarded
+        if refined and len(refined) > len(notes) * 0.3:
             return fix_latex_delimiters(_fix_tables(refined))
         if refined:
-            logger.info("Azure refinement output too short (%d vs %d) — keeping original", len(refined), len(notes))
+            logger.info("Azure refinement too short (%d vs %d) — keeping original", len(refined), len(notes))
 
     if groq_refine_ok:
         refined = await _call_groq(_REFINEMENT_SYSTEM, user, max_tokens=8192)
-        if refined and len(refined) > len(notes) * 0.6:
+        # FIX C2: threshold 0.3
+        if refined and len(refined) > len(notes) * 0.3:
             return fix_latex_delimiters(_fix_tables(refined))
         if refined:
-            logger.info("Groq refinement output too short (%d vs %d) — keeping original", len(refined), len(notes))
+            logger.info("Groq refinement too short (%d vs %d) — keeping original", len(refined), len(notes))
 
     logger.info("Refinement skipped/failed — keeping original %d-char notes", len(notes))
     return notes
@@ -482,8 +498,9 @@ async def run_generation_pipeline(
     if not topics:
         return "", "local"
 
-    # Semaphore: max 4 concurrent LLM calls (avoids Groq rate limits)
-    sem = asyncio.Semaphore(4)
+    # FIX C3: semaphore size from env var so Groq free-tier (1 req/s) works
+    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "1"))
+    sem = asyncio.Semaphore(_concurrency)
 
     async def _generate_with_sem(topic: SlideTopic) -> tuple[str, str]:
         async with sem:

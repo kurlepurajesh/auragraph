@@ -211,6 +211,31 @@ class Embedder:
 
         return None
 
+
+    def rebuild_from_chunks(self, chunks: list) -> None:
+        """
+        FIX B4: Rebuild the TF-IDF vectoriser from chunks that were loaded
+        from a persisted VectorDB index.  Without this, a fresh Embedder
+        instance has _tfidf=None, so embed_query always returns None and
+        every TopicRetriever query silently fails.
+
+        Only rebuilds TF-IDF (Azure client is always reconstructed from env
+        vars in __init__, so it doesn't need rebuilding).
+        """
+        if self._azure_client is not None:
+            # Azure is available — no need to rebuild TF-IDF
+            return
+        if not chunks:
+            return
+        texts = [c.text for c in chunks if hasattr(c, "text")]
+        if not texts:
+            return
+        vectoriser = _TFIDFVectoriser()
+        vectoriser.fit(texts)
+        self._tfidf = vectoriser
+        # Don't set embeddings on chunks — they already have them from disk
+        logger.info("Embedder.rebuild_from_chunks: TF-IDF refitted on %d chunks", len(texts))
+
     @property
     def dim(self) -> int:
         return self._dim
