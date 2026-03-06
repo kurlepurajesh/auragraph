@@ -10,7 +10,7 @@ import {
     BookOpen, MessageSquare, ArrowLeft, Zap, Brain, CheckCircle2,
     AlertCircle, MinusCircle, RefreshCw, X, ChevronDown, ChevronUp,
     MessageCircle, GitBranch, Copy, Check, PanelRightClose, PanelRightOpen,
-    Download, PenLine
+    Download, PenLine, Columns2, ScrollText
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -224,6 +224,46 @@ function MutateModal({ page, notebookId, pageIdx, onClose, onMutate }) {
     );
 }
 
+// ─── Practice Questions with per-question Show Answer ───────────────────────
+function PracticeQuestions({ text }) {
+    const [revealed, setRevealed] = useState(new Set());
+    const blocks = text.split(/(?=^Q\d+\.)/m).filter(b => b.trim());
+    if (!blocks.length) {
+        return <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{text}</ReactMarkdown>;
+    }
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {blocks.map((block, i) => {
+                const markerIdx = block.search(/✅|Correct:/);
+                const hasAnswer = markerIdx !== -1;
+                const questionPart = hasAnswer ? block.slice(0, markerIdx).trimEnd() : block;
+                const answerPart   = hasAnswer ? block.slice(markerIdx) : '';
+                const isRevealed   = revealed.has(i);
+                return (
+                    <div key={i} style={{ background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div style={{ padding: '14px 16px', fontSize: 13, lineHeight: 1.8 }}>
+                            <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{questionPart}</ReactMarkdown>
+                        </div>
+                        {hasAnswer && (
+                            <div style={{ borderTop: '1px solid var(--border)' }}>
+                                {!isRevealed ? (
+                                    <button onClick={() => setRevealed(prev => new Set([...prev, i]))} style={{ width: '100%', padding: '9px 16px', background: 'var(--surface)', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                        <CheckCircle2 size={13} /> Show Answer
+                                    </button>
+                                ) : (
+                                    <div style={{ padding: '12px 16px', background: '#F0FDF4', fontSize: 13, lineHeight: 1.8 }}>
+                                        <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{answerPart}</ReactMarkdown>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 // ─── Examiner Modal ───────────────────────────────────────────────────────────
 function ExaminerModal({ concept, onClose }) {
     const [questions, setQuestions] = useState('');
@@ -247,7 +287,7 @@ function ExaminerModal({ concept, onClose }) {
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
                     {loading ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text3)', fontSize: 13 }}><Loader2 className="spin" size={16} /> Generating questions…</div>
-                        : <div style={{ fontSize: 13, lineHeight: 1.8 }}><ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{questions}</ReactMarkdown></div>}
+                        : <PracticeQuestions text={questions} />}
                 </div>
                 <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}><button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button></div>
             </div>
@@ -551,6 +591,7 @@ export default function NotebookWorkspace() {
     const [graphEdges, setGraphEdges] = useState([]);
     const [noteSource, setNoteSource] = useState('azure');      // 'azure' | 'local'
     const [fallbackWarning, setFallbackWarning] = useState(''); // non-empty = show banner
+    const [viewMode, setViewMode] = useState('single');         // 'single' | 'two' | 'scroll'
     const noteScrollRef = useRef();
 
     const pages = useMemo(() => {
@@ -787,12 +828,19 @@ export default function NotebookWorkspace() {
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
                         {/* Page nav */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)' }}>
-                            <button data-testid="prev-page" onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} title="Previous (←)" style={{ background: 'none', border: 'none', color: currentPage === 0 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronLeft size={14} /></button>
-                            <span style={{ fontSize: 12, color: 'var(--text2)', minWidth: 48, textAlign: 'center' }}>{currentPage + 1} / {pages.length}</span>
-                            <button data-testid="next-page" onClick={() => setCurrentPage(Math.min(pages.length - 1, currentPage + 1))} disabled={currentPage >= pages.length - 1} title="Next (→)" style={{ background: 'none', border: 'none', color: currentPage >= pages.length - 1 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage >= pages.length - 1 ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronRight size={14} /></button>
+                            <button data-testid="prev-page" onClick={() => setCurrentPage(Math.max(0, currentPage - (viewMode === 'two' ? 2 : 1)))} disabled={currentPage === 0} title="Previous (←)" style={{ background: 'none', border: 'none', color: currentPage === 0 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronLeft size={14} /></button>
+                            <span style={{ fontSize: 12, color: 'var(--text2)', minWidth: 48, textAlign: 'center' }}>{currentPage + 1}{viewMode === 'two' && pages[currentPage + 1] ? `–${currentPage + 2}` : ''} / {pages.length}</span>
+                            <button data-testid="next-page" onClick={() => setCurrentPage(Math.min(pages.length - 1, currentPage + (viewMode === 'two' ? 2 : 1)))} disabled={currentPage >= pages.length - 1} title="Next (→)" style={{ background: 'none', border: 'none', color: currentPage >= pages.length - 1 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage >= pages.length - 1 ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronRight size={14} /></button>
                         </div>
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
-                        {/* Export (compact) */}
+                        {/* View mode toggle */}
+                        <div style={{ display: 'flex', gap: 1, background: 'var(--surface)', padding: 2, borderRadius: 7, border: '1px solid var(--border)' }}>
+                            {[['single', <BookOpen size={12}/>, 'Single page'], ['two', <Columns2 size={12}/>, 'Two pages side-by-side'], ['scroll', <ScrollText size={12}/>, 'Continuous scroll']].map(([mode, icon, title]) => (
+                                <button key={mode} title={title} onClick={() => setViewMode(mode)} style={{ padding: '4px 8px', borderRadius: 5, border: 'none', cursor: 'pointer', background: viewMode === mode ? 'var(--text)' : 'transparent', color: viewMode === mode ? '#fff' : 'var(--text3)', display: 'flex', alignItems: 'center', transition: 'all 0.15s' }}>{icon}</button>
+                            ))}
+                        </div>
+                        <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
+                        {/* Export (compact) */
                         <CopyNoteButton note={note} />
                         <DownloadNoteButton note={note} name={notebook.name} />
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
@@ -840,59 +888,93 @@ export default function NotebookWorkspace() {
                         </div>
                     </div>
                 ) : (
-                    <div ref={noteScrollRef} style={{ flex: 1, overflowY: 'auto', display: 'flex', justifyContent: 'center', background: '#F0F2F5', padding: '28px 24px' }}>
-                        <div style={{ maxWidth: 760, width: '100%' }}>
-                            {fallbackWarning && (
-                                <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                                    <span style={{ flexShrink: 0 }}>⚠️</span>
-                                    <div style={{ flex: 1 }}><b>Offline notes:</b> {fallbackWarning.replace(/^⚠️\s*/, '')}</div>
-                                    <button onClick={() => setFallbackWarning('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', padding: 0, marginLeft: 'auto', flexShrink: 0 }}><X size={13} /></button>
-                                </div>
-                            )}
-                            {gapText && (
-                                <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                                    <Brain size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                                    <div><b>Concept gap identified:</b> {gapText}</div>
-                                    <button onClick={() => setGapText('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', padding: 0, marginLeft: 'auto' }}><X size={13} /></button>
-                                </div>
-                            )}
-                            {/* Notebook page */}
-                            <div style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: '1px solid #d0d0d0', overflow: 'hidden' }}>
-                                <div style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
-                                    {[0,1,2,3,4,5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />)}
-                                </div>
-                                <div style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
-                                <div style={{ flex: 1, padding: '40px 48px 48px 36px', minWidth: 0 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            {mutatedPages.has(currentPage) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EDE9FE', color: '#7C3AED', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
-                                            <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>Page {currentPage + 1} of {pages.length}</span>
+                    <div ref={noteScrollRef} style={{ flex: 1, overflowY: 'auto', background: '#F0F2F5', padding: viewMode === 'two' ? '28px 16px' : '28px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        {(() => {
+                            const onDoubtLink = (doubtId) => { setRightTab('doubts'); setTimeout(() => { document.getElementById(doubtId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150); };
+                            const renderPage = (idx) => {
+                                if (idx < 0 || idx >= pages.length) return <div key={`empty-${idx}`} style={{ flex: 1, minWidth: 0 }} />;
+                                return (
+                                    <div key={idx} style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: '1px solid #d0d0d0', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                                        <div style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
+                                            {[0,1,2,3,4,5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />)}
+                                        </div>
+                                        <div style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
+                                        <div style={{ flex: 1, padding: '40px 48px 48px 36px', minWidth: 0 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
+                                                <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    {mutatedPages.has(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EDE9FE', color: '#7C3AED', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
+                                                    <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>Page {idx + 1} of {pages.length}</span>
+                                                </div>
+                                            </div>
+                                            <NoteRenderer content={pages[idx]} onDoubtLink={onDoubtLink} />
+                                            <div style={{ marginTop: 32, paddingTop: 10, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>{notebook?.course || ''}</span>
+                                                <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>AuraGraph · {prof}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <NoteRenderer content={pages[currentPage]} onDoubtLink={(doubtId) => {
-                                        setRightTab('doubts');
-                                        setTimeout(() => { document.getElementById(doubtId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150);
-                                    }} />
-                                    <div style={{ marginTop: 32, paddingTop: 10, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>{notebook?.course || ''}</span>
-                                        <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>AuraGraph · {prof}</span>
+                                );
+                            };
+                            const banners = (
+                                <>
+                                    {fallbackWarning && (
+                                        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                            <span style={{ flexShrink: 0 }}>⚠️</span>
+                                            <div style={{ flex: 1 }}><b>Offline notes:</b> {fallbackWarning.replace(/^⚠️\s*/, '')}</div>
+                                            <button onClick={() => setFallbackWarning('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', padding: 0, marginLeft: 'auto', flexShrink: 0 }}><X size={13} /></button>
+                                        </div>
+                                    )}
+                                    {gapText && (
+                                        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                            <Brain size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                                            <div><b>Concept gap identified:</b> {gapText}</div>
+                                            <button onClick={() => setGapText('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', padding: 0, marginLeft: 'auto' }}><X size={13} /></button>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                            const bottomBar = (
+                                <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <button data-testid="re-upload-btn" className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => setNote('')}><Upload size={12} /> Re-upload materials</button>
+                                    <button className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => extractAndSaveGraph(note)}><RefreshCw size={12} /> Refresh Concept Map</button>
+                                    {viewMode !== 'scroll' && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                            {pages.slice(0, Math.min(pages.length, 20)).map((_, i) => (
+                                                <button key={i} className="page-dot" data-label={`Page ${i + 1}`} onClick={() => setCurrentPage(i)} title={`Page ${i + 1}`} style={{ width: i === currentPage ? 20 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === currentPage ? '#7C3AED' : mutatedPages.has(i) ? '#C4B5FD' : 'var(--border2)', transition: 'all 0.2s', padding: 0 }} />
+                                            ))}
+                                            {pages.length > 20 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>+{pages.length - 20}</span>}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                            if (viewMode === 'scroll') return (
+                                <div style={{ maxWidth: 760, width: '100%' }}>
+                                    {banners}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                        {pages.map((_, idx) => renderPage(idx))}
                                     </div>
+                                    {bottomBar}
                                 </div>
-                            </div>
-                            {/* Bottom bar */}
-                            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                                <button data-testid="re-upload-btn" className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => setNote('')}><Upload size={12} /> Re-upload materials</button>
-                                <button className="btn btn-ghost btn-sm" style={{ fontSize: 12 }} onClick={() => extractAndSaveGraph(note)}><RefreshCw size={12} /> Refresh Concept Map</button>
-                                {/* Page dots */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                    {pages.slice(0, Math.min(pages.length, 20)).map((_, i) => (
-                                        <button key={i} className="page-dot" data-label={`Page ${i + 1}`} onClick={() => setCurrentPage(i)} title={`Page ${i + 1}`} style={{ width: i === currentPage ? 20 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === currentPage ? '#7C3AED' : mutatedPages.has(i) ? '#C4B5FD' : 'var(--border2)', transition: 'all 0.2s', padding: 0 }} />
-                                    ))}
-                                    {pages.length > 20 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>+{pages.length - 20}</span>}
+                            );
+                            if (viewMode === 'two') return (
+                                <div style={{ maxWidth: 1480, width: '100%' }}>
+                                    {banners}
+                                    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                                        {renderPage(currentPage)}
+                                        {renderPage(currentPage + 1)}
+                                    </div>
+                                    {bottomBar}
                                 </div>
-                            </div>
-                        </div>
+                            );
+                            return (
+                                <div style={{ maxWidth: 760, width: '100%' }}>
+                                    {banners}
+                                    {renderPage(currentPage)}
+                                    {bottomBar}
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 
