@@ -33,6 +33,59 @@ from agents.latex_utils import fix_latex_delimiters
 logger = logging.getLogger(__name__)
 
 
+# ── Table repair ──────────────────────────────────────────────────────────────
+
+def _fix_tables(text: str) -> str:
+    """
+    Repair common Groq/LLM table generation errors:
+    1. Missing alignment row  (header row immediately followed by data row)
+    2. Rows with inconsistent column counts — pad or trim to match header
+    3. Strip accidental leading/trailing whitespace inside cells
+    """
+    import re
+    lines = text.split('\n')
+    result = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Detect a pipe-table header row: starts and ends with |, has at least one |
+        if re.match(r'^\s*\|.*\|\s*$', line) and '|' in line:
+            # Count columns from header
+            header_cells = [c.strip() for c in line.strip().strip('|').split('|')]
+            ncols = len(header_cells)
+            result.append(line)
+            # Check if next non-empty line is already an alignment row
+            j = i + 1
+            if j < len(lines) and re.match(r'^\s*\|[\s|:\-]+\|\s*$', lines[j]):
+                # Already has alignment row — just ensure column count matches
+                align_cells = [c.strip() for c in lines[j].strip().strip('|').split('|')]
+                if len(align_cells) != ncols:
+                    # Rebuild alignment row
+                    lines[j] = '| ' + ' | '.join(['---'] * ncols) + ' |'
+                result.append(lines[j])
+                i = j + 1
+            else:
+                # Insert missing alignment row
+                result.append('| ' + ' | '.join(['---'] * ncols) + ' |')
+                i += 1
+            # Process data rows: normalise column count
+            while i < len(lines):
+                dline = lines[i]
+                if not re.match(r'^\s*\|.*\|\s*$', dline):
+                    break  # end of this table
+                data_cells = [c.strip() for c in dline.strip().strip('|').split('|')]
+                if len(data_cells) < ncols:
+                    data_cells.extend([''] * (ncols - len(data_cells)))
+                elif len(data_cells) > ncols:
+                    data_cells = data_cells[:ncols]
+                result.append('| ' + ' | '.join(data_cells) + ' |')
+                i += 1
+            continue
+        result.append(line)
+        i += 1
+    return '\n'.join(result)
+
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 _NOTE_SYSTEM = """\
@@ -71,7 +124,12 @@ PROFICIENCY ADAPTATION:
 BEGINNER:
   1. Plain-English sentence: "Simply put, X is …"
   2. One analogy in a > blockquote.
-  3. Key formula(s) with **Where:** table (one line per symbol).
+  3. Key formula(s) followed by a **Where:** pipe-table defining each symbol.
+     Table format EXACTLY as shown (alignment row required):
+     | Symbol | Meaning |
+     |--------|----------|
+     | $F$ | output value |
+     | $t$ | time variable |
   4. Numbered steps if there is a process.
 
 INTERMEDIATE:
@@ -79,13 +137,25 @@ INTERMEDIATE:
   2. Intuition sentence linking formula to real meaning.
   3. Display LaTeX for every key formula; define symbols inline.
   4. Key conditions / edge cases as bullets.
+  5. If multiple related formulas exist, use a pipe-table:
+     | Formula | When to use |
+     |---------|-------------|
+     | $...$ | description |
 
 ADVANCED:
   1. Formal definition with all conditions.
   2. Full derivation. Terse algebra. No commentary between steps.
   3. Validity / convergence conditions.
   4. Edge cases as bullets.
-  5. One comparison with a related concept.
+  5. One comparison with a related concept — use a pipe-table:
+     | Aspect | This concept | Related concept |
+     |--------|-------------|----------------|
+     | ... | ... | ... |
+
+TABLES:
+• Pipe-tables ONLY. Header row + alignment row (|---|---| with at least 3 dashes) + data rows.
+• NEVER use HTML tables. NEVER use numbered/bulleted lists as a substitute for a table.
+• Every | column | must be separated by pipe characters, including the outer edges.
 
 MATHEMATICS:
 • ALL math in LaTeX. NEVER write "integral", "sigma", "omega" as English words.
@@ -216,7 +286,7 @@ async def generate_topic_note(
         if result:
             if not result.lstrip().startswith("##"):
                 result = f"## {topic.topic}\n\n{result}"
-            return fix_latex_delimiters(result), "azure"
+            return fix_latex_delimiters(_fix_tables(result)), "azure"
 
     if _groq_available():
         user = _NOTE_USER_TEMPLATE.format(
@@ -229,7 +299,7 @@ async def generate_topic_note(
         if result:
             if not result.lstrip().startswith("##"):
                 result = f"## {topic.topic}\n\n{result}"
-            return fix_latex_delimiters(result), "groq"
+            return fix_latex_delimiters(_fix_tables(result)), "groq"
 
     # ── Deterministic fallback ─────────────────────────────────────────────────────
     return _build_fallback_section(topic, textbook_context, proficiency), "local"

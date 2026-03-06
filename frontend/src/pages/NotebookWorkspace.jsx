@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ls_getNotebook, ls_saveNote } from '../localNotebooks';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import {
     Sparkles, Loader2, ChevronLeft, ChevronRight, Upload, FileText,
@@ -234,7 +235,7 @@ function ExaminerModal({ concept, onClose }) {
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
                     {loading ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text3)', fontSize: 13 }}><Loader2 className="spin" size={16} /> Generating questions…</div>
-                        : <div style={{ fontSize: 13, lineHeight: 1.8 }}><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{questions}</ReactMarkdown></div>}
+                        : <div style={{ fontSize: 13, lineHeight: 1.8 }}><ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}>{questions}</ReactMarkdown></div>}
                 </div>
                 <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}><button className="btn btn-secondary btn-sm" onClick={onClose}>Close</button></div>
             </div>
@@ -389,8 +390,20 @@ function NoteRenderer({ content }) {
                 </div>
             );
         },
+        table({ children }) {
+            return (
+                <div style={{ overflowX: 'auto', margin: '16px 0' }}>
+                    <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 14, fontFamily: '"DM Sans",sans-serif' }}>{children}</table>
+                </div>
+            );
+        },
+        thead({ children }) { return <thead style={{ background: '#F4F4F5' }}>{children}</thead>; },
+        tbody({ children }) { return <tbody>{children}</tbody>; },
+        tr({ children }) { return <tr style={{ borderBottom: '1px solid #E4E4E7' }}>{children}</tr>; },
+        th({ children }) { return <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#18181B', borderBottom: '2px solid #D4D4D8', whiteSpace: 'nowrap' }}>{children}</th>; },
+        td({ children }) { return <td style={{ padding: '7px 14px', color: '#3F3F46', verticalAlign: 'top', lineHeight: 1.6 }}>{children}</td>; },
     };
-    return <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{content || ''}</ReactMarkdown>;
+    return <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{content || ''}</ReactMarkdown>;
 }
 
 // ─── Doubts Panel ─────────────────────────────────────────────────────────────
@@ -400,7 +413,7 @@ function DoubtsPanel({ doubts, currentPage }) {
     const pageDiagnostics = doubts.filter(d => d.pageIdx === currentPage);
     const otherPages = [...new Set(doubts.filter(d => d.pageIdx !== currentPage).map(d => d.pageIdx))];
     const IM = ({ text }) => (
-        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={{ p: ({ children }) => <span style={{ display: 'block', marginBottom: 4 }}>{children}</span>, strong: ({ children }) => <strong style={{ color: '#5B21B6', fontWeight: 700 }}>{children}</strong>, em: ({ children }) => <em style={{ color: '#6D28D9' }}>{children}</em>, code: ({ children }) => <code style={{ background: '#EDE9FE', color: '#5B21B6', borderRadius: 3, padding: '1px 4px', fontSize: 11, fontFamily: 'monospace' }}>{children}</code>, a: ({ children }) => <span>{children}</span> }}>{text || ''}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={{ p: ({ children }) => <span style={{ display: 'block', marginBottom: 4 }}>{children}</span>, strong: ({ children }) => <strong style={{ color: '#5B21B6', fontWeight: 700 }}>{children}</strong>, em: ({ children }) => <em style={{ color: '#6D28D9' }}>{children}</em>, code: ({ children }) => <code style={{ background: '#EDE9FE', color: '#5B21B6', borderRadius: 3, padding: '1px 4px', fontSize: 11, fontFamily: 'monospace' }}>{children}</code>, a: ({ children }) => <span>{children}</span>, table: ({ children }) => <table style={{ borderCollapse: 'collapse', fontSize: 12, margin: '6px 0' }}>{children}</table>, th: ({ children }) => <th style={{ padding: '4px 10px', borderBottom: '1px solid #C4B5FD', textAlign: 'left', fontWeight: 700, color: '#5B21B6' }}>{children}</th>, td: ({ children }) => <td style={{ padding: '4px 10px', borderBottom: '1px solid #EDE9FE', color: '#3F3F46' }}>{children}</td> }}>{text || ''}</ReactMarkdown>
     );
     if (pageDiagnostics.length === 0) return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

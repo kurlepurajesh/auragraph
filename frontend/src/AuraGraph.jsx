@@ -4,6 +4,7 @@ import { setGraphData, updateNodeStatus } from './store';
 import EnhancedGraph from './AuraGraphNodeGraph';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import { Sparkles, Loader2, ChevronLeft, ChevronRight, FilePlus2, BookOpen, Upload, FileText, X, MessageSquare } from 'lucide-react';
 
@@ -201,7 +202,7 @@ function NoteViewer({ pages, currentPage, setCurrentPage, note, prof }) {
                 {pages.length > 0 && (
                     <div style={{ fontSize: 14.5, lineHeight: 2.0, color: '#cbd5e1', fontFamily: "Georgia,'Times New Roman',serif", background: '#0a101d', padding: '40px 44px', borderRadius: 14, boxShadow: '0 10px 40px rgba(0,0,0,0.6)', minHeight: 320 }}>
                         <ReactMarkdown
-                            remarkPlugins={[remarkMath]}
+                            remarkPlugins={[remarkMath, remarkGfm]}
                             rehypePlugins={[[rehypeKatex, KATEX_OPTS]]}
                             components={IMG_OVERRIDE}
                         >{pages[currentPage]}</ReactMarkdown>
@@ -359,7 +360,7 @@ export default function AuraGraph() {
                         {examQ && (
                             <div style={{ marginTop: 10, padding: 10, background: "#1e1b4b", borderRadius: 6, fontSize: 11, color: "#e2e8f0", maxHeight: 160, overflowY: "auto" }}>
                                 <ReactMarkdown
-                                    remarkPlugins={[remarkMath]}
+                                    remarkPlugins={[remarkMath, remarkGfm]}
                                     rehypePlugins={[[rehypeKatex, KATEX_OPTS]]}
                                     components={IMG_OVERRIDE}
                                 >{examQ}</ReactMarkdown>
