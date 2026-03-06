@@ -22,6 +22,7 @@ using deterministic templates — same quality as local_summarizer.py.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -120,7 +121,7 @@ NOTES:
 """
 
 
-# ── Azure direct HTTP call (same pattern as slide_analyzer.py) ─────────────
+# ── LLM availability + call helpers ──────────────────────────────────────────
 
 def _azure_available() -> bool:
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
@@ -128,37 +129,68 @@ def _azure_available() -> bool:
     return bool(endpoint) and bool(api_key) and "mock" not in endpoint.lower()
 
 
+def _groq_available() -> bool:
+    key = os.environ.get("GROQ_API_KEY", "")
+    return key not in ("", "your-groq-api-key-here")
+
+
 async def _call_azure(
     system: str,
     user:   str,
-    max_tokens: int = 2048,
+    max_tokens: int = 2500,
 ) -> Optional[str]:
-    """Direct Azure OpenAI call. Returns text or None on failure."""
-    try:
-        import httpx
-    except ImportError:
-        logger.warning("httpx not installed — Azure note generation unavailable")
+    """Azure OpenAI call via openai SDK. Returns text or None on failure."""
+    if not _azure_available():
         return None
-
-    endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
-    api_key    = os.environ.get("AZURE_OPENAI_API_KEY",  "")
-    deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-    api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
-
-    url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
-    payload = {
-        "messages":   [{"role": "system", "content": system},
-                       {"role": "user",   "content": user}],
-        "max_tokens": max_tokens,
-        "temperature": 0.3,
-    }
     try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            resp = await client.post(url, json=payload, headers={"api-key": api_key})
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"].strip()
+        from openai import AzureOpenAI
+        def _sync():
+            client = AzureOpenAI(
+                azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
+                api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
+                api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
+            )
+            resp = client.chat.completions.create(
+                model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
+                messages=[{"role": "system", "content": system},
+                          {"role": "user",   "content": user}],
+                max_tokens=max_tokens,
+                temperature=0.3,
+            )
+            return resp.choices[0].message.content.strip()
+        return await asyncio.to_thread(_sync)
     except Exception as e:
         logger.warning("note_generator Azure call failed: %s", e)
+        return None
+
+
+async def _call_groq(
+    system: str,
+    user:   str,
+    max_tokens: int = 2500,
+) -> Optional[str]:
+    """Groq call via openai SDK. Returns text or None on failure."""
+    if not _groq_available():
+        return None
+    try:
+        from openai import OpenAI
+        def _sync():
+            client = OpenAI(
+                base_url="https://api.groq.com/openai/v1",
+                api_key=os.environ.get("GROQ_API_KEY", ""),
+            )
+            model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "system", "content": system},
+                          {"role": "user",   "content": user}],
+                max_tokens=max_tokens,
+                temperature=0.3,
+            )
+            return resp.choices[0].message.content.strip()
+        return await asyncio.to_thread(_sync)
+    except Exception as e:
+        logger.warning("note_generator Groq call failed: %s", e)
         return None
 
 
@@ -180,14 +212,26 @@ async def generate_topic_note(
             textbook_context=textbook_context[:4_000] if textbook_context else "(none)",
             proficiency=proficiency,
         )
-        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=1500)
+        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=2500)
         if result:
-            # Ensure it starts with the ## heading
             if not result.lstrip().startswith("##"):
                 result = f"## {topic.topic}\n\n{result}"
             return fix_latex_delimiters(result)
 
-    # ── Deterministic fallback ─────────────────────────────────────────────
+    if _groq_available():
+        user = _NOTE_USER_TEMPLATE.format(
+            topic=topic.topic,
+            slide_text=topic.slide_text[:5_000],
+            textbook_context=textbook_context[:3_000] if textbook_context else "(none)",
+            proficiency=proficiency,
+        )
+        result = await _call_groq(_NOTE_SYSTEM, user, max_tokens=2500)
+        if result:
+            if not result.lstrip().startswith("##"):
+                result = f"## {topic.topic}\n\n{result}"
+            return fix_latex_delimiters(result)
+
+    # ── Deterministic fallback ─────────────────────────────────────────────────────
     return _build_fallback_section(topic, textbook_context, proficiency)
 
 
@@ -231,16 +275,23 @@ def merge_sections(sections: list[str]) -> str:
 async def refine_notes(notes: str) -> str:
     """
     Single refinement pass to improve clarity (Step 8).
-    Only called when Azure is available and notes > 500 chars.
+    Tries Azure first, then Groq. Skips if no LLM available or notes < 500 chars.
     Returns original notes on failure.
     """
-    if not _azure_available() or len(notes) < 500:
+    if len(notes) < 500:
         return notes
 
-    user    = _REFINEMENT_USER.format(notes=notes[:30_000])
-    refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=4096)
-    if refined and len(refined) > len(notes) * 0.3:
-        return fix_latex_delimiters(refined)
+    user = _REFINEMENT_USER.format(notes=notes[:28_000])
+
+    if _azure_available():
+        refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=8192)
+        if refined and len(refined) > len(notes) * 0.3:
+            return fix_latex_delimiters(refined)
+
+    if _groq_available():
+        refined = await _call_groq(_REFINEMENT_SYSTEM, user, max_tokens=8192)
+        if refined and len(refined) > len(notes) * 0.3:
+            return fix_latex_delimiters(refined)
 
     logger.info("Refinement produced short/empty output — keeping original")
     return notes
@@ -253,33 +304,40 @@ async def run_generation_pipeline(
     topic_contexts:   dict[str, str],   # topic_name → textbook context string
     proficiency:      str = "Intermediate",
     refine:           bool = True,
-) -> str:
+) -> tuple[str, str]:
     """
     Run Step 6 (N topic calls) + Step 7 (merge) + Step 8 (refinement).
 
-    Args:
-        topics:         Ordered list of SlideTopic from slide_analyzer.
-        topic_contexts: Dict from topic_retriever mapping topic → context string.
-        proficiency:    "Beginner" | "Intermediate" | "Advanced"
-        refine:         Whether to run the Step 8 refinement pass.
-
     Returns:
-        Full merged + (optionally) refined note string in Markdown.
+        Tuple of (merged_notes, source) where source is
+        'azure' | 'groq' | 'local'.
     """
     if not topics:
-        return ""
+        return "", "local"
 
     sections: list[str] = []
+    used_llm = False
     for topic in topics:
         context = topic_contexts.get(topic.topic, "")
         logger.info("Generating note for topic: %s", topic.topic)
         section = await generate_topic_note(topic, context, proficiency)
         sections.append(section)
+        # Detect if any LLM was used (section > bare fallback)
+        if len(section) > 200:
+            used_llm = True
 
     merged = merge_sections(sections)
 
-    if refine and _azure_available():
+    # Determine source
+    if _azure_available() and used_llm:
+        source = "azure"
+    elif _groq_available() and used_llm:
+        source = "groq"
+    else:
+        source = "local"
+
+    if refine and (_azure_available() or _groq_available()):
         logger.info("Running refinement pass on %d chars", len(merged))
         merged = await refine_notes(merged)
 
-    return merged
+    return merged, source

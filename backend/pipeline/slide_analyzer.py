@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Optional
@@ -78,54 +79,97 @@ SLIDE TEXT:
 """
 
 
-# ── Azure Direct HTTP Call (bypasses Semantic Kernel for JSON mode) ────────────
+# ── LLM Helpers (Azure via openai SDK + Groq fallback) ────────────────────────
+
+import asyncio as _asyncio
+
+
+def _azure_ok() -> bool:
+    ep  = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+    key = os.environ.get("AZURE_OPENAI_API_KEY",  "")
+    return bool(ep) and bool(key) and "mock" not in ep.lower()
+
+
+def _groq_ok() -> bool:
+    key = os.environ.get("GROQ_API_KEY", "")
+    return key not in ("", "your-groq-api-key-here")
+
+
+def _parse_topics_json(content: str) -> Optional[list[dict]]:
+    """Parse JSON content into a list of topic dicts, unwrapping common wrappers."""
+    # Strip markdown fences if present
+    content = re.sub(r'^```[a-z]*\s*', '', content.strip(), flags=re.MULTILINE)
+    content = re.sub(r'```\s*$', '', content.strip(), flags=re.MULTILINE)
+    parsed = json.loads(content.strip())
+    if isinstance(parsed, list):
+        return parsed
+    for key in ("topics", "lecture_topics", "outline", "data", "result"):
+        if key in parsed and isinstance(parsed[key], list):
+            return parsed[key]
+    return None
+
 
 async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
-    """
-    Make a direct Azure OpenAI chat completion call with JSON output mode.
-    Returns parsed list of topic dicts, or None on failure.
-    """
-    import os
-    import httpx
-
-    endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
-    api_key    = os.environ.get("AZURE_OPENAI_API_KEY",  "")
-    deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-    api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
-
-    if not endpoint or not api_key or "mock" in endpoint.lower():
+    """Slide analysis via Azure OpenAI (openai SDK). Returns list of topic dicts or None."""
+    if not _azure_ok():
         return None
-
-    url = f"{endpoint.rstrip('/')}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
-
-    payload = {
-        "messages": [
-            {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
-            {"role": "user",   "content": _SLIDE_ANALYSIS_USER.format(slides=slides_text[:40_000])},
-        ],
-        "max_tokens": 4096,
-        "temperature": 0.1,   # low temperature for structured extraction
-        "response_format": {"type": "json_object"},
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, json=payload, headers={"api-key": api_key})
-            resp.raise_for_status()
-            data    = resp.json()
-            content = data["choices"][0]["message"]["content"].strip()
-
-            # GPT sometimes returns {"topics": [...]} even in json_object mode
-            parsed = json.loads(content)
-            if isinstance(parsed, list):
-                return parsed
-            # Unwrap common wrappers
-            for key in ("topics", "lecture_topics", "outline", "data"):
-                if key in parsed and isinstance(parsed[key], list):
-                    return parsed[key]
-            return None
+        from openai import AzureOpenAI
+        def _sync():
+            client = AzureOpenAI(
+                azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
+                api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
+                api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
+            )
+            resp = client.chat.completions.create(
+                model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
+                messages=[
+                    {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
+                    {"role": "user",   "content": _SLIDE_ANALYSIS_USER.format(slides=slides_text[:40_000])},
+                ],
+                max_tokens=4096,
+                temperature=0.1,
+                response_format={"type": "json_object"},
+            )
+            return resp.choices[0].message.content.strip()
+        content = await _asyncio.to_thread(_sync)
+        return _parse_topics_json(content)
     except Exception as e:
         logger.warning("slide_analyzer Azure call failed: %s", e)
+        return None
+
+
+async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
+    """Slide analysis via Groq (openai SDK with Groq base URL). Returns list or None."""
+    if not _groq_ok():
+        return None
+    try:
+        from openai import OpenAI
+        def _sync():
+            client = OpenAI(
+                base_url="https://api.groq.com/openai/v1",
+                api_key=os.environ.get("GROQ_API_KEY", ""),
+            )
+            model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+            # Ask Groq to return JSON — instruct it explicitly in the prompt
+            user_prompt = (
+                _SLIDE_ANALYSIS_USER.format(slides=slides_text[:35_000])
+                + "\n\nIMPORTANT: Output ONLY a valid JSON array. No markdown fences. No explanation."
+            )
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                max_tokens=4096,
+                temperature=0.1,
+            )
+            return resp.choices[0].message.content.strip()
+        content = await _asyncio.to_thread(_sync)
+        return _parse_topics_json(content)
+    except Exception as e:
+        logger.warning("slide_analyzer Groq call failed: %s", e)
         return None
 
 
@@ -208,14 +252,16 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
     """
     Extract structured topics from slide text.
 
+    Priority: Azure → Groq → deterministic regex parser.
     Returns a list of SlideTopic objects in lecture order.
-    Uses GPT-4o if Azure is configured, deterministic parser otherwise.
     """
     if not slides_text.strip():
         return []
 
-    # Try LLM extraction
+    # Try Azure first, then Groq
     raw_topics = await _call_azure_json(slides_text)
+    if not raw_topics:
+        raw_topics = await _call_groq_json(slides_text)
 
     if raw_topics:
         topics: list[SlideTopic] = []

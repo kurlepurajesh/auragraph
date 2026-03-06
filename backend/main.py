@@ -537,40 +537,26 @@ async def upload_fuse_multi(
     # ── Steps 6+7+8: Note Generation + Merge + Refinement ────────────────────
     fused_note  = None
     source      = "local"
-    azure_error = None
+    pipe_error  = None
 
     if topics:
         try:
-            fused_note = await run_generation_pipeline(
+            fused_note, source = await run_generation_pipeline(
                 topics=topics,
                 topic_contexts=topic_contexts,
                 proficiency=proficiency,
-                refine=_is_azure_available(),
+                refine=True,   # pipeline checks availability internally
             )
-            source = "azure" if _is_azure_available() else "local"
-            logger.info("Pipeline generated %d chars", len(fused_note or ""))
+            logger.info("Pipeline generated %d chars (source=%s)", len(fused_note or ""), source)
         except Exception as exc:
-            azure_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("Pipeline generation failed: %s", azure_error)
+            pipe_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("Pipeline generation failed: %s", pipe_error)
 
-    # Fallback chain: Groq → local
+    # Final fallback to local summariser if pipeline produced nothing
     if not fused_note or len(fused_note.strip()) < 100:
-        if _is_groq_available():
-            try:
-                logger.info("Falling back to Groq for note generation")
-                fused_note = await _groq_fuse(
-                    all_slides_text[:_PROMPT_SLIDES_BUDGET],
-                    all_textbook_text[:_PROMPT_TEXTBOOK_BUDGET],
-                    proficiency,
-                )
-                source = "groq"
-                logger.info("Groq generated %d chars", len(fused_note or ""))
-            except Exception as exc:
-                logger.warning("Groq fuse failed: %s", exc)
-        if not fused_note or len(fused_note.strip()) < 100:
-            logger.info("Falling back to local summarizer")
-            fused_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
-            source     = "local"
+        logger.info("Falling back to local summarizer")
+        fused_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
+        source     = "local"
 
     fused_note = fix_latex_delimiters(fused_note)
 
@@ -589,10 +575,11 @@ async def upload_fuse_multi(
             pass
 
     fallback_warning = None
-    if source == "local" and azure_error:
-        fallback_warning = f"Azure unavailable ({azure_error}) — offline notes used."
+    if source == "local" and pipe_error:
+        fallback_warning = f"AI unavailable ({pipe_error}) — offline notes used."
     elif source == "local":
-        fallback_warning = "Azure not configured — offline summariser used."
+        fallback_warning = "No AI configured — offline summariser used."
+    # groq / azure sources are valid — no warning
 
     return FusionResponse(
         fused_note=fused_note,
