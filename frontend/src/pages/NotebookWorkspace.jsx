@@ -627,7 +627,8 @@ export default function NotebookWorkspace() {
     };
 
     const extractAndSaveGraph = async (text) => {
-        try { const r = await fetch(`${API}/api/extract-concepts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: text, notebook_id: id }) }); const g = await r.json(); if (g.nodes?.length) { setGraphNodes(g.nodes); setGraphEdges(g.edges || []); } } catch {}
+        // FIX: include authHeaders so the request is authenticated (backend requires Bearer token)
+        try { const r = await fetch(`${API}/api/extract-concepts`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ note: text, notebook_id: id }) }); const g = await r.json(); if (g.nodes?.length) { setGraphNodes(g.nodes); setGraphEdges(g.edges || []); } } catch {}
     };
 
     const handleFuse = async () => {

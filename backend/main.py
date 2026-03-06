@@ -350,33 +350,38 @@ def _inject_figures_into_sections(note: str, topic_figures: dict) -> str:
     return '\n'.join(result)
 
 
-# FIX B1: use re.split on ^## so the first heading is never swallowed
+# FIX B1 + PAGE-SYNC: _note_to_pages now exactly mirrors frontend useMemo pagination.
+# Frontend groups ## sections into ~3000-char pages; old backend merged only < 200-char
+# sections, producing different page indices.  Mismatched indices caused /api/doubt and
+# /api/mutate to retrieve wrong note context for the page the student was actually viewing.
 def _note_to_pages(note: str) -> list[str]:
     """
-    Split a note into pages mirroring the frontend logic.
+    Split a note into pages that exactly mirror the frontend useMemo pagination
+    (NotebookWorkspace.jsx — pages computed from note state).
 
-    FIX B1: The old split("\n## ") required a leading newline, so a note
-    that starts with '## Section' was never split — all topics merged into
-    one page. re.split(r'(?m)^(?=## )') splits at every ## at line-start,
-    including the very first one.
+    Algorithm (ported from JS):
+      1. re.split(r'(?m)^(?=## )') — every ## heading starts a new section.
+      2. Group sections greedily: add to buffer until adding the next would
+         exceed TARGET (3000 chars) AND the buffer is already > 200 chars.
+      3. Flush remaining buffer.
     """
     if not note.strip():
         return []
 
-    raw_parts = re.split(r'(?m)^(?=## )', note.strip())
-    parts = [p.strip() for p in raw_parts if p.strip()]
+    TARGET   = 3000
+    sections = re.split(r'(?m)^(?=## )', note.strip())
+    parts    = [p.strip() for p in sections if p.strip()]
 
     if not parts:
         return [note.strip()]
 
     merged, buf = [], ""
-    for p in parts:
-        if buf and len(p) < 200:
-            buf += "\n\n" + p
+    for s in parts:
+        if buf and len(buf) + len(s) + 2 > TARGET and len(buf) > 200:
+            merged.append(buf.strip())
+            buf = s
         else:
-            if buf:
-                merged.append(buf.strip())
-            buf = p
+            buf = (buf + "\n\n" + s) if buf else s
     if buf:
         merged.append(buf.strip())
     return [p for p in merged if p.strip()]
@@ -546,6 +551,7 @@ async def upload_fuse_multi(
     textbook_pdfs: Optional[List[UploadFile]] = File(default=None),
     proficiency:   str = Form("Intermediate"),
     notebook_id:   str = Form(""),
+    authorization: Optional[str] = Header(None),
 ):
     """
     Full 8-step semantic pipeline with all critic fixes applied.
@@ -562,6 +568,7 @@ async def upload_fuse_multi(
       Step 5b  — figure→topic matching
       Steps 6+7+8 — note generation + merge + refinement (FIX C1/C2/C3)
     """
+    get_current_user(authorization)  # FIX: require auth to prevent anonymous LLM abuse
     from pipeline.chunker import chunk_textbook
     from pipeline.embedder import Embedder
     from pipeline.vector_db import VectorDB
@@ -863,12 +870,16 @@ async def upload_fuse(
     textbook_pdf: UploadFile = File(...),
     proficiency:  str = Form("Intermediate"),
     notebook_id:  str = Form(""),
+    authorization: Optional[str] = Header(None),
 ):
+    # FIX: require auth on backward-compat endpoint too
+    get_current_user(authorization)
     slides_pdf.filename   = slides_pdf.filename   or "slides.pdf"
     textbook_pdf.filename = textbook_pdf.filename or "textbook.pdf"
     return await upload_fuse_multi(
         slides_pdfs=[slides_pdf], textbook_pdfs=[textbook_pdf],
         proficiency=proficiency, notebook_id=notebook_id,
+        authorization=authorization,
     )
 
 
@@ -1030,10 +1041,16 @@ async def extract_concepts_endpoint(
     req: ConceptExtractRequest,
     authorization: Optional[str] = Header(None),
 ):
-    get_current_user(authorization)
+    user = get_current_user(authorization)
     graph = extract_concepts(req.note)
     if req.notebook_id:
-        update_notebook_graph(req.notebook_id, graph)
+        # FIX: verify ownership before writing the graph — prevents a user from
+        # overwriting another user's notebook graph with their own note text.
+        try:
+            _require_notebook_owner(req.notebook_id, user)
+            update_notebook_graph(req.notebook_id, graph)
+        except HTTPException:
+            pass   # notebook not owned by this user — return graph but don't save
     return graph
 
 
@@ -1071,12 +1088,14 @@ class FusionRequest(BaseModel):
 
 
 @app.post("/api/fuse", response_model=FusionResponse)
-async def fuse_knowledge(req: FusionRequest):
+async def fuse_knowledge(req: FusionRequest, authorization: Optional[str] = Header(None)):
     """
     Legacy text-based fusion.
+    FIX: require auth to prevent anonymous LLM abuse.
     FIX L1: now stores source chunks so /api/doubt and /api/mutate work.
     FIX L4: now uses run_generation_pipeline (same path as upload-fuse-multi).
     """
+    get_current_user(authorization)
     from pipeline.chunker import chunk_textbook
     from pipeline.embedder import Embedder
     from pipeline.vector_db import VectorDB
