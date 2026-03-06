@@ -162,13 +162,13 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
         api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
         deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
         url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
-        user_content = _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:40_000])
+        user_content = _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:25_000])
         payload = {
             "messages": [
                 {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
                 {"role": "user",   "content": user_content},
             ],
-            "max_tokens":     4096,
+            "max_tokens":     16000,
             "temperature":    0.1,
             "response_format": {"type": "json_object"},  # forces valid JSON object output
         }
@@ -205,7 +205,7 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
         api_key = os.environ.get("GROQ_API_KEY", "")
         model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
         user_prompt = (
-            _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:35_000])
+            _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:18_000])
             + "\n\nIMPORTANT: Output ONLY valid JSON with a \"topics\" key. No markdown fences. No explanation."
         )
         payload = {
@@ -214,7 +214,7 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
                 {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
                 {"role": "user",   "content": user_prompt},
             ],
-            "max_tokens":  4096,
+            "max_tokens":  8192,
             "temperature": 0.1,
         }
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -320,7 +320,7 @@ def _extract_bullets(text: str) -> list[str]:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-_SLIDE_CHUNK_SIZE = 38_000   # chars per LLM call — safe below GPT-4o 128k limit
+_SLIDE_CHUNK_SIZE = 24_000   # chars per LLM call — keeps output well within max_tokens
 # FIX G2: no longer hard-truncate the full deck; instead split into chunks
 # and merge the resulting topic lists.
 
