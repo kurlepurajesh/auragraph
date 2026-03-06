@@ -58,7 +58,7 @@ from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 
 from agents.fusion_agent import FusionAgent
 from agents.examiner_agent import ExaminerAgent
-from agents.mock_cosmos import get_db, update_node_status
+from agents.mock_cosmos import get_db, update_node_status, increment_mutation_count
 from agents.pdf_utils import extract_text_from_file, chunk_text
 from agents.knowledge_store import (
     store_source_chunks, retrieve_relevant_chunks,
@@ -69,7 +69,7 @@ from agents.knowledge_store import (
 from agents.local_summarizer import generate_local_note
 from agents.local_mutation import local_mutate
 from agents.local_examiner import local_examine
-from agents.concept_extractor import extract_concepts
+from agents.concept_extractor import extract_concepts, llm_extract_concepts
 from agents.latex_utils import fix_latex_delimiters
 from agents.auth_utils import register_user, login_user, validate_token
 from agents.slide_images import extract_images_from_file, save_images, get_image_path
@@ -1025,6 +1025,7 @@ async def mutate_note(
             if graph.get("nodes"):
                 top_concept = graph["nodes"][0]["label"]
                 update_node_status(top_concept, "partial", _username)
+                increment_mutation_count(top_concept, _username)
         except Exception:
             pass   # non-critical — don't break mutation over graph update failure
 
@@ -1149,7 +1150,7 @@ async def extract_concepts_endpoint(
     authorization: Optional[str] = Header(None),
 ):
     user = get_current_user(authorization)
-    graph = extract_concepts(req.note)
+    graph = await llm_extract_concepts(req.note)
     if req.notebook_id:
         # FIX: verify ownership before writing the graph — prevents a user from
         # overwriting another user's notebook graph with their own note text.

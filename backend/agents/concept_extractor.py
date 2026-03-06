@@ -5,6 +5,8 @@ Extracts concept nodes and dependency edges from a fused Markdown note.
 Used to auto-populate the per-notebook Cognitive Knowledge Graph without
 needing Azure Cosmos DB Graph API.
 """
+import json
+import os
 import re
 import time
 from typing import Any
@@ -245,3 +247,82 @@ def extract_concepts(note_text: str) -> dict[str, Any]:
             edges = []
 
     return {'nodes': found, 'edges': edges}
+
+
+# ─── LLM-powered extractor (works for any subject) ──────────────────────────
+_LLM_EXTRACT_PROMPT = """You are a concept-graph extractor for a study-notes platform.
+Given the following study notes, identify {n_nodes} key concepts and their dependency/prerequisite relationships.
+
+Return ONLY a valid JSON object. No markdown fences, no prose.
+Exact schema required:
+{{
+  "nodes": [
+    {{"id": 1, "label": "Concept Name", "x": 50, "y": 10}},
+    ...
+  ],
+  "edges": [[src_id, dst_id], ...]
+}}
+
+Rules:
+- Labels must be ≤ 30 characters.
+- x and y are integers from 5 to 95 representing canvas position (%).
+- Spread nodes evenly — avoid clustering everything at the same spot.
+- Edges flow from prerequisite → dependent concept.
+- Every node id must be unique starting from 1.
+
+NOTES:
+{note_text}
+"""
+
+
+async def llm_extract_concepts(note_text: str) -> dict:
+    """LLM-powered concept extractor — works for any subject, not just STEM.
+    Requires GROQ_API_KEY env var; falls back to regex extract_concepts() on any failure."""
+    import httpx  # lazy import — not needed for the sync path
+
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    if not groq_key:
+        return extract_concepts(note_text)
+
+    # Truncate to avoid token overflow; keep the most informative beginning
+    snippet = note_text[:6000]
+    n_nodes = 10 if len(note_text) < 2000 else 14
+    prompt  = _LLM_EXTRACT_PROMPT.format(note_text=snippet, n_nodes=n_nodes)
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {groq_key}",
+                         "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 1500,
+                    "temperature": 0.2,
+                },
+            )
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+
+        # Strip markdown fences if the model wrapped the JSON anyway
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw.strip())
+
+        graph = json.loads(raw)
+        if not isinstance(graph.get("nodes"), list) or not graph["nodes"]:
+            raise ValueError("Empty nodes array")
+
+        # Normalise: ensure required fields exist
+        for n in graph["nodes"]:
+            n.setdefault("status", "partial")
+            n.setdefault("x", 50)
+            n.setdefault("y", 50)
+            n.setdefault("mutation_count", 0)
+            n["label"] = str(n.get("label", "Concept"))[:30]
+        if not isinstance(graph.get("edges"), list):
+            graph["edges"] = []
+
+        return graph
+
+    except Exception:
+        return extract_concepts(note_text)

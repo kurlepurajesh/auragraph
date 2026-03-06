@@ -130,8 +130,8 @@ function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
 }
 
 // ─── Mutation / Doubt Modal ───────────────────────────────────────────────────
-function MutateModal({ page, notebookId, pageIdx, onClose, onMutate }) {
-    const [doubt, setDoubt] = useState('');
+function MutateModal({ page, notebookId, pageIdx, onClose, onMutate, initialDoubt = '' }) {
+    const [doubt, setDoubt] = useState(initialDoubt);
     const [busy, setBusy] = useState(false);
     const [answer, setAnswer] = useState('');
     const [answerSource, setAnswerSource] = useState('');
@@ -360,6 +360,10 @@ function KnowledgeGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
                     <circle cx={cx} cy={cy} r={17} fill={c.ring} opacity={sel ? 0.4 : 0.2} />
                     <circle cx={cx} cy={cy} r={12} fill={`url(#g-${n.id})`} stroke={sel ? c.fill : 'transparent'} strokeWidth={2} />
                     <text x={cx} y={cy + 24} textAnchor="middle" fontSize={9} fill="var(--text2)" fontWeight={sel ? 700 : 500} style={{ pointerEvents: 'none', userSelect: 'none' }}>{lbl}</text>
+                    {(n.mutation_count || 0) > 0 && <g>
+                        <circle cx={cx + 9} cy={cy - 9} r={5.5} fill="#7C3AED" />
+                        <text x={cx + 9} y={cy - 9 + 4} textAnchor="middle" fontSize={7} fill="#fff" fontWeight={700} style={{ pointerEvents: 'none', userSelect: 'none' }}>{n.mutation_count}</text>
+                    </g>}
                 </g>
             ); })}
         </svg>
@@ -367,18 +371,29 @@ function KnowledgeGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
 }
 
 // ─── Question Cards (level-aware per-question Show Answer) ───────────────────
-function QuestionCards({ questions, level }) {
+function QuestionCards({ questions, level, onAllAssessed }) {
     const [revealed, setRevealed] = useState(new Set());
+    const [assessments, setAssessments] = useState({});  // idx → true/false
     const LC = {
         mastered:   { bg: '#DCFCE7', border: '#BBF7D0', accent: '#10B981', text: '#065F46' },
         partial:    { bg: '#FEF9C3', border: '#FDE68A', accent: '#D97706', text: '#78350F' },
         struggling: { bg: '#FEF2F2', border: '#FECACA', accent: '#DC2626', text: '#7F1D1D' },
     };
     const lc = LC[level] || LC.partial;
+
+    const markAssessment = (i, gotIt) => {
+        const next = { ...assessments, [i]: gotIt };
+        setAssessments(next);
+        const total    = (questions || []).length;
+        const assessed = Object.keys(next).length;
+        const correct  = Object.values(next).filter(Boolean).length;
+        if (assessed === total && total > 0) onAllAssessed?.(correct, total);
+    };
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(questions || []).map((q, i) => {
                 const isRev = revealed.has(i);
+                const wasAssessed = assessments[i] !== undefined;
                 return (
                     <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
                         <div style={{ padding: '10px 12px', fontSize: 12.5, lineHeight: 1.65, color: 'var(--text)' }}>
@@ -405,14 +420,30 @@ function QuestionCards({ questions, level }) {
                                     <CheckCircle2 size={12} /> Show Answer
                                 </button>
                             ) : (
-                                <div style={{ padding: '10px 12px', background: lc.bg }}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: lc.accent, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <CheckCircle2 size={11} /> Answer: {q.correct}
+                                <>
+                                    <div style={{ padding: '10px 12px', background: lc.bg }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: lc.accent, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <CheckCircle2 size={11} /> Answer: {q.correct}
+                                        </div>
+                                        <div style={{ fontSize: 11, lineHeight: 1.65, color: lc.text }}>
+                                            <span style={{ fontWeight: 600 }}>Explanation: </span>{q.explanation || ''}
+                                        </div>
                                     </div>
-                                    <div style={{ fontSize: 11, lineHeight: 1.65, color: lc.text }}>
-                                        <span style={{ fontWeight: 600 }}>Explanation: </span>{q.explanation || ''}
-                                    </div>
-                                </div>
+                                    {!wasAssessed ? (
+                                        <div style={{ display: 'flex', borderTop: '1px solid var(--border)' }}>
+                                            <button onClick={() => markAssessment(i, true)} style={{ flex: 1, padding: '6px 0', background: '#DCFCE7', border: 'none', borderRight: '1px solid #BBF7D0', cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#065F46', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                                                <CheckCircle2 size={10} /> Got it
+                                            </button>
+                                            <button onClick={() => markAssessment(i, false)} style={{ flex: 1, padding: '6px 0', background: '#FEF2F2', border: 'none', cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#991B1B', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                                                <X size={10} /> Missed it
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div style={{ padding: '4px 12px', fontSize: 10, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, color: assessments[i] ? '#059669' : '#DC2626' }}>
+                                            {assessments[i] ? <><CheckCircle2 size={10} /> Marked correct</> : <><X size={10} /> Marked incorrect</>}
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -427,6 +458,7 @@ function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, on
     const [activeLevel, setActiveLevel] = useState(null);
     const [questions, setQuestions]     = useState(null);
     const [loadingQ, setLoadingQ]       = useState(false);
+    const [promotion, setPromotion]     = useState(null); // null | 'partial' | 'mastered' | 'top'
 
     const LEVELS = [
         { key: 'struggling', label: 'Struggling', color: '#EF4444', icon: <AlertCircle size={11}/>,  desc: 'Basics' },
@@ -436,8 +468,8 @@ function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, on
     const statusColors = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
 
     const fetchLevel = async (lk) => {
-        if (activeLevel === lk) { setActiveLevel(null); setQuestions(null); return; }
-        setActiveLevel(lk); setLoadingQ(true); setQuestions(null);
+        if (activeLevel === lk) { setActiveLevel(null); setQuestions(null); setPromotion(null); return; }
+        setActiveLevel(lk); setLoadingQ(true); setQuestions(null); setPromotion(null);
         try {
             const res = await fetch(`${API}/api/concept-practice`, {
                 method: 'POST',
@@ -448,6 +480,14 @@ function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, on
             setQuestions(data.questions || []);
         } catch { setQuestions([]); }
         setLoadingQ(false);
+    };
+
+    const handleAllAssessed = (correct, total) => {
+        if (correct < Math.ceil(total * 0.67)) return;     // < 2/3 correct — no upgrade
+        const NEXT = { struggling: 'partial', partial: 'mastered', mastered: null };
+        const promoted = NEXT[node.status];
+        if (promoted) { onStatusChange(node, promoted); setPromotion(promoted); }
+        else setPromotion('top');
     };
 
     return (
@@ -492,7 +532,12 @@ function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, on
                 {questions && !loadingQ && (
                     questions.length === 0
                         ? <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 0' }}>No questions returned — try again.</div>
-                        : <QuestionCards questions={questions} level={activeLevel} />
+                        : <QuestionCards questions={questions} level={activeLevel} onAllAssessed={handleAllAssessed} />
+                )}
+                {!loadingQ && promotion && (
+                    <div style={{ margin: '10px 0 4px', padding: '9px 12px', borderRadius: 8, background: promotion === 'top' ? '#DCFCE7' : '#EDE9FE', border: `1px solid ${promotion === 'top' ? '#86EFAC' : '#C4B5FD'}`, fontSize: 11, fontWeight: 600, color: promotion === 'top' ? '#065F46' : '#5B21B6', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <CheckCircle2 size={12} /> {promotion === 'top' ? '🏆 Already at peak mastery — well done!' : `⬆️ Level upgraded to ${promotion}! Graph updated.`}
+                    </div>
                 )}
                 {/* Full practice paper */}
                 <button onClick={() => onFullPractice(node.label)} style={{ width: '100%', marginTop: 14, padding: '8px 0', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5 }}>
@@ -743,6 +788,8 @@ export default function NotebookWorkspace() {
     const [fallbackWarning, setFallbackWarning] = useState(''); // non-empty = show banner
     const [viewMode, setViewMode] = useState('single');         // 'single' | 'two' | 'scroll'
     const [jumpHighlightSet, setJumpHighlightSet] = useState(new Set()); // page indices to pulse
+    const [textSelection, setTextSelection]       = useState(null);       // { text, x, y } | null
+    const [pendingSelectionText, setPendingSelectionText] = useState(''); // pre-fills MutateModal
     const noteScrollRef = useRef();
 
     const pages = useMemo(() => {
@@ -945,6 +992,20 @@ export default function NotebookWorkspace() {
         }
     }, [pages]);
 
+    const handleNoteMouseUp = useCallback(() => {
+        const sel     = window.getSelection();
+        const selText = sel?.toString().trim();
+        if (selText && selText.length > 4) {
+            try {
+                const range = sel.getRangeAt(0);
+                const rect  = range.getBoundingClientRect();
+                setTextSelection({ text: selText, x: rect.left + rect.width / 2, y: rect.top });
+            } catch {}
+        } else {
+            setTextSelection(null);
+        }
+    }, []);
+
     if (!notebook) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)' }}><Loader2 className="spin" size={28} color="var(--text3)" /></div>;
 
     const hasNote = note.trim().length > 0;
@@ -1043,7 +1104,7 @@ export default function NotebookWorkspace() {
                         </div>
                     </div>
                 ) : (
-                    <div ref={noteScrollRef} style={{ flex: 1, overflowY: 'auto', background: '#F0F2F5', padding: viewMode === 'two' ? '28px 16px' : '28px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div ref={noteScrollRef} onMouseUp={handleNoteMouseUp} style={{ flex: 1, overflowY: 'auto', background: '#F0F2F5', padding: viewMode === 'two' ? '28px 16px' : '28px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         {(() => {
                             const onDoubtLink = (doubtId) => { setRightTab('doubts'); setTimeout(() => { document.getElementById(doubtId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150); };
                             const renderPage = (idx) => {
@@ -1149,7 +1210,15 @@ export default function NotebookWorkspace() {
                 </aside>
             </div>
 
-            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => setMutating(false)} onMutate={handleMutate} />}
+            {textSelection && (
+                <div style={{ position: 'fixed', left: textSelection.x, top: textSelection.y - 8, transform: 'translateX(-50%) translateY(-100%)', zIndex: 9999, background: '#1E1B4B', borderRadius: 8, padding: '6px 10px', display: 'flex', gap: 6, boxShadow: '0 4px 24px rgba(0,0,0,0.35)', alignItems: 'center', pointerEvents: 'auto' }}>
+                    <MessageCircle size={11} color="#C4B5FD" />
+                    <span style={{ color: '#C4B5FD', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{textSelection.text.length > 45 ? textSelection.text.slice(0, 45) + '…' : textSelection.text}</span>
+                    <button onClick={() => { setPendingSelectionText(textSelection.text); setTextSelection(null); setMutating(true); }} style={{ background: '#7C3AED', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Ask about this</button>
+                    <button onClick={() => setTextSelection(null)} style={{ background: 'none', border: '1px solid #4C1D95', color: '#A78BFA', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>&#x2715;</button>
+                </div>
+            )}
+            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} initialDoubt={pendingSelectionText} />}
         </div>
     );
 }

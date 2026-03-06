@@ -17,11 +17,11 @@ _DB_DIR  = Path(__file__).parent.parent
 _DB_LOCK = threading.Lock()
 
 _DEFAULT_NODES = [
-    {"id": 1, "label": "Fourier Transform",  "status": "mastered",   "x": 50, "y": 18},
-    {"id": 2, "label": "Convolution Theorem","status": "struggling",  "x": 50, "y": 44},
-    {"id": 3, "label": "LTI Systems",         "status": "partial",    "x": 20, "y": 70},
-    {"id": 4, "label": "Freq. Response",      "status": "mastered",   "x": 80, "y": 70},
-    {"id": 5, "label": "Z-Transform",         "status": "partial",    "x": 50, "y": 90},
+    {"id": 1, "label": "Fourier Transform",  "status": "mastered",   "x": 50, "y": 18, "mutation_count": 0},
+    {"id": 2, "label": "Convolution Theorem","status": "struggling",  "x": 50, "y": 44, "mutation_count": 0},
+    {"id": 3, "label": "LTI Systems",         "status": "partial",    "x": 20, "y": 70, "mutation_count": 0},
+    {"id": 4, "label": "Freq. Response",      "status": "mastered",   "x": 80, "y": 70, "mutation_count": 0},
+    {"id": 5, "label": "Z-Transform",         "status": "partial",    "x": 50, "y": 90, "mutation_count": 0},
 ]
 _DEFAULT_EDGES = [[1, 2], [2, 3], [2, 4], [3, 5], [4, 5]]
 
@@ -53,6 +53,28 @@ def save_db(db: dict, username: str = "anonymous") -> None:
     path = _db_path(username)
     tmp  = path.with_suffix(".tmp")
     with _DB_LOCK:
+        with open(tmp, "w", encoding='utf-8') as f:
+            json.dump(db, f, ensure_ascii=False)
+        os.replace(tmp, path)
+
+
+def increment_mutation_count(node_label: str, username: str = "anonymous") -> None:
+    """Increment the mutation_count field of the matching node. Silent no-op if not found."""
+    path = _db_path(username)
+    with _DB_LOCK:
+        if not path.exists():
+            return
+        with open(path, "r", encoding='utf-8') as f:
+            db = json.load(f)
+        matched = False
+        for node in db["nodes"]:
+            if node["label"].lower() == node_label.lower():
+                node["mutation_count"] = node.get("mutation_count", 0) + 1
+                matched = True
+                break
+        if not matched:
+            return
+        tmp = path.with_suffix(".tmp")
         with open(tmp, "w", encoding='utf-8') as f:
             json.dump(db, f, ensure_ascii=False)
         os.replace(tmp, path)
