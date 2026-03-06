@@ -73,7 +73,7 @@ from agents.concept_extractor import extract_concepts
 from agents.latex_utils import fix_latex_delimiters
 from agents.auth_utils import register_user, login_user, validate_token
 from agents.slide_images import extract_images_from_file, save_images, get_image_path
-from agents.image_ocr import describe_slide_image
+from agents.image_ocr import describe_slide_image, is_image_file
 from agents.notebook_store import (
     create_notebook, get_notebooks, get_notebook,
     update_notebook_note, update_notebook_graph, delete_notebook,
@@ -588,13 +588,19 @@ async def upload_fuse_multi(
         raw   = await upload.read()
         fname = upload.filename or "slides.pdf"
         try:
-            all_slides_text += extract_text_from_file(raw, fname) + "\n\n"
+            # FIX E1: image OCR (Groq) is synchronous — must use to_thread to avoid blocking event loop
+            if is_image_file(fname):
+                all_slides_text += await asyncio.to_thread(extract_text_from_file, raw, fname) + "\n\n"
+            else:
+                all_slides_text += extract_text_from_file(raw, fname) + "\n\n"
         except ValueError as e:
             extraction_errors.append(f"{fname}: {e}")
             logger.warning("Slides extraction failed %s: %s", fname, e)
         try:
-            imgs = extract_images_from_file(raw, fname)
-            all_slide_images.extend(imgs)
+            # Raw image files have no embedded figures — skip to avoid spurious errors
+            if not is_image_file(fname):
+                imgs = extract_images_from_file(raw, fname)
+                all_slide_images.extend(imgs)
         except Exception as e:
             logger.warning("Image extraction failed %s: %s", fname, e)
 
@@ -602,16 +608,22 @@ async def upload_fuse_multi(
         raw   = await upload.read()
         fname = upload.filename or "textbook.pdf"
         try:
-            all_textbook_text += extract_text_from_file(raw, fname) + "\n\n"
+            # FIX E1: image OCR (Groq) is synchronous — must use to_thread to avoid blocking event loop
+            if is_image_file(fname):
+                all_textbook_text += await asyncio.to_thread(extract_text_from_file, raw, fname) + "\n\n"
+            else:
+                all_textbook_text += extract_text_from_file(raw, fname) + "\n\n"
         except ValueError as e:
             extraction_errors.append(f"{fname}: {e}")
             logger.warning("Textbook extraction failed %s: %s", fname, e)
         try:
-            tb_imgs = extract_images_from_file(raw, fname)
-            for img in tb_imgs:
-                img.img_id       = f"tb_{img.img_id}"
-                img.source_label = f"Textbook — {img.source_label}"
-            all_textbook_images.extend(tb_imgs)
+            # Raw image files have no embedded figures — skip to avoid spurious errors
+            if not is_image_file(fname):
+                tb_imgs = extract_images_from_file(raw, fname)
+                for img in tb_imgs:
+                    img.img_id       = f"tb_{img.img_id}"
+                    img.source_label = f"Textbook — {img.source_label}"
+                all_textbook_images.extend(tb_imgs)
         except Exception as e:
             logger.warning("Textbook image extraction failed %s: %s", fname, e)
 

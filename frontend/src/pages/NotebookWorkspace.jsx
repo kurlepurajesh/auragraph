@@ -10,7 +10,7 @@ import {
     BookOpen, MessageSquare, ArrowLeft, Zap, Brain, CheckCircle2,
     AlertCircle, MinusCircle, RefreshCw, X, ChevronDown, ChevronUp,
     MessageCircle, GitBranch, Copy, Check, PanelRightClose, PanelRightOpen,
-    Download
+    Download, PenLine
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -73,18 +73,20 @@ function FuseProgressBar({ active }) {
 }
 
 // ─── FileDrop ─────────────────────────────────────────────────────────────────
-function FileDrop({ label, icon, files, onFiles }) {
+function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
     const ref = useRef();
     const [drag, setDrag] = useState(false);
     const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.heic', '.heif', '.tiff', '.tif']);
     const isImage = (f) => IMAGE_EXTS.has(f.name.slice(f.name.lastIndexOf('.')).toLowerCase());
     const addFiles = (incoming) => {
         const valid = Array.from(incoming).filter(f =>
-            f.type === 'application/pdf' ||
-            f.name.endsWith('.pdf') ||
-            f.name.endsWith('.pptx') ||
-            f.name.endsWith('.ppt') ||
-            isImage(f)
+            imageOnly
+                ? isImage(f)
+                : (f.type === 'application/pdf' ||
+                   f.name.endsWith('.pdf') ||
+                   f.name.endsWith('.pptx') ||
+                   f.name.endsWith('.ppt') ||
+                   isImage(f))
         );
         if (valid.length) onFiles(prev => [...prev, ...valid]);
     };
@@ -98,12 +100,12 @@ function FileDrop({ label, icon, files, onFiles }) {
             onDragLeave={() => setDrag(false)}
             onDrop={e => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
             style={{ border: `2px dashed ${drag ? 'var(--text)' : hasFiles ? '#10B981' : 'var(--border2)'}`, borderRadius: 12, padding: 16, background: drag ? 'var(--surface2)' : hasFiles ? '#F0FDF4' : 'var(--surface)', transition: 'all 0.15s', minHeight: 120 }}>
-            <input ref={ref} type="file" accept=".pdf,.pptx,.ppt,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.tiff,.tif" multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
+            <input ref={ref} type="file" accept={imageOnly ? ".jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.tiff,.tif" : ".pdf,.pptx,.ppt,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.tiff,.tif"} multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
             {!hasFiles ? (
                 <div onClick={() => ref.current.click()} style={{ textAlign: 'center', cursor: 'pointer', padding: '12px 0' }}>
                     <DropIcon size={26} color="var(--text3)" style={{ margin: '0 auto 8px', display: 'block' }} />
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>{label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>PDF · PPTX · JPG · PNG · WebP · HEIC</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{imageOnly ? 'JPG · PNG · WebP · HEIC · TIFF' : 'PDF · PPTX · JPG · PNG · WebP · HEIC'}</div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>Drag & drop or click to browse</div>
                 </div>
             ) : (
@@ -535,6 +537,7 @@ export default function NotebookWorkspace() {
     const [prof, setProf] = useState('Practitioner');
     const [slidesFiles, setSlidesFiles] = useState([]);
     const [textbookFiles, setTextbookFiles] = useState([]);
+    const [notesFiles, setNotesFiles] = useState([]); // handwritten / photographed notes
     const [fusing, setFusing] = useState(false);
     const [fuseProgress, setFuseProgress] = useState('');
     const [mutating, setMutating] = useState(false);
@@ -632,12 +635,14 @@ export default function NotebookWorkspace() {
     };
 
     const handleFuse = async () => {
-        if (!slidesFiles.length) return;
+        if (!slidesFiles.length && !notesFiles.length) return;
         setFusing(true); setFuseProgress('Uploading files…');
         setMutatedPages(new Set()); setGraphNodes([]); setGraphEdges([]);
         try {
             const form = new FormData();
             slidesFiles.forEach(f => form.append('slides_pdfs', f));
+            // Handwritten notes images are OCR'd by the backend and merged with slide content
+            notesFiles.forEach(f => form.append('slides_pdfs', f));
             textbookFiles.forEach(f => form.append('textbook_pdfs', f));
             form.append('proficiency', prof);
             if (id) form.append('notebook_id', id);
@@ -811,9 +816,10 @@ export default function NotebookWorkspace() {
                             </div>
                             <FuseProgressBar active={fusing} />
                             {!fusing && (<>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-                                    <FileDrop label="Professor's Slides & Notes" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />
-                                    <FileDrop label="Textbook / Reference (optional)" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 24 }}>
+                                    <FileDrop label="Professor's Slides" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />
+                                    <FileDrop label="Handwritten Notes" icon={PenLine} files={notesFiles} onFiles={setNotesFiles} imageOnly />
+                                    <FileDrop label="Textbook / Reference" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
                                 </div>
                                 <div style={{ marginBottom: 24 }}>
                                     <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 10 }}>Proficiency Level</label>
@@ -826,7 +832,7 @@ export default function NotebookWorkspace() {
                                         ))}
                                     </div>
                                 </div>
-                                <button data-testid="generate-notes-btn" className="btn btn-primary btn-lg" style={{ width: '100%', gap: 8 }} onClick={handleFuse} disabled={fusing || !slidesFiles.length}>
+                                <button data-testid="generate-notes-btn" className="btn btn-primary btn-lg" style={{ width: '100%', gap: 8 }} onClick={handleFuse} disabled={fusing || (!slidesFiles.length && !notesFiles.length)}>
                                     <Sparkles size={16} /> Generate Digital Notes
                                 </button>
                                 <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 12 }}>← → arrow keys to navigate pages · Ctrl+D to ask a doubt</p>
