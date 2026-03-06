@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from typing import Optional
 
 from pipeline.slide_analyzer import SlideTopic
@@ -205,8 +206,6 @@ def _post_process_section(text: str, topic: str) -> str:
     2. Ensure the section starts with ## topic
     3. Ensure it ends with an Exam Tip blockquote
     """
-    import re
-
     # 1. strip preamble lines before the ## heading
     lines = text.split('\n')
     start = 0
