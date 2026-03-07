@@ -184,7 +184,7 @@ def _ocr_with_groq(image_bytes: bytes, filename: str) -> str:
     try:
         from openai import OpenAI
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key)
-        model  = os.environ.get("GROQ_VISION_MODEL", "llama-3.2-11b-vision-preview")
+        model  = os.environ.get("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
         resp = client.chat.completions.create(
             model=model,
             messages=[
@@ -284,7 +284,7 @@ def describe_slide_image(image_bytes: bytes, source_label: str = "") -> str:
     try:
         from openai import OpenAI
         client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key)
-        model  = os.environ.get("GROQ_VISION_MODEL", "llama-3.2-11b-vision-preview")
+        model  = os.environ.get("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
         resp = client.chat.completions.create(
             model=model,
             messages=[

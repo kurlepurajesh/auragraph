@@ -87,6 +87,20 @@ def _fix_tables(text: str) -> str:
     return '\n'.join(result)
 
 
+# ── Safe template substitution ──────────────────────────────────────────────
+
+def _safe_format(template: str, **kwargs) -> str:
+    """
+    Substitute named placeholders like {topic} in a template string WITHOUT
+    using str.format(), which chokes on LaTeX curly-braces in the values
+    (e.g. '{x^2}' raises KeyError: 'x^2').
+    """
+    result = template
+    for key, value in kwargs.items():
+        result = result.replace(f"{{{key}}}", str(value))
+    return result
+
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 _NOTE_SYSTEM = """\
@@ -465,7 +479,8 @@ async def generate_topic_note(
     )
 
     if _azure_available():
-        user = _NOTE_USER_TEMPLATE.format(
+        user = _safe_format(
+            _NOTE_USER_TEMPLATE,
             topic=topic.topic,
             key_points_block=key_points_block,
             slide_text=topic.slide_text[:8_000],
@@ -478,7 +493,8 @@ async def generate_topic_note(
             return fix_latex_delimiters(_fix_tables(result)), "azure"
 
     if _groq_available():
-        user = _NOTE_USER_TEMPLATE.format(
+        user = _safe_format(
+            _NOTE_USER_TEMPLATE,
             topic=topic.topic,
             key_points_block=key_points_block,
             slide_text=topic.slide_text[:6_000],
@@ -545,7 +561,7 @@ async def refine_notes(notes: str) -> str:
     # to avoid silently truncating 50% of the content
     groq_refine_ok = _groq_available() and len(notes) <= 18_000
 
-    user = _REFINEMENT_USER.format(notes=notes[:28_000])
+    user = _safe_format(_REFINEMENT_USER, notes=notes[:28_000])
 
     if _azure_available():
         refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=8192)
@@ -592,7 +608,7 @@ async def verify_notes(notes: str) -> str:
         return notes
 
     groq_verify_ok = _groq_available() and len(notes) <= 12_000
-    user = _VERIFY_NOTES_USER.format(notes=notes[:28_000])
+    user = _safe_format(_VERIFY_NOTES_USER, notes=notes[:28_000])
 
     if _azure_available():
         verified = await _call_azure(_VERIFY_NOTES_SYSTEM, user, max_tokens=8192)
