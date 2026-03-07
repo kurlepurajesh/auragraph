@@ -176,6 +176,13 @@ CONTENT:
 • Use textbook context to enrich explanations and add supporting examples.
 • NEVER introduce a concept that is not related to the given topic.
 
+FORMULA RULE (highest priority — overrides proficiency level):
+• EVERY formula, equation, and mathematical expression present in the slides or key points
+  MUST appear in the output, regardless of proficiency level.
+• Proficiency level only controls how MUCH explanation surrounds each formula — never whether
+  the formula is included.
+• A formula present in the source but absent from the output is always an error.
+
 WORKED EXAMPLE (mandatory for every section):
 • Pick a concrete number or symbol. Show 2–4 steps. Keep it compact.
 • Format:
@@ -188,10 +195,11 @@ PROFICIENCY ADAPTATION:
 FOUNDATIONS:
   1. Plain-English sentence: "Simply put, X is …"
   2. One analogy in a > blockquote.
-  3. Key formula(s) with a **Where:** pipe-table defining each symbol:
+  3. ALL formula(s) — every equation from the slides — with a **Where:** pipe-table defining each symbol:
      | Symbol | Meaning |
-     |--------|---------|
+     |--------|------------------|
      | $F$ | output value |
+     (Keep explanations short and friendly, but DO NOT skip any formula.)
   4. Numbered steps if there is a process.
 
 PRACTITIONER:
@@ -412,7 +420,14 @@ async def _call_azure(
                 await asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"].strip()
+            data = resp.json()
+            choice = data["choices"][0]
+            if choice.get("finish_reason") == "length":
+                logger.warning(
+                    "note_generator Azure: response truncated (finish_reason=length) — "
+                    "consider raising max_tokens or splitting the prompt"
+                )
+            return choice["message"]["content"].strip()
     except Exception as e:
         logger.warning("note_generator Azure async call failed: %s", e)
     return None
@@ -455,7 +470,14 @@ async def _call_groq(
                 await asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"].strip()
+            data = resp.json()
+            choice = data["choices"][0]
+            if choice.get("finish_reason") == "length":
+                logger.warning(
+                    "note_generator Groq: response truncated (finish_reason=length) — "
+                    "consider raising max_tokens or splitting the prompt"
+                )
+            return choice["message"]["content"].strip()
     except Exception as e:
         logger.warning("note_generator Groq async call failed: %s", e)
     return None
@@ -487,7 +509,7 @@ async def generate_topic_note(
             textbook_instruction=_textbook_instruction_block(textbook_context, 7_000),
             proficiency=proficiency,
         )
-        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=3500)
+        result = await _call_azure(_NOTE_SYSTEM, user, max_tokens=6000)
         if result:
             result = _post_process_section(result, topic.topic)
             return fix_latex_delimiters(_fix_tables(result)), "azure"
@@ -501,7 +523,7 @@ async def generate_topic_note(
             textbook_instruction=_textbook_instruction_block(textbook_context, 5_500),
             proficiency=proficiency,
         )
-        result = await _call_groq(_NOTE_SYSTEM, user, max_tokens=3000)
+        result = await _call_groq(_NOTE_SYSTEM, user, max_tokens=5000)
         if result:
             result = _post_process_section(result, topic.topic)
             return fix_latex_delimiters(_fix_tables(result)), "groq"
@@ -569,6 +591,26 @@ def _split_into_section_batches(notes: str, budget: int = _CHUNK_BUDGET) -> list
     return batches or [notes]
 
 
+def _sections_ok(result: str, batch: str, batch_section_count: int, label: str, batch_num: int, total_batches: int) -> bool:
+    """
+    Validate that an LLM result for a batch is acceptable:
+    - not shorter than 30% of the original batch
+    - contains at least as many ## headings as the original batch
+    """
+    if len(result) < len(batch) * 0.3:
+        return False
+    if batch_section_count > 0:
+        result_sections = len(re.findall(r'^## ', result, re.MULTILINE))
+        if result_sections < batch_section_count:
+            logger.warning(
+                "%s batch %d/%d: LLM dropped %d/%d sections — keeping original",
+                label, batch_num, total_batches,
+                batch_section_count - result_sections, batch_section_count,
+            )
+            return False
+    return True
+
+
 async def _apply_llm_in_chunks(
     notes:  str,
     system: str,
@@ -594,17 +636,18 @@ async def _apply_llm_in_chunks(
     for i, batch in enumerate(batches):
         user = _safe_format(user_template, notes=batch)
         result: str | None = None
+        batch_section_count = len(re.findall(r'^## ', batch, re.MULTILINE))
 
         if _azure_available():
             result = await _call_azure(system, user, max_tokens=16000)
-            if result and len(result) < len(batch) * 0.3:
-                logger.info("%s batch %d/%d: Azure too short — keeping original", label, i+1, len(batches))
+            if result and not _sections_ok(result, batch, batch_section_count, label, i+1, len(batches)):
+                logger.info("%s batch %d/%d: Azure output rejected — keeping original", label, i+1, len(batches))
                 result = None
 
         if result is None and _groq_available() and len(batch) <= 12_000:
             result = await _call_groq(system, user, max_tokens=8192)
-            if result and len(result) < len(batch) * 0.3:
-                logger.info("%s batch %d/%d: Groq too short — keeping original", label, i+1, len(batches))
+            if result and not _sections_ok(result, batch, batch_section_count, label, i+1, len(batches)):
+                logger.info("%s batch %d/%d: Groq output rejected — keeping original", label, i+1, len(batches))
                 result = None
 
         if result:
@@ -642,7 +685,7 @@ async def verify_notes(notes: str) -> str:
     Returns original notes untouched on any failure.
     """
     return await _apply_llm_in_chunks(
-        notes, _VERIFY_NOTES_SYSTEM, _VERIFY_NOTES_USER, min_len=200, label="verification"
+        notes, _VERIFY_NOTES_SYSTEM, _VERIFY_NOTES_USER, min_len=500, label="verification"
     )
 
 

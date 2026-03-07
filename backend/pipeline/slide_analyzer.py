@@ -261,9 +261,11 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
 
 # ── Deterministic Fallback ────────────────────────────────────────────────────
 
-# Match both --- Slide N --- (PPTX) and --- Page N --- (PDF)
+# Match --- Slide N --- (PPTX), --- Page N --- (PDF), and --- Page: name --- (image OCR)
 _SLIDE_BOUNDARY = re.compile(
-    r'^---\s*(?:Slide|Page)\s+(\d+)(?::\s*(.*?))?\s*---\s*$', re.MULTILINE
+    r'^---\s*(?:Slide|Page)\s+(\d+)(?::\s*(.*?))?\s*---\s*$'
+    r'|^---\s*Page:\s*([^\-].*?)\s*---\s*$',
+    re.MULTILINE,
 )
 
 
@@ -273,7 +275,10 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
     Groups slides by detected title; skips metadata/empty slides.
     Used as fallback when Azure is unavailable.
     """
-    parts = re.split(r'(?=^---\s*(?:Slide|Page)\s+\d+)', slides_text, flags=re.MULTILINE)
+    parts = re.split(
+        r'(?=^---\s*(?:Slide\s+\d+|Page(?:\s+\d+|:)))',
+        slides_text, flags=re.MULTILINE
+    )
     topics: list[SlideTopic] = []
 
     _META = re.compile(
@@ -291,9 +296,16 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
         if not m:
             continue
 
-        title = (m.group(2) or '').strip()
-        body  = part[m.end():].strip()
-        num   = m.group(1)
+        body = part[m.end():].strip()
+
+        if m.group(1):  # numbered format: --- Slide N --- / --- Page N ---
+            title = (m.group(2) or '').strip()
+            num   = m.group(1)
+            display_title = title or f"Slide {num}"
+        else:           # image OCR format: --- Page: filename ---
+            title = (m.group(3) or '').strip()
+            display_title = title or "Image Notes"
+            num   = None
 
         # Skip metadata / empty slides
         if not body and not title:
@@ -302,9 +314,6 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
             continue
         if not body and len(title) < 3:
             continue
-
-        # Normalise display title: always say "Slide N" not "Page N"
-        display_title = title or f"Slide {num}"
 
         # Try to merge into previous topic if same/no title
         if topics and (not title or title.lower() == topics[-1].topic.lower()):
@@ -348,12 +357,16 @@ def _split_at_slide_boundary(text: str, max_chars: int) -> list[str]:
     """
     Split slide text at slide boundary markers so each chunk ends on a complete
     slide, keeping chunk size ≤ max_chars. Falls back to hard split if no markers.
+    Handles all three marker formats:
+      --- Slide N ---     (PPTX)
+      --- Page N ---      (PDF)
+      --- Page: name ---  (image OCR)
     """
     if len(text) <= max_chars:
         return [text]
-    # Find all slide marker positions
+    # Find all slide marker positions (all three formats)
     boundaries = [m.start() for m in re.finditer(
-        r'(?m)^---\s*(?:Slide|Page)\s+\d+', text
+        r'(?m)^---\s*(?:(?:Slide|Page)\s+\d+|Page:\s*[^\-\n])', text
     )]
     if not boundaries:
         # No markers — hard split
