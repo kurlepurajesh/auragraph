@@ -1496,13 +1496,42 @@ export default function NotebookWorkspace() {
     // Load notebook + restore doubts
     useEffect(() => {
         setDoubtsLog(loadDoubts(id));
+        const isErrorNote = (n) => typeof n === 'string' && (
+            n.includes('Backend Not Running') ||
+            n.includes('Failed to fetch') ||
+            n.includes('Backend Not Running')
+        );
         fetch(`${API}/notebooks/${id}`, { headers: authHeaders() })
             .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-            .then(nb => { setNotebook(nb); setNote(nb.note || ''); setProf(nb.proficiency || 'Practitioner'); if (nb.graph?.nodes?.length) { setGraphNodes(nb.graph.nodes); setGraphEdges(nb.graph.edges || []); } })
-            .catch(() => { const l = ls_getNotebook(id); if (l) { setNotebook(l); setNote(l.note || ''); setProf(l.proficiency || 'Practitioner'); if (l.graph?.nodes?.length) { setGraphNodes(l.graph.nodes); setGraphEdges(l.graph.edges || []); } } else { setNotebook({ id, name: 'Untitled', course: '' }); } });
+            .then(nb => {
+                setNotebook(nb);
+                const loadedNote = nb.note || '';
+                // If the saved note is a stale error message, clear it so the user sees the upload panel
+                setNote(isErrorNote(loadedNote) ? '' : loadedNote);
+                setProf(nb.proficiency || 'Practitioner');
+                if (nb.graph?.nodes?.length) { setGraphNodes(nb.graph.nodes); setGraphEdges(nb.graph.edges || []); }
+            })
+            .catch(() => {
+                const l = ls_getNotebook(id);
+                if (l) {
+                    setNotebook(l);
+                    const loadedNote = l.note || '';
+                    setNote(isErrorNote(loadedNote) ? '' : loadedNote);
+                    setProf(l.proficiency || 'Practitioner');
+                    if (l.graph?.nodes?.length) { setGraphNodes(l.graph.nodes); setGraphEdges(l.graph.edges || []); }
+                } else {
+                    setNotebook({ id, name: 'Untitled', course: '' });
+                }
+            });
     }, [id]);
 
     const saveNote = async (newNote, newProf) => {
+        // Never persist stale error messages
+        const isErrorNote = typeof newNote === 'string' && (
+            newNote.includes('Backend Not Running') ||
+            newNote.includes('Failed to fetch')
+        );
+        if (isErrorNote) return;
         ls_saveNote(id, newNote, newProf);
         try { await fetch(`${API}/notebooks/${id}/note`, { method: 'PATCH', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ note: newNote, proficiency: newProf }) }); } catch { }
     };
