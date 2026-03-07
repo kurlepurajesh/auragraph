@@ -83,10 +83,10 @@ function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
             imageOnly
                 ? isImage(f)
                 : (f.type === 'application/pdf' ||
-                   f.name.endsWith('.pdf') ||
-                   f.name.endsWith('.pptx') ||
-                   f.name.endsWith('.ppt') ||
-                   isImage(f))
+                    f.name.endsWith('.pdf') ||
+                    f.name.endsWith('.pptx') ||
+                    f.name.endsWith('.ppt') ||
+                    isImage(f))
         );
         if (valid.length) onFiles(prev => [...prev, ...valid]);
     };
@@ -115,8 +115,8 @@ function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 6, padding: '6px 10px', border: '1px solid #d1fae5' }}>
                                 <span style={{ fontSize: 14, flexShrink: 0 }}>{fileIcon(f)}</span>
                                 <span style={{ fontSize: 12, color: '#065f46', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                                <span style={{ fontSize: 10, color: 'var(--text3)' }}>{(f.size/1024/1024).toFixed(1)}MB</span>
-                                <button onClick={e => { e.stopPropagation(); onFiles(prev => prev.filter((_,j) => j !== i)); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text3)', display: 'flex' }}><X size={12} /></button>
+                                <span style={{ fontSize: 10, color: 'var(--text3)' }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                                <button onClick={e => { e.stopPropagation(); onFiles(prev => prev.filter((_, j) => j !== i)); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text3)', display: 'flex' }}><X size={12} /></button>
                             </div>
                         ))}
                     </div>
@@ -136,8 +136,8 @@ function MutateModal({ page, notebookId, pageIdx, onClose, onMutate, initialDoub
     const [answer, setAnswer] = useState('');
     const [answerSource, setAnswerSource] = useState('');
     const [answerVerification, setAnswerVerification] = useState('correct');
-    const [answerCorrection, setAnswerCorrection]     = useState('');
-    const [answerFootnote, setAnswerFootnote]         = useState('');
+    const [answerCorrection, setAnswerCorrection] = useState('');
+    const [answerFootnote, setAnswerFootnote] = useState('');
     const [mode, setMode] = useState('idle'); // 'idle' | 'answering' | 'answered' | 'mutating'
 
     const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -279,8 +279,8 @@ function PracticeQuestions({ text }) {
                 const markerIdx = block.search(/✅|Correct:/);
                 const hasAnswer = markerIdx !== -1;
                 const questionPart = hasAnswer ? block.slice(0, markerIdx).trimEnd() : block;
-                const answerPart   = hasAnswer ? block.slice(markerIdx) : '';
-                const isRevealed   = revealed.has(i);
+                const answerPart = hasAnswer ? block.slice(markerIdx) : '';
+                const isRevealed = revealed.has(i);
                 return (
                     <div key={i} style={{ background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
                         <div style={{ padding: '14px 16px', fontSize: 13, lineHeight: 1.8 }}>
@@ -352,20 +352,22 @@ function KnowledgeGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
     const nodeById = Object.fromEntries(nodes.map(n => [n.id, n]));
     return (
         <svg width={W} height={H} style={{ display: 'block', width: '100%' }} viewBox={`0 0 ${W} ${H}`}>
-            <defs>{nodes.map(n => { const c = SC[n.status] || SC.partial; return (<radialGradient key={n.id} id={`g-${n.id}`} cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor={c.ring} stopOpacity="0.6"/><stop offset="100%" stopColor={c.fill} stopOpacity="1"/></radialGradient>); })}</defs>
+            <defs>{nodes.map(n => { const c = SC[n.status] || SC.partial; return (<radialGradient key={n.id} id={`g-${n.id}`} cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor={c.ring} stopOpacity="0.6" /><stop offset="100%" stopColor={c.fill} stopOpacity="1" /></radialGradient>); })}</defs>
             {edges.map((e, i) => { const s = nodeById[e[0]], d = nodeById[e[1]]; if (!s || !d) return null; const sp = getPos(s), dp = getPos(d); return <line key={i} x1={sp.cx} y1={sp.cy} x2={dp.cx} y2={dp.cy} stroke="var(--border2)" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.7} />; })}
-            {nodes.map(n => { const c = SC[n.status] || SC.partial; const { cx, cy } = getPos(n); const sel = n.id === selectedNodeId; const lbl = n.label.length > 16 ? n.label.slice(0, 14) + '…' : n.label; return (
-                <g key={n.id} style={{ cursor: 'pointer' }} onClick={() => onNodeClick(n)}>
-                    {sel && <circle cx={cx} cy={cy} r={20} fill="none" stroke={c.fill} strokeWidth={2} opacity={0.5} strokeDasharray="3,2" />}
-                    <circle cx={cx} cy={cy} r={17} fill={c.ring} opacity={sel ? 0.4 : 0.2} />
-                    <circle cx={cx} cy={cy} r={12} fill={`url(#g-${n.id})`} stroke={sel ? c.fill : 'transparent'} strokeWidth={2} />
-                    <text x={cx} y={cy + 24} textAnchor="middle" fontSize={9} fill="var(--text2)" fontWeight={sel ? 700 : 500} style={{ pointerEvents: 'none', userSelect: 'none' }}>{lbl}</text>
-                    {(n.mutation_count || 0) > 0 && <g>
-                        <circle cx={cx + 9} cy={cy - 9} r={5.5} fill="#7C3AED" />
-                        <text x={cx + 9} y={cy - 9 + 4} textAnchor="middle" fontSize={7} fill="#fff" fontWeight={700} style={{ pointerEvents: 'none', userSelect: 'none' }}>{n.mutation_count}</text>
-                    </g>}
-                </g>
-            ); })}
+            {nodes.map(n => {
+                const c = SC[n.status] || SC.partial; const { cx, cy } = getPos(n); const sel = n.id === selectedNodeId; const lbl = n.label.length > 16 ? n.label.slice(0, 14) + '…' : n.label; return (
+                    <g key={n.id} style={{ cursor: 'pointer' }} onClick={() => onNodeClick(n)}>
+                        {sel && <circle cx={cx} cy={cy} r={20} fill="none" stroke={c.fill} strokeWidth={2} opacity={0.5} strokeDasharray="3,2" />}
+                        <circle cx={cx} cy={cy} r={17} fill={c.ring} opacity={sel ? 0.4 : 0.2} />
+                        <circle cx={cx} cy={cy} r={12} fill={`url(#g-${n.id})`} stroke={sel ? c.fill : 'transparent'} strokeWidth={2} />
+                        <text x={cx} y={cy + 24} textAnchor="middle" fontSize={9} fill="var(--text2)" fontWeight={sel ? 700 : 500} style={{ pointerEvents: 'none', userSelect: 'none' }}>{lbl}</text>
+                        {(n.mutation_count || 0) > 0 && <g>
+                            <circle cx={cx + 9} cy={cy - 9} r={5.5} fill="#7C3AED" />
+                            <text x={cx + 9} y={cy - 9 + 4} textAnchor="middle" fontSize={7} fill="#fff" fontWeight={700} style={{ pointerEvents: 'none', userSelect: 'none' }}>{n.mutation_count}</text>
+                        </g>}
+                    </g>
+                );
+            })}
         </svg>
     );
 }
@@ -375,8 +377,8 @@ function QuestionCards({ questions, level, onAllAssessed }) {
     const [revealed, setRevealed] = useState(new Set());
     const [assessments, setAssessments] = useState({});  // idx → true/false
     const LC = {
-        mastered:   { bg: '#DCFCE7', border: '#BBF7D0', accent: '#10B981', text: '#065F46' },
-        partial:    { bg: '#FEF9C3', border: '#FDE68A', accent: '#D97706', text: '#78350F' },
+        mastered: { bg: '#DCFCE7', border: '#BBF7D0', accent: '#10B981', text: '#065F46' },
+        partial: { bg: '#FEF9C3', border: '#FDE68A', accent: '#D97706', text: '#78350F' },
         struggling: { bg: '#FEF2F2', border: '#FECACA', accent: '#DC2626', text: '#7F1D1D' },
     };
     const lc = LC[level] || LC.partial;
@@ -384,9 +386,9 @@ function QuestionCards({ questions, level, onAllAssessed }) {
     const markAssessment = (i, gotIt) => {
         const next = { ...assessments, [i]: gotIt };
         setAssessments(next);
-        const total    = (questions || []).length;
+        const total = (questions || []).length;
         const assessed = Object.keys(next).length;
-        const correct  = Object.values(next).filter(Boolean).length;
+        const correct = Object.values(next).filter(Boolean).length;
         if (assessed === total && total > 0) onAllAssessed?.(correct, total);
     };
     return (
@@ -401,7 +403,7 @@ function QuestionCards({ questions, level, onAllAssessed }) {
                             <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} components={{ p: ({ children }) => <span>{children}</span> }}>{q.question || ''}</ReactMarkdown>
                         </div>
                         <div style={{ padding: '4px 12px 8px', display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid var(--border)' }}>
-                            {['A','B','C','D'].map(opt => {
+                            {['A', 'B', 'C', 'D'].map(opt => {
                                 const isCorrect = isRev && opt === q.correct;
                                 return (
                                     <div key={opt} style={{ display: 'flex', gap: 7, padding: '5px 9px', borderRadius: 7, background: isCorrect ? lc.bg : 'transparent', border: `1px solid ${isCorrect ? lc.border : 'transparent'}`, fontSize: 12, lineHeight: 1.5, transition: 'background 0.2s' }}>
@@ -456,14 +458,14 @@ function QuestionCards({ questions, level, onAllAssessed }) {
 // ─── Concept Detail Panel ─────────────────────────────────────────────────────
 function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, onFullPractice }) {
     const [activeLevel, setActiveLevel] = useState(null);
-    const [questions, setQuestions]     = useState(null);
-    const [loadingQ, setLoadingQ]       = useState(false);
-    const [promotion, setPromotion]     = useState(null); // null | 'partial' | 'mastered' | 'top'
+    const [questions, setQuestions] = useState(null);
+    const [loadingQ, setLoadingQ] = useState(false);
+    const [promotion, setPromotion] = useState(null); // null | 'partial' | 'mastered' | 'top'
 
     const LEVELS = [
-        { key: 'struggling', label: 'Struggling', color: '#EF4444', icon: <AlertCircle size={11}/>,  desc: 'Basics' },
-        { key: 'partial',    label: 'Partial',    color: '#F59E0B', icon: <MinusCircle size={11}/>,  desc: 'Standard' },
-        { key: 'mastered',   label: 'Mastered',   color: '#10B981', icon: <CheckCircle2 size={11}/>, desc: 'Advanced' },
+        { key: 'struggling', label: 'Struggling', color: '#EF4444', icon: <AlertCircle size={11} />, desc: 'Basics' },
+        { key: 'partial', label: 'Partial', color: '#F59E0B', icon: <MinusCircle size={11} />, desc: 'Standard' },
+        { key: 'mastered', label: 'Mastered', color: '#10B981', icon: <CheckCircle2 size={11} />, desc: 'Advanced' },
     ];
     const statusColors = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
 
@@ -564,8 +566,8 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Cognitive Knowledge Map</div>
                 {nodes.length > 0 && (
                     <div style={{ display: 'flex', gap: 6 }}>
-                        {[['mastered','#10B981',mc],['partial','#F59E0B',pc],['struggling','#EF4444',sc]].map(([k,c,count]) => (
-                            <div key={k} style={{ flex: 1, textAlign: 'center', background: c+'15', borderRadius: 6, padding: 4, border: `1px solid ${c}33` }}>
+                        {[['mastered', '#10B981', mc], ['partial', '#F59E0B', pc], ['struggling', '#EF4444', sc]].map(([k, c, count]) => (
+                            <div key={k} style={{ flex: 1, textAlign: 'center', background: c + '15', borderRadius: 6, padding: 4, border: `1px solid ${c}33` }}>
                                 <div style={{ fontSize: 16, fontWeight: 800, color: c }}>{count}</div>
                                 <div style={{ fontSize: 9, color: c, textTransform: 'uppercase', fontWeight: 600 }}>{k}</div>
                             </div>
@@ -579,19 +581,21 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
                 {nodes.length > 0 && (
                     <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', marginTop: 8 }}>
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>All Concepts</div>
-                        {nodes.map(n => { const c = SC[n.status] || SC.partial; return (
-                            <div key={n.id} onClick={() => handleNodeClick(n)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, marginBottom: 3, background: selectedNode?.id === n.id ? 'var(--surface2)' : 'transparent', cursor: 'pointer', border: selectedNode?.id === n.id ? '1px solid var(--border)' : '1px solid transparent', transition: 'all 0.1s' }}>
-                                <div style={{ width: 9, height: 9, borderRadius: '50%', background: c.fill, flexShrink: 0, boxShadow: `0 0 5px ${c.fill}88` }} />
-                                <div style={{ flex: 1, fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.label}</div>
-                                <div style={{ fontSize: 10, color: c.fill, textTransform: 'capitalize', fontWeight: 600 }}>{n.status}</div>
-                            </div>
-                        ); })}
+                        {nodes.map(n => {
+                            const c = SC[n.status] || SC.partial; return (
+                                <div key={n.id} onClick={() => handleNodeClick(n)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, marginBottom: 3, background: selectedNode?.id === n.id ? 'var(--surface2)' : 'transparent', cursor: 'pointer', border: selectedNode?.id === n.id ? '1px solid var(--border)' : '1px solid transparent', transition: 'all 0.1s' }}>
+                                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: c.fill, flexShrink: 0, boxShadow: `0 0 5px ${c.fill}88` }} />
+                                    <div style={{ flex: 1, fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.label}</div>
+                                    <div style={{ fontSize: 10, color: c.fill, textTransform: 'capitalize', fontWeight: 600 }}>{n.status}</div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
             <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', gap: 14, marginBottom: sc > 0 || pc > 0 ? 8 : 0 }}>
-                    {[['mastered','#10B981'],['partial','#F59E0B'],['struggling','#EF4444']].map(([k,c]) => (
+                    {[['mastered', '#10B981'], ['partial', '#F59E0B'], ['struggling', '#EF4444']].map(([k, c]) => (
                         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text3)' }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: c }} /> {k}</div>
                     ))}
                 </div>
@@ -742,7 +746,7 @@ function DoubtsPanel({ doubts, currentPage }) {
                                         <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}><GitBranch size={10} /> AuraGraph</div>
                                         <div style={{ color: '#4C1D95' }}><IM text={preview} /></div>
                                         {d.gap && isExp && <div style={{ marginTop: 7, paddingTop: 7, borderTop: '1px solid #DDD6FE', fontSize: 11, color: '#7C3AED', fontStyle: 'italic' }}>🔍 {d.gap}</div>}
-                                        {needsExp && <button onClick={() => toggle(d.id)} style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}>{isExp ? <><ChevronUp size={11}/> Show less</> : <><ChevronDown size={11}/> Read more</>}</button>}
+                                        {needsExp && <button onClick={() => toggle(d.id)} style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#7C3AED', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}>{isExp ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Read more</>}</button>}
                                     </div>
                                 ) : (
                                     <div style={{ maxWidth: '90%', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '3px 14px 14px 14px', padding: '9px 13px', fontSize: 12, lineHeight: 1.7, color: '#991B1B' }}>
@@ -762,13 +766,13 @@ function DoubtsPanel({ doubts, currentPage }) {
 // ─── Export buttons ───────────────────────────────────────────────────────────
 function CopyNoteButton({ note }) {
     const [copied, setCopied] = useState(false);
-    const copy = async () => { try { await navigator.clipboard.writeText(note); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {} };
-    return <button className="btn btn-ghost btn-sm" onClick={copy} title="Copy full note as Markdown" style={{ fontSize: 12, gap: 5 }}>{copied ? <Check size={12} color="#10B981"/> : <Copy size={12}/>}{copied ? 'Copied!' : 'Copy MD'}</button>;
+    const copy = async () => { try { await navigator.clipboard.writeText(note); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { } };
+    return <button className="btn btn-ghost btn-sm" onClick={copy} title="Copy full note as Markdown" style={{ fontSize: 12, gap: 5 }}>{copied ? <Check size={12} color="#10B981" /> : <Copy size={12} />}{copied ? 'Copied!' : 'Copy MD'}</button>;
 }
 
 function DownloadNoteButton({ note, name }) {
-    const dl = () => { const b = new Blob([note], { type: 'text/markdown' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${name||'notes'}.md`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); };
-    return <button className="btn btn-ghost btn-sm" onClick={dl} title="Download as .md" style={{ fontSize: 12, gap: 5 }}><Download size={12}/> Export</button>;
+    const dl = () => { const b = new Blob([note], { type: 'text/markdown' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${name || 'notes'}.md`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u); };
+    return <button className="btn btn-ghost btn-sm" onClick={dl} title="Download as .md" style={{ fontSize: 12, gap: 5 }}><Download size={12} /> Export</button>;
 }
 
 // ─── Main Workspace ───────────────────────────────────────────────────────────
@@ -797,7 +801,7 @@ export default function NotebookWorkspace() {
     const [fallbackWarning, setFallbackWarning] = useState(''); // non-empty = show banner
     const [viewMode, setViewMode] = useState('single');         // 'single' | 'two' | 'scroll'
     const [jumpHighlightSet, setJumpHighlightSet] = useState(new Set()); // page indices to pulse
-    const [textSelection, setTextSelection]       = useState(null);       // { text, x, y } | null
+    const [textSelection, setTextSelection] = useState(null);       // { text, x, y } | null
     const [pendingSelectionText, setPendingSelectionText] = useState(''); // pre-fills MutateModal
     const noteScrollRef = useRef();
 
@@ -853,7 +857,7 @@ export default function NotebookWorkspace() {
     // Keyboard navigation
     useEffect(() => {
         const h = (e) => {
-            if (['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
             if (mutating) return;
             if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); setCurrentPage(p => Math.min(pages.length - 1, p + 1)); }
             else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); setCurrentPage(p => Math.max(0, p - 1)); }
@@ -874,12 +878,12 @@ export default function NotebookWorkspace() {
 
     const saveNote = async (newNote, newProf) => {
         ls_saveNote(id, newNote, newProf);
-        try { await fetch(`${API}/notebooks/${id}/note`, { method: 'PATCH', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ note: newNote, proficiency: newProf }) }); } catch {}
+        try { await fetch(`${API}/notebooks/${id}/note`, { method: 'PATCH', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ note: newNote, proficiency: newProf }) }); } catch { }
     };
 
     const extractAndSaveGraph = async (text) => {
         // FIX: include authHeaders so the request is authenticated (backend requires Bearer token)
-        try { const r = await fetch(`${API}/api/extract-concepts`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ note: text, notebook_id: id }) }); const g = await r.json(); if (g.nodes?.length) { setGraphNodes(g.nodes); setGraphEdges(g.edges || []); } } catch {}
+        try { const r = await fetch(`${API}/api/extract-concepts`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ note: text, notebook_id: id }) }); const g = await r.json(); if (g.nodes?.length) { setGraphNodes(g.nodes); setGraphEdges(g.edges || []); } } catch { }
     };
 
     const handleFuse = async () => {
@@ -898,7 +902,7 @@ export default function NotebookWorkspace() {
             const res = await fetch(`${API}/api/upload-fuse-multi`, { method: 'POST', headers: authHeaders(), body: form });
             if (!res.ok) {
                 let detail = `Server error (${res.status})`;
-                try { const j = await res.json(); detail = j.detail || detail; } catch {}
+                try { const j = await res.json(); detail = j.detail || detail; } catch { }
                 throw new Error(detail);
             }
             const data = await res.json();
@@ -970,7 +974,7 @@ export default function NotebookWorkspace() {
                 setNote(newNote); setGapText(data.concept_gap);
                 setMutatedPages(prev => new Set([...prev, currentPage]));
                 await saveNote(newNote, prof);
-                extractAndSaveGraph(newNote).catch(() => {});
+                extractAndSaveGraph(newNote).catch(() => { });
                 const pl = data.mutated_paragraph.split('\n');
                 const bqs = pl.findIndex(l => l.includes('💡') || l.trimStart().startsWith('> '));
                 let insight = data.concept_gap || 'Page updated.';
@@ -988,7 +992,7 @@ export default function NotebookWorkspace() {
 
     const handleNodeStatusChange = async (node, status) => {
         setGraphNodes(prev => prev.map(n => n.id === node.id ? { ...n, status } : n));
-        try { await fetch(`${API}/notebooks/${id}/graph/update`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ concept_name: node.label, status }) }); } catch {}
+        try { await fetch(`${API}/notebooks/${id}/graph/update`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ concept_name: node.label, status }) }); } catch { }
     };
 
     const handleJumpToSection = useCallback((label) => {
@@ -1002,14 +1006,14 @@ export default function NotebookWorkspace() {
     }, [pages]);
 
     const handleNoteMouseUp = useCallback(() => {
-        const sel     = window.getSelection();
+        const sel = window.getSelection();
         const selText = sel?.toString().trim();
         if (selText && selText.length > 4) {
             try {
                 const range = sel.getRangeAt(0);
-                const rect  = range.getBoundingClientRect();
+                const rect = range.getBoundingClientRect();
                 setTextSelection({ text: selText, x: rect.left + rect.width / 2, y: rect.top });
-            } catch {}
+            } catch { }
         } else {
             setTextSelection(null);
         }
@@ -1040,7 +1044,7 @@ export default function NotebookWorkspace() {
                     {hasNote && (<>
                         {/* Proficiency — current level shown; click to switch (requires re-upload) */}
                         <div style={{ display: 'flex', gap: 2, background: 'var(--surface)', padding: 2, borderRadius: 8, border: '1px solid var(--border)' }}>
-                            {['Foundations','Practitioner','Expert'].map(p => (
+                            {['Foundations', 'Practitioner', 'Expert'].map(p => (
                                 <button key={p} onClick={() => {
                                     if (p === prof) return;
                                     if (window.confirm(`Switch to ${p} level?\n\nThis will take you back to the upload screen. Re-upload your materials to regenerate notes at the new level.`)) {
@@ -1060,12 +1064,12 @@ export default function NotebookWorkspace() {
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
                         {/* View mode toggle */}
                         <div style={{ display: 'flex', gap: 1, background: 'var(--surface)', padding: 2, borderRadius: 7, border: '1px solid var(--border)' }}>
-                            {[['single', <BookOpen size={12}/>, 'Single page'], ['two', <Columns2 size={12}/>, 'Two pages side-by-side'], ['scroll', <ScrollText size={12}/>, 'Continuous scroll']].map(([mode, icon, title]) => (
+                            {[['single', <BookOpen size={12} />, 'Single page'], ['two', <Columns2 size={12} />, 'Two pages side-by-side'], ['scroll', <ScrollText size={12} />, 'Continuous scroll']].map(([mode, icon, title]) => (
                                 <button key={mode} title={title} onClick={() => setViewMode(mode)} style={{ padding: '4px 8px', borderRadius: 5, border: 'none', cursor: 'pointer', background: viewMode === mode ? 'var(--text)' : 'transparent', color: viewMode === mode ? '#fff' : 'var(--text3)', display: 'flex', alignItems: 'center', transition: 'all 0.15s' }}>{icon}</button>
                             ))}
                         </div>
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
-                        {/* Export (compact) */
+                        {/* Export (compact) */}
                         <CopyNoteButton note={note} />
                         <DownloadNoteButton note={note} name={notebook.name} />
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
@@ -1097,7 +1101,7 @@ export default function NotebookWorkspace() {
                                 <div style={{ marginBottom: 24 }}>
                                     <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 10 }}>Proficiency Level</label>
                                     <div style={{ display: 'flex', gap: 10 }}>
-                                        {[['Foundations','Concepts first — analogies & plain English'],['Practitioner','Balanced depth — formulas with intuition'],['Expert','Full rigour — derivations & edge cases']].map(([p,d]) => (
+                                        {[['Foundations', 'Concepts first — analogies & plain English'], ['Practitioner', 'Balanced depth — formulas with intuition'], ['Expert', 'Full rigour — derivations & edge cases']].map(([p, d]) => (
                                             <button key={p} onClick={() => setProf(p)} style={{ flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${prof === p ? 'var(--text)' : 'var(--border)'}`, background: prof === p ? 'var(--text)' : 'var(--bg)', color: prof === p ? '#fff' : 'var(--text2)', textAlign: 'center', transition: 'all 0.15s' }}>
                                                 <div style={{ fontWeight: 600, fontSize: 13 }}>{p}</div>
                                                 <div style={{ fontSize: 11, marginTop: 2, opacity: 0.7 }}>{d}</div>
@@ -1122,7 +1126,7 @@ export default function NotebookWorkspace() {
                                 return (
                                     <div key={idx} style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: isHighlighted ? '0 0 0 3px #7C3AED, 0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: isHighlighted ? '1px solid #7C3AED' : '1px solid #d0d0d0', overflow: 'hidden', flex: 1, minWidth: 0, transition: 'box-shadow 0.4s, border-color 0.4s' }}>
                                         <div style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
-                                            {[0,1,2,3,4,5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />)}
+                                            {[0, 1, 2, 3, 4, 5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />)}
                                         </div>
                                         <div style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
                                         <div style={{ flex: 1, padding: '40px 48px 48px 36px', minWidth: 0 }}>
@@ -1206,16 +1210,16 @@ export default function NotebookWorkspace() {
 
                 {/* Right Sidebar */}
                 <aside className={sidebarOpen ? 'sidebar-panel' : 'sidebar-panel collapsed'}>
-                        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                            {[{ key: 'map', label: 'Concept Map', icon: <Brain size={12}/> }, { key: 'doubts', label: (() => { const onPage = doubtsLog.filter(d => d.pageIdx === currentPage).length; const total = doubtsLog.length; if (!total) return 'Doubts'; if (onPage) return `Doubts (${onPage}/${total})`; return `Doubts (${total})`; })(), icon: <MessageCircle size={12}/> }].map(tab => (
-                                <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? '#7C3AED' : 'var(--text3)' }}>
-                                    {tab.icon} {tab.label}
-                                </button>
-                            ))}
-                        </div>
-                        {rightTab === 'map'
-                            ? <KnowledgePanel nodes={graphNodes} edges={graphEdges} notebookId={id} onNodeStatusChange={handleNodeStatusChange} onJumpToSection={handleJumpToSection} />
-                            : <DoubtsPanel doubts={doubtsLog} currentPage={currentPage} />}
+                    <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                        {[{ key: 'map', label: 'Concept Map', icon: <Brain size={12} /> }, { key: 'doubts', label: (() => { const onPage = doubtsLog.filter(d => d.pageIdx === currentPage).length; const total = doubtsLog.length; if (!total) return 'Doubts'; if (onPage) return `Doubts (${onPage}/${total})`; return `Doubts (${total})`; })(), icon: <MessageCircle size={12} /> }].map(tab => (
+                            <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? '#7C3AED' : 'var(--text3)' }}>
+                                {tab.icon} {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                    {rightTab === 'map'
+                        ? <KnowledgePanel nodes={graphNodes} edges={graphEdges} notebookId={id} onNodeStatusChange={handleNodeStatusChange} onJumpToSection={handleJumpToSection} />
+                        : <DoubtsPanel doubts={doubtsLog} currentPage={currentPage} />}
                 </aside>
             </div>
 
