@@ -7,8 +7,10 @@ backend/venv/
 # Backend runtime data
 backend/.env
 backend/knowledge_store/
-backend/mock_db_*.json
+backend/mock_db*.json
 backend/mock_db_*.tmp
+backend/notebooks.json
+backend/users.json
 
 # Node
 frontend/node_modules/
