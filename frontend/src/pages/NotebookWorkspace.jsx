@@ -1070,7 +1070,7 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
                 )}
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0 0' }}>
-                <GalaxyGraph nodes={nodes} edges={edges} onNodeClick={handleNodeClick} selectedNodeId={selectedNode?.id} />
+                <KnowledgeGraph nodes={nodes} edges={edges} onNodeClick={handleNodeClick} selectedNodeId={selectedNode?.id} />
                 {selectedNode && <ConceptDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} onStatusChange={handleStatusChange} onJumpToSection={label => { onJumpToSection(label); setSelectedNode(null); }} onFullPractice={label => { setExaminerConcept(label); setSelectedNode(null); }} />}
                 {nodes.length > 0 && (
                     <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', marginTop: 8 }}>

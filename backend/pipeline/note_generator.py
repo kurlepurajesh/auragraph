@@ -559,12 +559,12 @@ async def refine_notes(notes: str) -> str:
 
     # Groq has tight output limits — skip refinement for large note sets
     # to avoid silently truncating 50% of the content
-    groq_refine_ok = _groq_available() and len(notes) <= 18_000
+    groq_refine_ok = _groq_available() and len(notes) <= 12_000
 
     user = _safe_format(_REFINEMENT_USER, notes=notes[:28_000])
 
     if _azure_available():
-        refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=8192)
+        refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=16000)
         # FIX C2: threshold 0.3 — good compressions are kept, not discarded
         if refined and len(refined) > len(notes) * 0.3:
             return fix_latex_delimiters(_fix_tables(refined))
@@ -572,7 +572,7 @@ async def refine_notes(notes: str) -> str:
             logger.info("Azure refinement too short (%d vs %d) — keeping original", len(refined), len(notes))
 
     if groq_refine_ok:
-        refined = await _call_groq(_REFINEMENT_SYSTEM, user, max_tokens=8192)
+        refined = await _call_groq(_REFINEMENT_SYSTEM, user, max_tokens=8192)  # Groq cap kept — large notes skip Groq refinement
         # FIX C2: threshold 0.3
         if refined and len(refined) > len(notes) * 0.3:
             return fix_latex_delimiters(_fix_tables(refined))
@@ -607,11 +607,11 @@ async def verify_notes(notes: str) -> str:
     if len(notes) < 200:
         return notes
 
-    groq_verify_ok = _groq_available() and len(notes) <= 12_000
+    groq_verify_ok = _groq_available() and len(notes) <= 8_000
     user = _safe_format(_VERIFY_NOTES_USER, notes=notes[:28_000])
 
     if _azure_available():
-        verified = await _call_azure(_VERIFY_NOTES_SYSTEM, user, max_tokens=8192)
+        verified = await _call_azure(_VERIFY_NOTES_SYSTEM, user, max_tokens=16000)
         if verified and len(verified) > len(notes) * 0.3:
             logger.info("Verification pass: %d → %d chars (azure)", len(notes), len(verified))
             return fix_latex_delimiters(_fix_tables(verified))
