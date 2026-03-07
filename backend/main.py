@@ -90,14 +90,11 @@ _PROMPT_SLIDES_BUDGET   = 24_000
 _PROMPT_TEXTBOOK_BUDGET = 24_000
 
 # ── Upload safety limits ────────────────────────────────────────────────────
-# 50 MB per individual file — prevents OOM on 300 MB+ textbook PDFs
-MAX_FILE_BYTES     = int(os.environ.get("MAX_FILE_MB",     "50"))  * 1024 * 1024
-# 5 M chars total across all textbooks — keeps TF-IDF index ≤ ~200 MB RAM
-MAX_TEXTBOOK_CHARS = int(os.environ.get("MAX_TEXTBOOK_MB", "5"))   * 1_000_000
-# 25 topics max — beyond this the pipeline takes 15+ min and hits rate limits
-MAX_TOPICS         = int(os.environ.get("MAX_TOPICS", "25"))
-# Per-upload wall-clock timeout in seconds (default 20 min)
-PIPELINE_TIMEOUT_S = int(os.environ.get("PIPELINE_TIMEOUT_S", "1200"))
+# Single total upload ceiling — no per-file or per-topic restrictions.
+# Default 500 MB combined across all slides + textbooks in one request.
+MAX_TOTAL_UPLOAD_BYTES = int(os.environ.get("MAX_TOTAL_UPLOAD_MB", "500")) * 1024 * 1024
+# Per-upload wall-clock timeout in seconds (default 20 min; set higher for very large decks)
+PIPELINE_TIMEOUT_S     = int(os.environ.get("PIPELINE_TIMEOUT_S", "1200"))
 
 kernel         = None
 fusion_agent   = None
@@ -616,12 +613,15 @@ async def upload_fuse_multi(
     all_slide_images:     list = []
     all_textbook_images:  list = []
     textbook_figures_items: list = []
+    _total_upload_bytes = 0   # running total for the single combined size check
 
     for upload in slides_pdfs:
         raw   = await upload.read()
         fname = upload.filename or "slides.pdf"
-        if len(raw) > MAX_FILE_BYTES:
-            raise HTTPException(413, f"{fname}: file too large ({len(raw)//1024//1024} MB). Max {MAX_FILE_BYTES//1024//1024} MB per file.")
+        _total_upload_bytes += len(raw)
+        if _total_upload_bytes > MAX_TOTAL_UPLOAD_BYTES:
+            raise HTTPException(413, f"Total upload size exceeds {MAX_TOTAL_UPLOAD_BYTES // 1024 // 1024} MB. "
+                                    f"Split the request into smaller batches or reduce file sizes.")
         try:
             # FIX E1: image OCR (Groq) is synchronous — must use to_thread to avoid blocking event loop
             if is_image_file(fname):
@@ -642,8 +642,10 @@ async def upload_fuse_multi(
     for upload in (textbook_pdfs or []):
         raw   = await upload.read()
         fname = upload.filename or "textbook.pdf"
-        if len(raw) > MAX_FILE_BYTES:
-            raise HTTPException(413, f"{fname}: file too large ({len(raw)//1024//1024} MB). Max {MAX_FILE_BYTES//1024//1024} MB per file.")
+        _total_upload_bytes += len(raw)
+        if _total_upload_bytes > MAX_TOTAL_UPLOAD_BYTES:
+            raise HTTPException(413, f"Total upload size exceeds {MAX_TOTAL_UPLOAD_BYTES // 1024 // 1024} MB. "
+                                    f"Split the request into smaller batches or reduce file sizes.")
         try:
             # FIX E1: image OCR (Groq) is synchronous — must use to_thread to avoid blocking event loop
             if is_image_file(fname):
@@ -733,14 +735,6 @@ async def upload_fuse_multi(
             all_textbook_images = []
 
     # ── Step 2: Chunk raw text + store in knowledge store (FIX B3, F3) ───────
-    # Cap textbook text to avoid >200 MB RAM in TF-IDF (5 M chars ≈ ~1 000 pages)
-    if len(all_textbook_text) > MAX_TEXTBOOK_CHARS:
-        logger.warning(
-            "Textbook text truncated: %d → %d chars (MAX_TEXTBOOK_CHARS).",
-            len(all_textbook_text), MAX_TEXTBOOK_CHARS,
-        )
-        all_textbook_text = all_textbook_text[:MAX_TEXTBOOK_CHARS]
-
     slide_raw_chunks    = chunk_text(all_slides_text,   max_chars=4000)
     textbook_raw_chunks = chunk_text(all_textbook_text, max_chars=4000)
     textbook_hash       = hashlib.md5(all_textbook_text.encode()).hexdigest()[:16]
@@ -856,20 +850,6 @@ async def upload_fuse_multi(
     pipe_error = None
 
     if topics:
-        # Cap topics: beyond MAX_TOPICS the pipeline takes 15+ min and hits rate limits.
-        # Excess topics are merged into the last kept topic's slide_text so no content is lost.
-        if len(topics) > MAX_TOPICS:
-            logger.warning(
-                "Topic count %d exceeds MAX_TOPICS=%d — merging excess into last topic.",
-                len(topics), MAX_TOPICS,
-            )
-            kept   = topics[:MAX_TOPICS]
-            extras = topics[MAX_TOPICS:]
-            extra_text = "\n\n".join(t.slide_text for t in extras)
-            kept[-1].slide_text += f"\n\n[Additional slide content]\n{extra_text}"
-            kept[-1].key_points += [kp for t in extras for kp in t.key_points][:8]
-            topics = kept
-
         try:
             fused_note, source = await asyncio.wait_for(
                 run_generation_pipeline(

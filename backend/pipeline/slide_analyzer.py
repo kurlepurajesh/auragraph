@@ -72,10 +72,13 @@ Rules:
   2. Merge consecutive slides that cover the same concept into ONE topic entry.
   3. Ignore metadata slides (title slide, table of contents, references, thank you).
   4. Each topic must correspond to actual teaching content from the slides.
-  5. key_points must represent the CORRECT mathematical or conceptual statement.
+  5. EVERY topic MUST have non-empty "slide_text" containing the verbatim slide
+     content for that topic.  If a topic genuinely has no slide text, omit it
+     entirely rather than returning an entry with an empty slide_text field.
+  6. key_points must represent the CORRECT mathematical or conceptual statement.
      If the slide text has OCR artifacts or garbled math, interpret using your own
      knowledge — state the formula/concept correctly, not as the OCR garbled it.
-  6. Output ONLY valid JSON in this exact format — a JSON object with a "topics" key containing the array.
+  7. Output ONLY valid JSON in this exact format — a JSON object with a "topics" key containing the array.
      No preamble, no markdown fences, no extra keys.
 
 Required output format:
@@ -401,10 +404,22 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
                 topic_name = str(item.get("topic", "")).strip()
                 if not topic_name:
                     continue
+                slide_text = str(item.get("slide_text", "")).strip()
+                key_points = [str(kp) for kp in item.get("key_points", []) if kp]
+                # FIX: LLMs sometimes return a topic with empty slide_text but
+                # with valid key_points (they assigned the slide content to an
+                # earlier topic).  Backfill from key_points so note_generator
+                # has something to write from.
+                if not slide_text and key_points:
+                    slide_text = "\n".join(f"- {kp}" for kp in key_points)
+                    logger.warning(
+                        "slide_analyzer: topic %r had empty slide_text — "
+                        "backfilled from %d key_points", topic_name, len(key_points)
+                    )
                 all_topics.append(SlideTopic(
                     topic=topic_name,
-                    slide_text=str(item.get("slide_text", "")).strip(),
-                    key_points=[str(kp) for kp in item.get("key_points", []) if kp],
+                    slide_text=slide_text,
+                    key_points=key_points,
                 ))
         else:
             # Fallback for this chunk

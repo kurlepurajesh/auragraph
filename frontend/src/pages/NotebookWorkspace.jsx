@@ -115,7 +115,7 @@ function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>{label}</div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{imageOnly ? 'JPG · PNG · WebP · HEIC · TIFF' : 'PDF · PPTX · JPG · PNG · WebP · HEIC'}</div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>Drag & drop or click to browse</div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1, opacity: 0.65 }}>Max 50 MB per file</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1, opacity: 0.65 }}>500 MB total across all files</div>
                 </div>
             ) : (
                 <>
@@ -1449,11 +1449,11 @@ export default function NotebookWorkspace() {
             await extractAndSaveGraph(data.fused_note);
         } catch (err) {
             const isNetworkError = !err.message || err.message === 'Failed to fetch' || err.message.includes('NetworkError');
-            const isFileTooLarge = err.message?.toLowerCase().includes('too large') || err.message?.includes('413');
+            const isFileTooLarge = err.message?.toLowerCase().includes('too large') || err.message?.toLowerCase().includes('exceeds') || err.message?.includes('413');
             const errMsg = isNetworkError
                 ? `## ⚠️ Backend Not Running\n\nNotes could not be generated because the backend server is not reachable.\n\n**To fix this, start the backend:**\n\n\`\`\`bash\ncd backend\nsource venv/bin/activate\nuvicorn main:app --reload --port 8000\n\`\`\`\n\n> The local summarizer generates notes from your PDFs even without Azure OpenAI keys.`
                 : isFileTooLarge
-                    ? `## ⚠️ File Too Large\n\n**${err.message}**\n\n**What you can do:**\n- Compress the PDF (Adobe Acrobat → Reduce File Size, or smallpdf.com)\n- Split a large textbook into chapters and upload one at a time\n- For slides, export only the relevant lecture deck`
+                    ? `## ⚠️ Upload Too Large\n\n**${err.message}**\n\n**What you can do:**\n- Split into two requests: upload half the slides + textbooks now, generate notes, then upload the remaining slides in a second notebook\n- Compress large PDFs (smallpdf.com or Adobe Acrobat → Reduce File Size)\n- For very large textbooks, upload only the relevant chapters`
                     : `## ⚠️ Generation Failed\n\n**Error:** ${err.message}\n\nPlease try again.`;
             setNote(errMsg); setCurrentPage(0); await saveNote(errMsg, prof);
         }
