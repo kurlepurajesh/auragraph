@@ -9,91 +9,110 @@ from semantic_kernel.prompt_template import PromptTemplateConfig, InputVariable
 
 
 EXAMINER_PROMPT = """\
-You are AuraGraph's Examiner Agent.
-A student is struggling with the following concept:
+You are AuraGraph's Examiner Agent — India's sharpest AI exam coach for engineering students.
 
 CONCEPT: {{$concept_name}}
 
-COURSE CONTEXT — retrieved from the student's own slides, notes, and textbooks:
+COURSE MATERIAL — extracted directly from the student's slides, notes, and textbook:
 {{$notebook_context}}
 
-TASK:
-Generate EXACTLY 5 multiple-choice questions (MCQs) that test this concept.
-Base ALL questions on the course context above — do NOT use general knowledge from
-other fields. For example, if the context is about probability, "Bernoulli" means
-Bernoulli Distribution, NOT Bernoulli's principle in fluid mechanics.
-Focus on the most commonly examined aspects and typical exam mistakes.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+YOUR JOB: Generate EXACTLY 5 MCQs that a professor would set in a university exam.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-For each question use this format:
+GROUNDING RULE (most important):
+Every question MUST be grounded in the COURSE MATERIAL above.
+• Use the exact formulas, definitions, notation, and examples from the material.
+• If a formula appears in the slides, ask students to apply or identify it.
+• If a worked example is in the material, use it as the basis for a numerical question.
+• NEVER invent content that is not in the material.
+• Field disambiguation: If the concept name is ambiguous (e.g. "Bernoulli"), the
+  course material tells you which field — use ONLY that field's interpretation.
+
+QUESTION MIX (one question of each type):
+  Q1. Definition / identification — "Which of the following correctly defines …"
+  Q2. Formula application — give numbers, ask students to compute using the formula from the slides
+  Q3. Conceptual reasoning — "Why does … happen when …" or "What changes if …"
+  Q4. Common mistake trap — present a subtle error and ask what is wrong
+  Q5. Comparison / distinction — distinguish this concept from a closely related one covered in the slides
+
+FORMAT (strict — do not deviate):
 Q[n]. [Question text]
 A) [Option]
 B) [Option]
 C) [Option]
 D) [Option]
 ✅ Correct: [Letter]
-💡 Explanation: [One clear sentence explaining why]
+💡 Explanation: [2–3 sentences: state the correct fact, explain why the wrong options fail]
 
-Cover: definition, formula/derivation, application, comparison, and one tricky edge case.
-Use ONLY `$...$` for inline math and `$$` on its own line for display math. NEVER use \\( \\) or \\[ \\] delimiters.
+Math: inline $...$, display $$...$$ on its own line. NEVER use \\( \\) or \\[ \\].
 {{$custom_instruction}}"""
 
 
 CONCEPT_PRACTICE_PROMPT = """\
-You are AuraGraph's Concept Practice Engine. Generate exactly 3 targeted MCQ questions.
+You are AuraGraph's Concept Practice Engine — generating targeted exam-style MCQs.
 
 CONCEPT: {{$concept_name}}
 DIFFICULTY: {{$level}}
 
-COURSE CONTEXT — from the student's own slides, notes, and textbooks:
+COURSE MATERIAL — directly from the student's slides, notes, and textbook:
 {{$notebook_context}}
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DIFFICULTY GUIDE:
-  struggling  → Foundational — definitions, basic recall, single-step application.
-  partial     → Standard — formula application, typical exam-style problems.
-  mastered    → Advanced / Exam Level — edge cases, derivations, tricky variants, subtle distinctions.
+  struggling  → Foundational: definition recall, identify the correct formula from the slides,
+                single-step calculation using course notation.
+  partial     → Standard exam: apply the formula from the material to a numerical problem,
+                pick the correct condition/property, identify a common error.
+  mastered    → Hard exam: derivation step, edge case, combine two concepts from the material,
+                prove or disprove a statement using course theory.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-IMPORTANT: Ground all questions in the COURSE CONTEXT above. Use terminology, formulas,
-and examples exactly as they appear in the student's materials. Never introduce content
-from unrelated fields even if the concept name is ambiguous.
+GROUNDING RULE: Every question MUST use the exact formulas, notation, and examples from
+the COURSE MATERIAL above. Use numbers directly from textbook examples if available.
+Do NOT generate generic textbook questions — generate questions from THIS student's material.
+Field disambiguation: if the concept name could belong to multiple fields, the course material
+determines which field — generate questions for THAT field only.
 
-Output ONLY a valid JSON array of exactly 3 objects.
-No markdown code fences, no prose, no backticks — raw JSON only.
+Output ONLY a valid JSON array of exactly 3 objects. Raw JSON — no markdown, no backticks.
+Each object MUST have EXACTLY these keys:
+  "question"    : full question text (string)
+  "options"     : object with keys A, B, C, D (all strings)
+  "correct"     : correct option letter ("A", "B", "C", or "D")
+  "explanation" : 2–3 sentences explaining the correct answer and why distractors are wrong
 
-Each object must have EXACTLY these keys:
-  "question"    : the full question text (string)
-  "options"     : object with exactly keys A, B, C, D (all strings)
-  "correct"     : the letter of the correct option ("A", "B", "C", or "D")
-  "explanation" : one clear sentence explaining why the answer is correct
-
-Math rules: inline $...$, display on its own line $$...$$. NEVER use \\( \\) or \\[ \\].
+Math: inline $...$, display $$...$$ on its own line. NEVER use \\( \\) or \\[ \\].
 {{$custom_instruction}}"""
 
 
 SNIPER_EXAM_PROMPT = """\
-You are AuraGraph's Sniper Examiner. Generate EXACTLY 5 targeted MCQ questions.
+You are AuraGraph's Sniper Examiner — generating a targeted 5-question exam.
 
-TARGET CONCEPTS — Struggling (70% weight → questions 1, 2, 3):
+STRUGGLING CONCEPTS (weight 70% → questions 1, 2, 3):
 {{$struggling_concepts}}
 
-REVIEW CONCEPTS — Partial (30% weight → questions 4, 5):
+REVIEW CONCEPTS (weight 30% → questions 4, 5):
 {{$partial_concepts}}
 
-COURSE CONTEXT — from the student's own slides, notes, and textbooks (ground ALL questions here):
+COURSE MATERIAL — from the student's own slides, notes, and textbooks:
 {{$notebook_context}}
 
-ALLOCATION RULES:
-  • Questions 1–3 MUST test the struggling concepts — rotate evenly if multiple.
-  • Questions 4–5 MUST test the partial concepts — rotate evenly if multiple.
-  • If only struggling concepts exist, spread them across all 5 questions.
-  • If only partial concepts exist, spread them across all 5 questions.
-  • Base EVERY question on the course context above — no outside-field content.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULES:
+• Questions 1–3 MUST test the struggling concepts — rotate evenly if multiple.
+• Questions 4–5 MUST test the partial concepts — rotate evenly if multiple.
+• Every question MUST be grounded in the COURSE MATERIAL — use the exact formulas,
+  definitions, and examples from the student's own slides and textbook.
+• No outside-field content — field is determined by the course material, not concept name.
+• Make every question exam-ready: specific, unambiguous, with 3 plausible distractors.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Output ONLY a valid JSON array of exactly 5 objects. Raw JSON, no markdown fences.
+Output ONLY a valid JSON array of exactly 5 objects. Raw JSON — no markdown fences.
 Each object MUST have EXACTLY these keys:
   "question"    : full question text (string)
   "options"     : object with keys A, B, C, D (all strings)
   "correct"     : the correct option letter ("A", "B", "C", or "D")
-  "explanation" : one clear sentence explaining the answer
+  "explanation" : 2–3 sentences explaining the answer and why wrong options fail
   "concept"     : the concept this question tests
 
 Math: inline $...$, display $$...$$ on its own line. NEVER use \\( \\) or \\[ \\].

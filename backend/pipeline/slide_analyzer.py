@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 """
 pipeline/slide_analyzer.py
-──────────────────────────
-Step 4 — Slide Understanding.
+--------------------------
+Step 4 - Slide Understanding.
 
 Sends the full slide text to GPT-4o once and gets back a structured list of
 topics in lecture order.  Each topic has:
@@ -38,39 +39,46 @@ class SlideTopic:
     key_points: list[str] = field(default_factory=list)
 
 
-# ── Prompt ────────────────────────────────────────────────────────────────────
+# -- Prompt --------------------------------------------------------------------
 
 _SLIDE_ANALYSIS_SYSTEM = """\
 You are an expert academic content analyst.
 Your job is to extract the structured lecture outline from raw slide text.
 
-Source text quality — YOU are the ground truth:
+Source text quality - YOU are the ground truth:
 The input may come from OCR of handwritten notes or scanned slides. The source text
 tells you the TOPIC and rough content; your own knowledge determines what is correct.
 
 Before writing any key_point, verify it against what you know:
-  • Formulas    — verify every operator, sign, Jacobian, fraction, exponent.
-  • Definitions — check for missing conditions or qualifiers.
-  • Claims      — check direction, scope, and completeness.
+  - Formulas    - verify every operator, sign, Jacobian, fraction, exponent.
+  - Definitions - check for missing conditions or qualifiers.
+  - Claims      - check direction, scope, and completeness.
 
-If the source has an error, write the CORRECT statement in key_points — not the
+If the source has an error, write the CORRECT statement in key_points - not the
 erroneous source version. OCR math is often garbled ("E[X] = mu", "integral from
-0 to T", garbled fractions) — reconstruct the correct expression from context.
+0 to T", garbled fractions) - reconstruct the correct expression from context.
 """
 
 _SLIDE_ANALYSIS_USER = """\
 Below is the full text of a lecture slide deck.
 Extract the lecture topics IN SLIDE ORDER.
 
+IMPORTANT: The text may contain multiple files separated by markers like:
+  ============================================================
+  === FILE: filename.pdf ===
+  ============================================================
+Each file is a separate set of slides. You MUST extract topics from ALL files.
+Do NOT stop after the first file. Every file's content must be represented in your output.
+
 For each topic output:
   - "topic": short concept name (3-6 words max, suitable as a section heading)
   - "key_points": list of ALL key facts, formulas, definitions, algorithms, and properties
-    from the slides for this topic. Do NOT cap or summarise — include every distinct
+    from the slides for this topic. Do NOT cap or summarise - include every distinct
     concept so the note generator can cover the slides completely.
   - "slide_text": the verbatim slide text that belongs to this topic
 
 Rules:
-  1. Follow slide order exactly — do NOT reorder topics.
+  1. Follow slide order exactly - do NOT reorder topics.
   2. Merge consecutive slides that cover the same concept into ONE topic entry.
   3. Ignore metadata slides: cover page, title slide, table of contents, references,
      bibliography, agenda, outline, thank you, acknowledgements, course overview,
@@ -82,8 +90,10 @@ Rules:
      entirely rather than returning an entry with an empty slide_text field.
   6. key_points must represent the CORRECT mathematical or conceptual statement.
      If the slide text has OCR artifacts or garbled math, interpret using your own
-     knowledge — state the formula/concept correctly, not as the OCR garbled it.
-  7. Output ONLY valid JSON in this exact format — a JSON object with a "topics" key containing the array.
+     knowledge - state the formula/concept correctly, not as the OCR garbled it.
+  7. FILE COVERAGE (critical): If multiple files are present, ensure at least one
+     topic per file is present in your output. Never silently drop an entire file.
+  8. Output ONLY valid JSON in this exact format - a JSON object with a "topics" key containing the array.
      No preamble, no markdown fences, no extra keys.
 
 Required output format:
@@ -103,7 +113,7 @@ SLIDE TEXT:
 """
 
 
-# ── LLM Helpers (Azure via openai SDK + Groq fallback) ────────────────────────
+# -- LLM Helpers (Azure via openai SDK + Groq fallback) ------------------------
 
 import asyncio as _asyncio
 
@@ -111,7 +121,7 @@ import asyncio as _asyncio
 def _azure_ok() -> bool:
     ep  = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
     key = os.environ.get("AZURE_OPENAI_API_KEY",  "")
-    # FIX (round 4): mirror main.py — also reject "placeholder" endpoints/keys
+    # FIX (round 4): mirror main.py - also reject "placeholder" endpoints/keys
     return (
         bool(ep) and bool(key)
         and "mock"        not in ep.lower()
@@ -129,10 +139,10 @@ def _parse_topics_json(content: str) -> Optional[list[dict]]:
     """Parse JSON content into a list of topic dicts, unwrapping common wrappers.
 
     Handles:
-      • bare JSON arrays
-      • objects with well-known keys (topics, lecture_topics, outline, …)
-      • objects with any unknown key whose value is a list  (catch-all)
-      • malformed/truncated output — scans for the first [ … ] array fragment
+      - bare JSON arrays
+      - objects with well-known keys (topics, lecture_topics, outline, ...)
+      - objects with any unknown key whose value is a list  (catch-all)
+      - malformed/truncated output - scans for the first [ ... ] array fragment
     """
     # Strip markdown fences if present
     content = re.sub(r'^```[a-z]*\s*', '', content.strip(), flags=re.MULTILINE)
@@ -172,7 +182,7 @@ def _parse_topics_json(content: str) -> Optional[list[dict]]:
 
 async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
     """
-    Slide analysis via Azure OpenAI — true async httpx.
+    Slide analysis via Azure OpenAI - true async httpx.
     FIX C1: was asyncio.to_thread(AzureOpenAI(...)), now httpx.AsyncClient.
     Includes one 429 retry with Retry-After back-off.
     """
@@ -185,7 +195,7 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
         api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
         deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
         url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
-        user_content = _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text)  # no inner truncation — chunking already limits size
+        user_content = _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text)  # no inner truncation - chunking already limits size
         payload = {
             "messages": [
                 {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
@@ -201,7 +211,7 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
                 resp = await client.post(url, json=payload, headers=headers)
             if resp.status_code == 429 and attempt == 0:
                 wait = int(resp.headers.get("Retry-After", "10"))
-                logger.warning("slide_analyzer Azure 429 — retrying in %d s", wait)
+                logger.warning("slide_analyzer Azure 429 - retrying in %d s", wait)
                 await _asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
@@ -217,7 +227,7 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
 
 async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
     """
-    Slide analysis via Groq — true async httpx.
+    Slide analysis via Groq - true async httpx.
     FIX C1: was asyncio.to_thread(OpenAI(...)), now httpx.AsyncClient.
     Includes one 429 retry with Retry-After back-off.
     """
@@ -228,7 +238,7 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
         api_key = os.environ.get("GROQ_API_KEY", "")
         model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
         user_prompt = (
-            # no inner truncation — chunking already limits size
+            # no inner truncation - chunking already limits size
             _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text)
             + "\n\nIMPORTANT: Output ONLY valid JSON with a \"topics\" key. No markdown fences. No explanation."
         )
@@ -250,7 +260,7 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
                 )
             if resp.status_code == 429 and attempt == 0:
                 wait = int(resp.headers.get("Retry-After", "6"))
-                logger.warning("slide_analyzer Groq 429 — retrying in %d s", wait)
+                logger.warning("slide_analyzer Groq 429 - retrying in %d s", wait)
                 await _asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
@@ -264,7 +274,7 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
     return None
 
 
-# ── Deterministic Fallback ────────────────────────────────────────────────────
+# -- Deterministic Fallback ----------------------------------------------------
 
 # Match --- Slide N --- (PPTX), --- Page N --- (PDF), and --- Page: name --- (image OCR)
 _SLIDE_BOUNDARY = re.compile(
@@ -323,12 +333,12 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
         if not body and len(title) < 3:
             continue
         # Skip cover/title pages: body has no teaching content (no colons, bullets, or
-        # alphanumeric formulas) and is very short — typically just author + date + publisher
+        # alphanumeric formulas) and is very short - typically just author + date + publisher
         _COVER_BODY = re.compile(
-            r'^[\s\w,.\-–—()/©®™@#$%&\'"!?]+$', re.DOTALL
+            r'^[\s\w,.\---()/(c)(r)(tm)@#$%&\'"!?]+$', re.DOTALL
         )
         if (body and len(body) < 150 and _COVER_BODY.match(body)
-                and not re.search(r'[=+\-*/^∑∫∂√]|\\[a-zA-Z]\{|[αβγδεζθλμπρσφψω]', body)):
+                and not re.search(r'[=+\-*/^sumintegraldsqrt]|\\[a-zA-Z]\{|[alphabetagammadeltaepsilonzetathetalambdamupirhosigmaphipsiomega]', body)):
             continue
 
         # Try to merge into previous topic if same/no title
@@ -340,7 +350,7 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
             topics.append(SlideTopic(
                 topic=display_title,
                 slide_text=part,
-                key_points=_extract_bullets(body)[:4],
+                key_points=_extract_bullets(body),  # no cap -- include all key points
             ))
 
     return topics
@@ -353,8 +363,8 @@ def _extract_bullets(text: str) -> list[str]:
     for line in lines:
         stripped = line.strip()
         # Bullet markers or short meaningful lines
-        if stripped.startswith(('•', '-', '*', '–', '→')):
-            point = stripped.lstrip('•-*–→ ').strip()
+        if stripped.startswith(('-', '-', '*', '-', '->')):
+            point = stripped.lstrip('--*--> ').strip()
             if len(point) > 10:
                 bullets.append(point)
         elif 10 < len(stripped) < 120 and not stripped.startswith('---'):
@@ -362,9 +372,9 @@ def _extract_bullets(text: str) -> list[str]:
     return bullets[:5]
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
+# -- Public API ----------------------------------------------------------------
 
-_SLIDE_CHUNK_SIZE = 24_000   # chars per LLM call — keeps output well within max_tokens
+_SLIDE_CHUNK_SIZE = 32_000   # chars per LLM call - increased from 24k to reduce cross-chunk topic splits
 # FIX G2: no longer hard-truncate the full deck; instead split into chunks
 # and merge the resulting topic lists.
 
@@ -372,7 +382,7 @@ _SLIDE_CHUNK_SIZE = 24_000   # chars per LLM call — keeps output well within m
 def _split_at_slide_boundary(text: str, max_chars: int) -> list[str]:
     """
     Split slide text at slide boundary markers so each chunk ends on a complete
-    slide, keeping chunk size ≤ max_chars. Falls back to hard split if no markers.
+    slide, keeping chunk size <= max_chars. Falls back to hard split if no markers.
     Handles all three marker formats:
       --- Slide N ---     (PPTX)
       --- Page N ---      (PDF)
@@ -385,13 +395,13 @@ def _split_at_slide_boundary(text: str, max_chars: int) -> list[str]:
         r'(?m)^---\s*(?:(?:Slide|Page)\s+\d+|Page:\s*[^\-\n])', text
     )]
     if not boundaries:
-        # No markers — hard split
+        # No markers - hard split
         return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
 
     chunks, start = [], 0
     for boundary in boundaries[1:]:  # skip first (it IS the start)
         if boundary - start >= max_chars:  # >= so a chunk of exactly max_chars still splits
-            # Accumulated content since last cut exceeds limit — cut here
+            # Accumulated content since last cut exceeds limit - cut here
             chunks.append(text[start:boundary])
             start = boundary
     # Add remainder
@@ -408,7 +418,7 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
     boundaries and analysed in multiple LLM calls. Topics from all chunks are
     concatenated in order.  No slide is silently dropped.
 
-    Priority per chunk: Azure → Groq → deterministic regex parser.
+    Priority per chunk: Azure -> Groq -> deterministic regex parser.
     Returns a list of SlideTopic objects in lecture order.
     """
     if not slides_text.strip():
@@ -442,7 +452,7 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
                 if not slide_text and key_points:
                     slide_text = "\n".join(f"- {kp}" for kp in key_points)
                     logger.warning(
-                        "slide_analyzer: topic %r had empty slide_text — "
+                        "slide_analyzer: topic %r had empty slide_text - "
                         "backfilled from %d key_points", topic_name, len(key_points)
                     )
                 all_topics.append(SlideTopic(
@@ -455,7 +465,8 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
             all_topics.extend(_deterministic_parse(chunk_text))
 
     if all_topics:
-        logger.info("slide_analyzer: extracted %d topics total (across %d chunks)",
+        all_topics = _deduplicate_topics(all_topics)
+        logger.info("slide_analyzer: %d topics after deduplication (from %d chunks)",
                     len(all_topics), len(chunks))
         return all_topics
 
@@ -463,3 +474,79 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
     topics = _deterministic_parse(slides_text)
     logger.info("slide_analyzer: extracted %d topics via fallback", len(topics))
     return topics
+
+
+def _topic_similarity(a: str, b: str) -> float:
+    """
+    Word-overlap similarity between two topic names (0.0 to 1.0).
+    Used to detect duplicate topics across PDF files.
+    """
+    stop = {"the", "a", "an", "of", "and", "in", "to", "for", "on", "with",
+            "introduction", "intro", "overview", "basics", "part", "lecture",
+            "distribution", "theorem", "method", "analysis", "process", "function"}
+    def words(s):
+        return {w for w in s.lower().replace("-", " ").split() if len(w) > 2 and w not in stop}
+    wa, wb = words(a), words(b)
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / min(len(wa), len(wb))
+
+
+def _deduplicate_topics(topics: list) -> list:
+    """
+    Merge topic entries that refer to the same concept across multiple PDF files.
+
+    Duplicates arise when multiple PDFs cover the same topic, or when the LLM
+    uses slightly different names across chunks ("DFT" vs "Discrete Fourier Transform").
+
+    Strategy:
+      - Topics with name similarity >= 0.7 are merged into one entry.
+      - Merged entry keeps the first occurrence name.
+      - slide_text values are concatenated so ALL content is preserved.
+      - key_points are deduplicated while preserving order.
+
+    Result: no duplicate ## sections in the generated notes.
+    """
+    THRESHOLD = 0.5
+    merged = []
+    used = [False] * len(topics)
+
+    for i, t in enumerate(topics):
+        if used[i]:
+            continue
+        group = [t]
+        used[i] = True
+        for j in range(i + 1, len(topics)):
+            if not used[j] and _topic_similarity(t.topic, topics[j].topic) >= THRESHOLD:
+                group.append(topics[j])
+                used[j] = True
+
+        if len(group) == 1:
+            merged.append(t)
+        else:
+            # Combine: use first topic name, merge all slide texts, dedup key_points
+            combined_text = "\n\n".join(
+                f"[{g.topic}]\n{g.slide_text}" if g.topic != group[0].topic else g.slide_text
+                for g in group
+            )
+            seen_kp: set = set()
+            combined_kp = []
+            for g in group:
+                for kp in g.key_points:
+                    norm = kp.strip().lower()
+                    if norm not in seen_kp:
+                        seen_kp.add(norm)
+                        combined_kp.append(kp.strip())
+
+            logger.info(
+                "dedup: merged %d topics under '%s' (%s)",
+                len(group), group[0].topic,
+                ", ".join(f"'{g.topic}'" for g in group[1:])
+            )
+            merged.append(SlideTopic(
+                topic      = group[0].topic,
+                slide_text = combined_text,
+                key_points = combined_kp,
+            ))
+
+    return merged

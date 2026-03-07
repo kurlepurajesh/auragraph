@@ -221,6 +221,37 @@ async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
     raise RuntimeError("Groq rate-limited after retry")
 
 
+async def _azure_chat(messages: list[dict], max_tokens: int = 4000) -> str:
+    """
+    True-async Azure OpenAI call via httpx.
+    Used for endpoints that need Azure quality (exams, sniper, etc.) with Groq fallback in caller.
+    """
+    import httpx
+    endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    api_key    = os.environ.get("AZURE_OPENAI_API_KEY",  "")
+    api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
+    deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+    url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
+    payload = {
+        "messages":    messages,
+        "max_tokens":  max_tokens,
+        "temperature": 0.3,
+    }
+    headers = {"api-key": api_key, "Content-Type": "application/json"}
+    for attempt in range(2):
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code == 429 and attempt == 0:
+            wait = int(resp.headers.get("Retry-After", "10"))
+            logger.warning("Azure 429 — waiting %d s before retry", wait)
+            await asyncio.sleep(wait)
+            continue
+        resp.raise_for_status()
+        choice = resp.json()["choices"][0]
+        return choice["message"]["content"].strip()
+    raise RuntimeError("Azure rate-limited after retry")
+
+
 async def _groq_fuse(slide_content: str, textbook_content: str, proficiency: str) -> str:
     from agents.fusion_agent import FUSION_PROMPT
     prompt = (
@@ -440,6 +471,7 @@ class MutationRequest(BaseModel):
 class MutationResponse(BaseModel):
     mutated_paragraph: str
     concept_gap:       str
+    answer:            str = ""   # Full explanation shown in doubts sidebar
     page_idx:          int
     source:            str = "azure"
     can_mutate:        bool = True
@@ -629,10 +661,14 @@ async def upload_fuse_multi(
                                     f"Split the request into smaller batches or reduce file sizes.")
         try:
             # FIX E1: image OCR (Groq) is synchronous — must use to_thread to avoid blocking event loop
+            # Add a clear file-boundary marker so slide_analyzer knows which file each slide came from.
+            # Without this, topics from different files blur together and the LLM may merge or drop topics.
+            file_marker = f"\n\n{'='*60}\n=== FILE: {fname} ===\n{'='*60}\n\n"
             if is_image_file(fname):
-                all_slides_text += await asyncio.to_thread(extract_text_from_file, raw, fname) + "\n\n"
+                extracted = await asyncio.to_thread(extract_text_from_file, raw, fname)
             else:
-                all_slides_text += extract_text_from_file(raw, fname) + "\n\n"
+                extracted = extract_text_from_file(raw, fname)
+            all_slides_text += file_marker + extracted + "\n\n"
         except ValueError as e:
             extraction_errors.append(f"{fname}: {e}")
             logger.warning("Slides extraction failed %s: %s", fname, e)
@@ -1078,6 +1114,7 @@ async def mutate_note(
     return MutationResponse(
         mutated_paragraph=mutated,
         concept_gap=gap or "Student required additional clarification.",
+        answer=gap or "",   # The concept gap is the best brief answer; sidebar will show it
         page_idx=req.page_idx,
         source=llm_source,
         can_mutate=can_mutate,
@@ -1121,26 +1158,32 @@ async def sniper_exam(
         [{"label": l, "status": "partial"}    for l in partial]
     )
 
-    # Retrieve course-specific context so questions are grounded in the student's materials
+    # Retrieve course-specific context — pull from both slides and textbook
     nb_ctx = ""
     if req.notebook_id:
         combined_query = " ".join(struggling + partial)
-        hits = retrieve_relevant_chunks(req.notebook_id, combined_query, top_k=12,
-                                        source_filter=None)
-        nb_ctx = _format_chunks_for_prompt(hits, 4500)
+        slide_hits = retrieve_relevant_chunks(req.notebook_id, combined_query, top_k=14,
+                                              source_filter="slides")
+        tb_hits    = retrieve_relevant_chunks(req.notebook_id, combined_query, top_k=6,
+                                              source_filter="textbook")
+        slide_ctx  = _format_chunks_for_prompt(slide_hits, 5000)
+        tb_ctx     = _format_chunks_for_prompt(tb_hits,    2000)
+        if slide_ctx and tb_ctx:
+            nb_ctx = f"[FROM SLIDES]\n{slide_ctx}\n\n[FROM TEXTBOOK]\n{tb_ctx}"
+        else:
+            nb_ctx = slide_ctx or tb_ctx
 
     raw = ""
     if _is_azure_available():
         try:
             from agents.examiner_agent import SNIPER_EXAM_PROMPT
-            # Build prompt string directly (no SK function for sniper yet)
             prompt = (
                 SNIPER_EXAM_PROMPT
                 .replace("{{$struggling_concepts}}", ", ".join(struggling) or "None")
                 .replace("{{$partial_concepts}}",    ", ".join(partial)    or "None")
                 .replace("{{$notebook_context}}",    nb_ctx or "(no course context available)")
             )
-            raw = await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2500)
+            raw = await _azure_chat([{"role": "user", "content": prompt}], max_tokens=4000)
         except Exception as e:
             logger.warning("Azure sniper exam failed: %s", e)
 
@@ -1195,12 +1238,21 @@ async def examine_concept(
     get_current_user(authorization)
 
     ci = (req.custom_instruction or "").strip()
-    # Retrieve course-specific context so the examiner uses the student's own materials
+    # Retrieve course-specific context — pull generously from BOTH slides and textbook
+    # so the examiner can generate questions grounded in actual course material.
     nb_ctx = ""
     if req.notebook_id:
-        hits = retrieve_relevant_chunks(req.notebook_id, req.concept_name, top_k=10,
-                                        source_filter=None)
-        nb_ctx = _format_chunks_for_prompt(hits, 4000)
+        slide_hits = retrieve_relevant_chunks(req.notebook_id, req.concept_name, top_k=12,
+                                              source_filter="slides")
+        tb_hits    = retrieve_relevant_chunks(req.notebook_id, req.concept_name, top_k=8,
+                                              source_filter="textbook")
+        slide_ctx  = _format_chunks_for_prompt(slide_hits, 5000)
+        tb_ctx     = _format_chunks_for_prompt(tb_hits,    3000)
+        if slide_ctx and tb_ctx:
+            nb_ctx = f"[FROM SLIDES]\n{slide_ctx}\n\n[FROM TEXTBOOK]\n{tb_ctx}"
+        else:
+            nb_ctx = slide_ctx or tb_ctx
+
     if examiner_agent and _is_azure_available():
         try:
             q = await examiner_agent.examine(req.concept_name, notebook_context=nb_ctx,
@@ -1216,7 +1268,7 @@ async def examine_concept(
                       .replace("{{$concept_name}}", req.concept_name)
                       .replace("{{$notebook_context}}", nb_ctx or "(no course context available)")
                       .replace("{{$custom_instruction}}", ci_full))
-            q = await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2500)
+            q = await _groq_chat([{"role": "user", "content": prompt}], max_tokens=4000)
             return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
         except Exception as e:
             logger.warning("Groq examiner failed: %s", e)
@@ -1252,12 +1304,19 @@ async def concept_practice_endpoint(
         level = "partial"
     ci = (req.custom_instruction or "").strip()
 
-    # Retrieve course-specific context so questions are grounded in the student's materials
+    # Retrieve course-specific context — pull from both slides and textbook
     nb_ctx = ""
     if req.notebook_id:
-        hits = retrieve_relevant_chunks(req.notebook_id, req.concept_name, top_k=10,
-                                        source_filter=None)
-        nb_ctx = _format_chunks_for_prompt(hits, 4000)
+        slide_hits = retrieve_relevant_chunks(req.notebook_id, req.concept_name, top_k=12,
+                                              source_filter="slides")
+        tb_hits    = retrieve_relevant_chunks(req.notebook_id, req.concept_name, top_k=6,
+                                              source_filter="textbook")
+        slide_ctx  = _format_chunks_for_prompt(slide_hits, 5000)
+        tb_ctx     = _format_chunks_for_prompt(tb_hits,    2500)
+        if slide_ctx and tb_ctx:
+            nb_ctx = f"[FROM SLIDES]\n{slide_ctx}\n\n[FROM TEXTBOOK]\n{tb_ctx}"
+        else:
+            nb_ctx = slide_ctx or tb_ctx
 
     raw: str | None = None
 

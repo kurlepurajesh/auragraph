@@ -40,7 +40,7 @@ _CONCEPT_PATTERNS: list[tuple[str, str, int, int]] = [
     (r'\bconditional\s*probability',       'Conditional Prob.',    30, 40),
     (r'\bindependen',                      'Independence',         70, 40),
     (r'\bnormal\s*distribution|\bgaussian', 'Normal Distribution', 50, 55),
-    (r'\bbernoulli\s*dist|\bbernoulli\s*random|\bbernoulli\s*trial', 'Bernoulli Distribution', 15, 55),
+    (r'\bbernoulli\s+dist|\bbernoulli\s+random\s+var|\bbernoulli\s+trial|\bbernoulli\s+r\.v\b', 'Bernoulli Distribution', 15, 55),
     (r'\bbinomial\s*distribution',         'Binomial Dist.',       25, 55),
     (r'\bpoisson\s*distribution',          'Poisson Dist.',        75, 55),
     (r'\buniform\s*distribution',          'Uniform Distribution', 85, 45),
@@ -120,7 +120,7 @@ _CONCEPT_PATTERNS: list[tuple[str, str, int, int]] = [
     (r'\bthermodynamics\b',                'Thermodynamics',       30, 50),
     (r'\belectromagnet',                   'Electromagnetism',     70, 50),
     (r'\bquantum\s*mechanic',              'Quantum Mechanics',    50, 80),
-    (r'\bfluid\s*mechanic|\bbernoulli',    'Fluid Mechanics',      30, 70),
+    (r'\bfluid\s*mechanic|\bbernoulli.s\s*principle|\bbernoulli\s*equation\s+fluid',    'Fluid Mechanics',      30, 70),
     # ── Economics / Finance ───────────────────────────────────────────────────────────
     (r'\bsupply\s*and\s*demand|\bmarket\s*equilibrium', 'Supply & Demand', 40, 25),
     (r'\belasticity\b',                    'Elasticity',           60, 25),
@@ -270,14 +270,18 @@ Exact schema required:
 }}
 
 Rules:
-- Labels must be ≤ 30 characters and SPECIFIC — include the full name, e.g.
-  "Bernoulli Distribution" (NOT just "Bernoulli"), "Poisson Distribution" (NOT "Poisson"),
-  "Normal Distribution", "Bayes Theorem", "Central Limit Theorem" etc.
-- For probability distributions always append " Distribution" or " Dist." to the name.
+- Labels must be ≤ 30 characters and SPECIFIC to the ACADEMIC FIELD in these notes.
+  CRITICAL: Include the FULL name — e.g. "Bernoulli Distribution" (NEVER just "Bernoulli",
+  which is ambiguous with Bernoulli's fluid mechanics principle), "Poisson Distribution"
+  (NEVER just "Poisson"), "Normal Distribution", "Bayes' Theorem", etc.
+- For probability distributions ALWAYS append " Distribution" or " Dist." to the name.
+- For mathematical theorems ALWAYS include the full theorem name.
 - x and y are integers from 5 to 95 representing canvas position (%).
 - Spread nodes evenly — avoid clustering everything at the same spot.
 - Edges flow from prerequisite → dependent concept.
 - Every node id must be unique starting from 1.
+- NEVER add concepts from unrelated fields: if notes are about probability, do NOT add
+  fluid mechanics nodes even if names like "Bernoulli" appear.
 
 NOTES:
 {note_text}

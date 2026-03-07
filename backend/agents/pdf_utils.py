@@ -92,7 +92,34 @@ def _scrub_pdf_artifacts(text: str) -> str:
 # PDF extraction (pdfplumber)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def extract_text_from_pdf(file_bytes: bytes) -> str:
+def _is_cover_page(text: str, page_num: int) -> bool:
+    """
+    Heuristic: detect cover / title pages that should be skipped.
+    Cover pages typically have very few lines of content (< 5 meaningful lines)
+    and contain keywords like "university", "department", "course", "semester",
+    "instructor", "presented by", "submitted to", or are just the book/course title.
+    Only applies to the first 2 pages.
+    """
+    if page_num > 2:
+        return False
+    lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
+    if len(lines) < 3:
+        return True  # near-empty page — definitely skip
+    if len(lines) > 10:
+        return False  # too much content to be a cover
+    text_lower = text.lower()
+    cover_signals = [
+        'university', 'department of', 'course:', 'course no', 'semester',
+        'instructor:', 'professor:', 'presented by', 'submitted to',
+        'lecture notes', 'study material', 'prepared by', 'module',
+        'unit -', 'unit–', 'subject code', 'class notes'
+    ]
+    signal_count = sum(1 for s in cover_signals if s in text_lower)
+    # If 2+ cover signals and very few content lines — it's a cover/title page
+    return signal_count >= 2 and len(lines) <= 8
+
+
+
     """
     Extract full text from a PDF file.
 
@@ -109,7 +136,11 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
             for i, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text(x_tolerance=3, y_tolerance=3)
                 if text and text.strip():
-                    pages_text.append(f"--- Page {i} ---\n{text.strip()}")
+                    page_text = text.strip()
+                    if _is_cover_page(page_text, i):
+                        logger.info("Skipping cover/title page %d", i)
+                        continue
+                    pages_text.append(f"--- Page {i} ---\n{page_text}")
         if pages_text:
             return _scrub_pdf_artifacts("\n\n".join(pages_text))
     except Exception as e:
