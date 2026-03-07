@@ -180,7 +180,7 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
         api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
         deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
         url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
-        user_content = _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:25_000])
+        user_content = _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text)  # no inner truncation — chunking already limits size
         payload = {
             "messages": [
                 {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
@@ -223,8 +223,8 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
         api_key = os.environ.get("GROQ_API_KEY", "")
         model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
         user_prompt = (
-            # FIX: was [:18_000] but chunks are 24k — full chunk now passed
-            _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:24_000])
+            # no inner truncation — chunking already limits size
+            _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text)
             + "\n\nIMPORTANT: Output ONLY valid JSON with a \"topics\" key. No markdown fences. No explanation."
         )
         payload = {
@@ -233,7 +233,7 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
                 {"role": "system", "content": _SLIDE_ANALYSIS_SYSTEM},
                 {"role": "user",   "content": user_prompt},
             ],
-            "max_tokens":  8192,
+            "max_tokens":  32_000,   # llama-3.3-70b-versatile supports 32k; 8192 caused truncated JSON on large chunks
             "temperature": 0.1,
         }
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -361,7 +361,7 @@ def _split_at_slide_boundary(text: str, max_chars: int) -> list[str]:
 
     chunks, start = [], 0
     for boundary in boundaries[1:]:  # skip first (it IS the start)
-        if boundary - start > max_chars:
+        if boundary - start >= max_chars:  # >= so a chunk of exactly max_chars still splits
             # Accumulated content since last cut exceeds limit — cut here
             chunks.append(text[start:boundary])
             start = boundary
