@@ -1137,7 +1137,7 @@ async def sniper_exam(
                 "concept":     label,
             })
 
-    return SniperExamResponse(questions=questions, concepts_tested=concepts_tested)──────
+    return SniperExamResponse(questions=questions, concepts_tested=concepts_tested)
 
 # ── Examiner (FIX A5: auth required) ───────────────────────────────────
 
