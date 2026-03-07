@@ -320,7 +320,7 @@ function PracticeQuestions({ text }) {
 }
 
 // ─── Examiner Modal ───────────────────────────────────────────────────────────
-function ExaminerModal({ concept, onClose }) {
+function ExaminerModal({ concept, notebookId, onClose }) {
     const [questions, setQuestions] = useState('');
     const [loading, setLoading] = useState(true);
     const [customInstruction, setCustomInstruction] = useState('');
@@ -333,6 +333,7 @@ function ExaminerModal({ concept, onClose }) {
                 headers: { 'Content-Type': 'application/json', ...authHeaders() },
                 body: JSON.stringify({
                     concept_name: concept,
+                    ...(notebookId ? { notebook_id: notebookId } : {}),
                     ...(ci.trim() ? { custom_instruction: ci.trim() } : {}),
                 }),
             });
@@ -552,7 +553,7 @@ function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
 }
 
 // ─── SniperExamModal ──────────────────────────────────────────────────────────
-function SniperExamModal({ nodes, onClose }) {
+function SniperExamModal({ nodes, notebookId, onClose }) {
     const weakNodes = nodes.filter(n => n.status === 'struggling' || n.status === 'partial');
     const [questions, setQuestions] = React.useState([]);
     const [loading, setLoading]     = React.useState(true);
@@ -568,7 +569,10 @@ function SniperExamModal({ nodes, onClose }) {
                 const res = await fetch(`${API}/api/sniper-exam`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ weak_concepts: weakNodes.map(n => n.label) }),
+                    body: JSON.stringify({
+                        weak_concepts: weakNodes.map(n => n.label),
+                        ...(notebookId ? { notebook_id: notebookId } : {}),
+                    }),
                 });
                 const data = await res.json();
                 setQuestions(data.questions || []);
@@ -993,7 +997,7 @@ function QuestionCards({ questions, level, onAllAssessed }) {
 }
 
 // ─── Concept Detail Panel ─────────────────────────────────────────────────────
-function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, onFullPractice }) {
+function ConceptDetailPanel({ node, notebookId, onClose, onStatusChange, onJumpToSection, onFullPractice }) {
     const [activeLevel, setActiveLevel] = useState(null);
     const [questions, setQuestions] = useState(null);
     const [loadingQ, setLoadingQ] = useState(false);
@@ -1017,6 +1021,7 @@ function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, on
                 body: JSON.stringify({
                     concept_name: node.label,
                     level: lk,
+                    ...(notebookId ? { notebook_id: notebookId } : {}),
                     ...(customInstruction.trim() ? { custom_instruction: customInstruction.trim() } : {}),
                 }),
             });
@@ -1156,7 +1161,7 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0 0' }}>
                 <KnowledgeGraph nodes={nodes} edges={edges} onNodeClick={handleNodeClick} selectedNodeId={selectedNode?.id} />
-                {selectedNode && <ConceptDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} onStatusChange={handleStatusChange} onJumpToSection={label => { onJumpToSection(label); setSelectedNode(null); }} onFullPractice={label => { setExaminerConcept(label); setSelectedNode(null); }} />}
+                {selectedNode && <ConceptDetailPanel node={selectedNode} notebookId={notebookId} onClose={() => setSelectedNode(null)} onStatusChange={handleStatusChange} onJumpToSection={label => { onJumpToSection(label); setSelectedNode(null); }} onFullPractice={label => { setExaminerConcept(label); setSelectedNode(null); }} />}
                 {nodes.length > 0 && (
                     <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', marginTop: 8 }}>
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>All Concepts</div>
@@ -1184,8 +1189,8 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
                     </button>
                 )}
             </div>
-            {examinerConcept && <ExaminerModal concept={examinerConcept} onClose={() => setExaminerConcept(null)} />}
-            {sniperOpen && <SniperExamModal nodes={nodes} onClose={() => setSniperOpen(false)} />}
+            {examinerConcept && <ExaminerModal concept={examinerConcept} notebookId={notebookId} onClose={() => setExaminerConcept(null)} />}
+            {sniperOpen && <SniperExamModal nodes={nodes} notebookId={notebookId} onClose={() => setSniperOpen(false)} />}
         </div>
     );
 }
