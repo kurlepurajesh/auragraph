@@ -319,22 +319,52 @@ function PracticeQuestions({ text }) {
 function ExaminerModal({ concept, onClose }) {
     const [questions, setQuestions] = useState('');
     const [loading, setLoading] = useState(true);
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await fetch(`${API}/api/examine`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ concept_name: concept }) });
-                const data = await res.json();
-                setQuestions(data.practice_questions);
-            } catch { setQuestions(`## Practice Questions: ${concept}\n\nBackend not reachable.`); }
-            finally { setLoading(false); }
-        })();
+    const [customInstruction, setCustomInstruction] = useState('');
+
+    const generate = useCallback(async (ci) => {
+        setLoading(true);
+        try {
+            const res = await fetch(`${API}/api/examine`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({
+                    concept_name: concept,
+                    ...(ci.trim() ? { custom_instruction: ci.trim() } : {}),
+                }),
+            });
+            const data = await res.json();
+            setQuestions(data.practice_questions);
+        } catch { setQuestions(`## Practice Questions: ${concept}\n\nBackend not reachable.`); }
+        finally { setLoading(false); }
     }, [concept]);
+
+    useEffect(() => { generate(''); }, [concept]);
+
     return (
         <div className="modal-backdrop" onClick={onClose}>
             <div className="modal fade-in" onClick={e => e.stopPropagation()} style={{ width: 600, maxWidth: '96vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div><h3 style={{ marginBottom: 2 }}>Practice Questions</h3><p style={{ fontSize: 12, color: 'var(--text3)' }}>Generated for: <b>{concept}</b></p></div>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)' }}><X size={18} /></button>
+                </div>
+                {/* Custom instruction row */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <input
+                        value={customInstruction}
+                        onChange={e => setCustomInstruction(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') generate(customInstruction); }}
+                        placeholder="Custom focus, e.g. numerical only, proof-based, match exam pattern…"
+                        style={{ flex: 1, fontSize: 12, padding: '7px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
+                    />
+                    <button
+                        onClick={() => generate(customInstruction)}
+                        disabled={loading}
+                        className="btn btn-secondary btn-sm"
+                        style={{ flexShrink: 0, gap: 5 }}
+                    >
+                        {loading ? <Loader2 className="spin" size={13} /> : <RefreshCw size={13} />}
+                        {loading ? 'Generating…' : 'Generate'}
+                    </button>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', borderRadius: 10, padding: 16, border: '1px solid var(--border)' }}>
                     {loading ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text3)', fontSize: 13 }}><Loader2 className="spin" size={16} /> Generating questions…</div>
@@ -964,22 +994,27 @@ function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, on
     const [questions, setQuestions] = useState(null);
     const [loadingQ, setLoadingQ] = useState(false);
     const [promotion, setPromotion] = useState(null); // null | 'partial' | 'mastered' | 'top'
+    const [customInstruction, setCustomInstruction] = useState('');
 
     const LEVELS = [
-        { key: 'struggling', label: 'Struggling', color: '#EF4444', icon: <AlertCircle size={11} />, desc: 'Basics' },
-        { key: 'partial', label: 'Partial', color: '#F59E0B', icon: <MinusCircle size={11} />, desc: 'Standard' },
-        { key: 'mastered', label: 'Mastered', color: '#10B981', icon: <CheckCircle2 size={11} />, desc: 'Advanced' },
+        { key: 'struggling', label: 'Easy', color: '#10B981', icon: <CheckCircle2 size={11} />, desc: 'Definitions & recall' },
+        { key: 'partial',    label: 'Medium', color: '#F59E0B', icon: <MinusCircle size={11} />, desc: 'Exam-style problems' },
+        { key: 'mastered',   label: 'Hard', color: '#EF4444', icon: <AlertCircle size={11} />, desc: 'Derivations & edge cases' },
     ];
     const statusColors = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
 
     const fetchLevel = async (lk) => {
-        if (activeLevel === lk) { setActiveLevel(null); setQuestions(null); setPromotion(null); return; }
+        if (activeLevel === lk && !customInstruction) { setActiveLevel(null); setQuestions(null); setPromotion(null); return; }
         setActiveLevel(lk); setLoadingQ(true); setQuestions(null); setPromotion(null);
         try {
             const res = await fetch(`${API}/api/concept-practice`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                body: JSON.stringify({ concept_name: node.label, level: lk }),
+                body: JSON.stringify({
+                    concept_name: node.label,
+                    level: lk,
+                    ...(customInstruction.trim() ? { custom_instruction: customInstruction.trim() } : {}),
+                }),
             });
             const data = await res.json();
             setQuestions(data.questions || []);
@@ -1021,13 +1056,33 @@ function ConceptDetailPanel({ node, onClose, onStatusChange, onJumpToSection, on
                 </button>
                 {/* Practice level picker */}
                 <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>🎯 Practice Questions</div>
-                <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
                     {LEVELS.map(l => (
                         <button key={l.key} onClick={() => fetchLevel(l.key)} style={{ flex: 1, padding: '7px 4px', borderRadius: 8, border: `1px solid ${activeLevel === l.key ? l.color : 'var(--border)'}`, background: activeLevel === l.key ? l.color + '18' : 'var(--surface)', color: activeLevel === l.key ? l.color : 'var(--text3)', fontSize: 10, fontWeight: 600, cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}>
                             <div>{l.label}</div>
                             <div style={{ fontSize: 9, opacity: 0.7, marginTop: 1 }}>{l.desc}</div>
                         </button>
                     ))}
+                </div>
+                {/* Custom instruction input */}
+                <div style={{ display: 'flex', gap: 5, marginBottom: 10 }}>
+                    <input
+                        value={customInstruction}
+                        onChange={e => setCustomInstruction(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && activeLevel) fetchLevel(activeLevel); }}
+                        placeholder="Custom focus, e.g. numerical only, derivations…"
+                        style={{ flex: 1, fontSize: 11, padding: '5px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit' }}
+                    />
+                    {activeLevel && (
+                        <button
+                            onClick={() => fetchLevel(activeLevel)}
+                            disabled={loadingQ}
+                            title="Regenerate with this focus"
+                            style={{ padding: '5px 9px', borderRadius: 7, border: '1px solid var(--purple)', background: 'var(--purple-light)', color: 'var(--purple)', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+                        >
+                            {loadingQ ? <Loader2 className="spin" size={11} /> : '↺'}
+                        </button>
+                    )}
                 </div>
                 {loadingQ && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 0', fontSize: 12, color: 'var(--text3)' }}>
@@ -1315,6 +1370,7 @@ export default function NotebookWorkspace() {
     const [doubtsLog, setDoubtsLog] = useState([]);
     const [rightTab, setRightTab] = useState('map');
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarWidth, setSidebarWidth] = useState(310);
     const [graphNodes, setGraphNodes] = useState([]);
     const [graphEdges, setGraphEdges] = useState([]);
     const [noteSource, setNoteSource] = useState('azure');      // 'azure' | 'local'
@@ -1329,6 +1385,30 @@ export default function NotebookWorkspace() {
     const [editingPage, setEditingPage] = useState(false);     // page-jump input active
     const [pageInputVal, setPageInputVal] = useState('');      // page-jump input value
     const noteScrollRef = useRef();
+
+    const startResizeSidebar = useCallback((e) => {
+        e.preventDefault();
+        const startX  = e.clientX;
+        const startW  = sidebarWidth;
+        const handle  = e.currentTarget;
+        handle.classList.add('dragging');
+        document.body.style.cursor     = 'col-resize';
+        document.body.style.userSelect = 'none';
+        const onMove = (ev) => {
+            // dragging left (negative delta) → wider sidebar
+            const delta = startX - ev.clientX;
+            setSidebarWidth(Math.max(220, Math.min(640, startW + delta)));
+        };
+        const onUp = () => {
+            handle.classList.remove('dragging');
+            document.body.style.cursor     = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup',   onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup',   onUp);
+    }, [sidebarWidth]);
 
     const pages = useMemo(() => {
         if (!note) return [];
@@ -1772,7 +1852,18 @@ export default function NotebookWorkspace() {
                 )}
 
                 {/* Right Sidebar */}
-                <aside className={sidebarOpen ? 'sidebar-panel' : 'sidebar-panel collapsed'}>
+                <aside
+                    className={sidebarOpen ? 'sidebar-panel' : 'sidebar-panel collapsed'}
+                    style={{ width: sidebarOpen ? sidebarWidth : 0, minWidth: sidebarOpen ? sidebarWidth : 0 }}
+                >
+                    {/* Drag-to-resize handle on the left edge */}
+                    {sidebarOpen && (
+                        <div
+                            className="sidebar-resize-handle"
+                            onMouseDown={startResizeSidebar}
+                            title="Drag to resize panel"
+                        />
+                    )}
                     <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                         {[{ key: 'map', label: 'Concept Map', icon: <Brain size={12} /> }, { key: 'doubts', label: (() => { const onPage = doubtsLog.filter(d => d.pageIdx === currentPage).length; const total = doubtsLog.length; if (!total) return 'Doubts'; if (onPage) return `Doubts (${onPage}/${total})`; return `Doubts (${total})`; })(), icon: <MessageCircle size={12} /> }].map(tab => (
                             <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? '#7C3AED' : 'var(--text3)' }}>

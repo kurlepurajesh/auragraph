@@ -128,11 +128,21 @@ label { font-size: 13px; font-weight: 500; color: var(--text2); display: block; 
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
 .sidebar-panel {
-  width: 310px; min-width: 310px; border-left: 1px solid var(--border);
+  /* width / min-width are now controlled by inline style (resizable) */
+  border-left: 1px solid var(--border);
   display: flex; flex-direction: column; background: var(--surface);
   overflow: hidden; transition: width 0.22s ease, min-width 0.22s ease, opacity 0.18s ease;
+  position: relative; flex-shrink: 0;
 }
-.sidebar-panel.collapsed { width: 0; min-width: 0; opacity: 0; border-left: none; pointer-events: none; }
+.sidebar-panel.collapsed { width: 0 !important; min-width: 0 !important; opacity: 0; border-left: none; pointer-events: none; }
+
+.sidebar-resize-handle {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  cursor: col-resize; z-index: 20; background: transparent;
+  transition: background 0.15s;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.dragging { background: var(--purple); opacity: 0.5; }
 
 .page-dot { position: relative; cursor: pointer; }
 .page-dot:hover::after {
@@ -171,7 +181,94 @@ kbd {
 .progress-bar-track { height: 6px; background: var(--border); border-radius: 6px; overflow: hidden; }
 .progress-bar-fill { height: 100%; border-radius: 6px; transition: width 0.8s cubic-bezier(0.16,1,0.3,1); }
 
-[data-theme="dark"] .note-paper-page {
-  background: var(--note-bg) !important;
-  border-color: var(--border) !important;
+/* ─────────────────────────────────────────────────────────────────────────────
+   Additional dark-mode-aware colour tokens  (extends the :root block above)
+───────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* NoteRenderer — markdown component colours */
+  --nr-text:              #18181B;
+  --nr-text-h:            #000000;
+  --nr-text-muted:        #71717A;
+  --nr-text-med:          #3F3F46;
+  --nr-surface:           #F4F4F5;
+  --nr-border:            #E4E4E7;
+  --nr-border-th:         #D4D4D8;
+  --nr-formula-bg:        #EFF6FF;
+  --nr-formula-border:    #BFDBFE;
+  --nr-formula-accent:    #2563EB;
+  --nr-formula-text:      #1E3A8A;
+  --nr-warn-bg:           #FFF7ED;
+  --nr-warn-border:       #FED7AA;
+  --nr-warn-accent:       #F97316;
+  --nr-warn-text:         #7C2D12;
+  --nr-link:              #2563EB;
+
+  /* Semantic callout boxes (doubt answers, banners, MCQ feedback) */
+  --callout-info-bg:        #F0F9FF;
+  --callout-info-border:    #BAE6FD;
+  --callout-info-text:      #0C4A6E;
+  --callout-info-label:     #0369A1;
+  --callout-warn-bg:        #FFFBEB;
+  --callout-warn-border:    #FDE68A;
+  --callout-warn-text:      #92400E;
+  --callout-err-bg:         #FEF2F2;
+  --callout-err-border:     #FECACA;
+  --callout-err-text:       #991B1B;
+  --callout-err-text2:      #7F1D1D;
+  --callout-success-bg:     #DCFCE7;
+  --callout-success-border: #BBF7D0;
+  --callout-success-text:   #065F46;
+  --callout-success-label:  #166534;
+
+  /* Upload drop zone / file chip */
+  --zone-files-bg:    #F0FDF4;
+  --file-chip-bg:     #ffffff;
+  --file-chip-border: #d1fae5;
+  --file-chip-text:   #065f46;
+}
+
+[data-theme="dark"] {
+  /* NoteRenderer */
+  --nr-text:              #E4E4F0;
+  --nr-text-h:            #F8F8FF;
+  --nr-text-muted:        #9090B0;
+  --nr-text-med:          #B0B0C8;
+  --nr-surface:           #1E1E2A;
+  --nr-border:            #2C2C3C;
+  --nr-border-th:         #3A3A50;
+  --nr-formula-bg:        #071428;
+  --nr-formula-border:    #1e3a6a;
+  --nr-formula-accent:    #60a5fa;
+  --nr-formula-text:      #93c5fd;
+  --nr-warn-bg:           #180e00;
+  --nr-warn-border:       #7c3300;
+  --nr-warn-accent:       #f97316;
+  --nr-warn-text:         #fed7aa;
+  --nr-link:              #60a5fa;
+
+  /* Semantic callouts */
+  --callout-info-bg:        #071828;
+  --callout-info-border:    #1e4a6a;
+  --callout-info-text:      #7dd3fc;
+  --callout-info-label:     #38bdf8;
+  --callout-warn-bg:        #1a1200;
+  --callout-warn-border:    #5c4600;
+  --callout-warn-text:      #fde68a;
+  --callout-err-bg:         #1c0a09;
+  --callout-err-border:     #5a1d1d;
+  --callout-err-text:       #fca5a5;
+  --callout-err-text2:      #fca5a5;
+  --callout-success-bg:     #052e16;
+  --callout-success-border: #14532d;
+  --callout-success-text:   #6ee7b7;
+  --callout-success-label:  #6ee7b7;
+
+  /* Drop zone / file chip */
+  --zone-files-bg:    #071a0e;
+  --file-chip-bg:     #1E1E27;
+  --file-chip-border: #064e3b;
+  --file-chip-text:   #34d399;
+
+  /* Purple accent for "Mutated" badge */
+  --purple-light:     #2a1a4a;
 }

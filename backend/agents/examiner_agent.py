@@ -29,7 +29,7 @@ D) [Option]
 
 Cover: definition, formula/derivation, application, comparison, and one tricky edge case.
 Use ONLY `$...$` for inline math and `$$` on its own line for display math. NEVER use \\( \\) or \\[ \\] delimiters.
-"""
+{{$custom_instruction}}"""
 
 
 CONCEPT_PRACTICE_PROMPT = """\
@@ -41,7 +41,7 @@ DIFFICULTY: {{$level}}
 DIFFICULTY GUIDE:
   struggling  → Foundational — definitions, basic recall, single-step application.
   partial     → Standard — formula application, typical exam-style problems.
-  mastered    → Advanced — edge cases, derivations, tricky variants, subtle distinctions.
+  mastered    → Advanced / Exam Level — edge cases, derivations, tricky variants, subtle distinctions.
 
 Output ONLY a valid JSON array of exactly 3 objects.
 No markdown code fences, no prose, no backticks — raw JSON only.
@@ -53,7 +53,7 @@ Each object must have EXACTLY these keys:
   "explanation" : one clear sentence explaining why the answer is correct
 
 Math rules: inline $...$, display on its own line $$...$$. NEVER use \\( \\) or \\[ \\].
-"""
+{{$custom_instruction}}"""
 
 
 SNIPER_EXAM_PROMPT = """\
@@ -90,6 +90,7 @@ class ExaminerAgent:
             template_format="semantic-kernel",
             input_variables=[
                 InputVariable(name="concept_name", description="The concept to generate questions for"),
+                InputVariable(name="custom_instruction", description="Optional extra instruction from the student", default_value="", is_required=False),
             ],
         )
         self._fn = kernel.add_function(
@@ -103,6 +104,7 @@ class ExaminerAgent:
             input_variables=[
                 InputVariable(name="concept_name", description="Concept to generate questions for"),
                 InputVariable(name="level", description="Difficulty level: struggling / partial / mastered"),
+                InputVariable(name="custom_instruction", description="Optional extra instruction from the student", default_value="", is_required=False),
             ],
         )
         self._practice_fn = kernel.add_function(
@@ -111,12 +113,14 @@ class ExaminerAgent:
             prompt_template_config=practice_config,
         )
 
-    async def examine(self, concept_name: str) -> str:
-        args = KernelArguments(concept_name=concept_name)
+    async def examine(self, concept_name: str, custom_instruction: str = "") -> str:
+        ci = f"\n\nCUSTOM FOCUS (follow exactly): {custom_instruction}" if custom_instruction.strip() else ""
+        args = KernelArguments(concept_name=concept_name, custom_instruction=ci)
         result = await self._kernel.invoke(self._fn, args)
         return str(result).strip()
 
-    async def concept_practice(self, concept_name: str, level: str) -> str:
-        args = KernelArguments(concept_name=concept_name, level=level)
+    async def concept_practice(self, concept_name: str, level: str, custom_instruction: str = "") -> str:
+        ci = f"\n\nCUSTOM FOCUS (follow exactly): {custom_instruction}" if custom_instruction.strip() else ""
+        args = KernelArguments(concept_name=concept_name, level=level, custom_instruction=ci)
         result = await self._kernel.invoke(self._practice_fn, args)
         return str(result).strip()

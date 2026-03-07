@@ -244,9 +244,10 @@ async def _groq_doubt(doubt, slide_ctx, textbook_ctx, note_page) -> str:
     return await _groq_chat([{"role": "user", "content": prompt}])
 
 
-async def _groq_examine(concept_name: str) -> str:
+async def _groq_examine(concept_name: str, custom_instruction: str = "") -> str:
     from agents.examiner_agent import EXAMINER_PROMPT
-    prompt = EXAMINER_PROMPT.replace("{{$concept_name}}", concept_name)
+    ci = f"\n\nCUSTOM FOCUS (follow exactly): {custom_instruction}" if custom_instruction.strip() else ""
+    prompt = EXAMINER_PROMPT.replace("{{$concept_name}}", concept_name).replace("{{$custom_instruction}}", ci)
     return await _groq_chat([{"role": "user", "content": prompt}])
 
 
@@ -446,6 +447,7 @@ class MutationResponse(BaseModel):
 
 class ExaminerRequest(BaseModel):
     concept_name: str
+    custom_instruction: Optional[str] = None   # e.g. "numerical only", "focus on derivations"
 
 
 class ExaminerResponse(BaseModel):
@@ -455,6 +457,7 @@ class ExaminerResponse(BaseModel):
 class ConceptPracticeRequest(BaseModel):
     concept_name: str
     level: str = "partial"   # struggling | partial | mastered
+    custom_instruction: Optional[str] = None   # e.g. "only numerical", "include proofs"
 
 
 class ConceptPracticeResponse(BaseModel):
@@ -1180,15 +1183,16 @@ async def examine_concept(
     """FIX A5: Bearer token required to prevent free LLM abuse."""
     get_current_user(authorization)
 
+    ci = (req.custom_instruction or "").strip()
     if examiner_agent and _is_azure_available():
         try:
-            q = await examiner_agent.examine(req.concept_name)
+            q = await examiner_agent.examine(req.concept_name, custom_instruction=ci)
             return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
         except Exception as e:
             logger.warning("Azure examiner failed: %s", e)
     if _is_groq_available():
         try:
-            q = await _groq_examine(req.concept_name)
+            q = await _groq_examine(req.concept_name, custom_instruction=ci)
             return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
         except Exception as e:
             logger.warning("Groq examiner failed: %s", e)
@@ -1198,12 +1202,14 @@ async def examine_concept(
 
 # ── Concept Practice (level-aware structured MCQs) ────────────────────────────
 
-async def _groq_concept_practice(concept_name: str, level: str) -> str:
+async def _groq_concept_practice(concept_name: str, level: str, custom_instruction: str = "") -> str:
     from agents.examiner_agent import CONCEPT_PRACTICE_PROMPT
+    ci = f"\n\nCUSTOM FOCUS (follow exactly): {custom_instruction}" if custom_instruction.strip() else ""
     prompt = (
         CONCEPT_PRACTICE_PROMPT
         .replace("{{$concept_name}}", concept_name)
         .replace("{{$level}}",        level)
+        .replace("{{$custom_instruction}}", ci)
     )
     return await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2000)
 
@@ -1219,18 +1225,19 @@ async def concept_practice_endpoint(
     level = req.level.lower().strip()
     if level not in ("struggling", "partial", "mastered"):
         level = "partial"
+    ci = (req.custom_instruction or "").strip()
 
     raw: str | None = None
 
     if examiner_agent and _is_azure_available():
         try:
-            raw = await examiner_agent.concept_practice(req.concept_name, level)
+            raw = await examiner_agent.concept_practice(req.concept_name, level, custom_instruction=ci)
         except Exception as e:
             logger.warning("Azure concept-practice failed: %s", e)
 
     if raw is None and _is_groq_available():
         try:
-            raw = await _groq_concept_practice(req.concept_name, level)
+            raw = await _groq_concept_practice(req.concept_name, level, custom_instruction=ci)
         except Exception as e:
             logger.warning("Groq concept-practice failed: %s", e)
 
