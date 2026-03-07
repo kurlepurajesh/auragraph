@@ -21,6 +21,7 @@ topics from slide boundary markers (--- Slide N: Title ---).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -418,6 +419,9 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
     boundaries and analysed in multiple LLM calls. Topics from all chunks are
     concatenated in order.  No slide is silently dropped.
 
+    Chunks are processed CONCURRENTLY (asyncio.gather) so a 3-chunk deck
+    takes ~1× instead of ~3× the single-chunk time.
+
     Priority per chunk: Azure -> Groq -> deterministic regex parser.
     Returns a list of SlideTopic objects in lecture order.
     """
@@ -425,9 +429,9 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
         return []
 
     chunks = _split_at_slide_boundary(slides_text, _SLIDE_CHUNK_SIZE)
-    all_topics: list[SlideTopic] = []
+    logger.info("slide_analyzer: %d chunk(s) to analyse (parallel)", len(chunks))
 
-    for chunk_idx, chunk_text in enumerate(chunks):
+    async def _analyse_chunk(chunk_idx: int, chunk_text: str) -> list[SlideTopic]:
         logger.info(
             "slide_analyzer: analysing chunk %d/%d (%d chars)",
             chunk_idx + 1, len(chunks), len(chunk_text),
@@ -436,6 +440,7 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
         if not raw_topics:
             raw_topics = await _call_groq_json(chunk_text)
 
+        chunk_topics: list[SlideTopic] = []
         if raw_topics:
             for item in raw_topics:
                 if not isinstance(item, dict):
@@ -445,24 +450,34 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
                     continue
                 slide_text = str(item.get("slide_text", "")).strip()
                 key_points = [str(kp) for kp in item.get("key_points", []) if kp]
-                # FIX: LLMs sometimes return a topic with empty slide_text but
-                # with valid key_points (they assigned the slide content to an
-                # earlier topic).  Backfill from key_points so note_generator
-                # has something to write from.
                 if not slide_text and key_points:
                     slide_text = "\n".join(f"- {kp}" for kp in key_points)
                     logger.warning(
                         "slide_analyzer: topic %r had empty slide_text - "
                         "backfilled from %d key_points", topic_name, len(key_points)
                     )
-                all_topics.append(SlideTopic(
+                chunk_topics.append(SlideTopic(
                     topic=topic_name,
                     slide_text=slide_text,
                     key_points=key_points,
                 ))
         else:
-            # Fallback for this chunk
-            all_topics.extend(_deterministic_parse(chunk_text))
+            chunk_topics.extend(_deterministic_parse(chunk_text))
+        return chunk_topics
+
+    # Run all chunks in parallel
+    chunk_results = await asyncio.gather(
+        *[_analyse_chunk(i, chunk) for i, chunk in enumerate(chunks)],
+        return_exceptions=True,
+    )
+
+    all_topics: list[SlideTopic] = []
+    for i, result in enumerate(chunk_results):
+        if isinstance(result, Exception):
+            logger.warning("slide_analyzer chunk %d failed: %s — using fallback", i + 1, result)
+            all_topics.extend(_deterministic_parse(chunks[i]))
+        else:
+            all_topics.extend(result)
 
     if all_topics:
         all_topics = _deduplicate_topics(all_topics)

@@ -92,34 +92,120 @@ def _scrub_pdf_artifacts(text: str) -> str:
 # PDF extraction (pdfplumber)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _is_cover_page(text: str, page_num: int) -> bool:
+def _is_front_matter_page(text: str, page_num: int) -> bool:
     """
-    Heuristic: detect cover / title pages that should be skipped.
-    Cover pages typically have very few lines of content (< 5 meaningful lines)
-    and contain keywords like "university", "department", "course", "semester",
-    "instructor", "presented by", "submitted to", or are just the book/course title.
-    Only applies to the first 2 pages.
+    Detect front-matter pages that should be skipped:
+      - Cover / title page (page 1-20)
+      - Copyright / colophon page
+      - Dedication page
+      - Table of contents
+      - About-the-author / contributors page
+      - Publisher info page
+    Does NOT skip preface/foreword with substantive paragraphs.
     """
-    if page_num > 2:
-        return False
     lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
-    if len(lines) < 3:
-        return True  # near-empty page — definitely skip
-    if len(lines) > 10:
-        return False  # too much content to be a cover
+    if not lines:
+        return True  # empty page
+
     text_lower = text.lower()
-    cover_signals = [
-        'university', 'department of', 'course:', 'course no', 'semester',
-        'instructor:', 'professor:', 'presented by', 'submitted to',
-        'lecture notes', 'study material', 'prepared by', 'module',
-        'unit -', 'unit–', 'subject code', 'class notes'
+
+    # Near-empty pages in front matter are always skipped
+    if page_num <= 20 and len(lines) <= 2:
+        return True
+
+    # Copyright / publisher page: must contain ISBN or © and publishing keywords
+    copyright_signals = [
+        'isbn', 'copyright ©', 'all rights reserved', 'published by',
+        'first published', 'printed in', 'no part of this publication',
+        'cataloging-in-publication', 'library of congress',
     ]
-    signal_count = sum(1 for s in cover_signals if s in text_lower)
-    # If 2+ cover signals and very few content lines — it's a cover/title page
-    return signal_count >= 2 and len(lines) <= 8
+    if sum(1 for s in copyright_signals if s in text_lower) >= 2:
+        return True
+
+    # Dedication page: short page (≤8 lines) with dedication language
+    dedication_signals = ['dedicated to', 'to my ', 'for my ', 'in memory of', 'in loving memory']
+    if len(lines) <= 8 and any(s in text_lower for s in dedication_signals):
+        return True
+
+    # Table of contents: many lines ending in a number (page refs) or dot-leaders
+    toc_lines = sum(1 for l in lines if re.search(r'\.{3,}\s*\d+$|\s{2,}\d{1,4}$', l))
+    if toc_lines >= 4 and toc_lines / max(len(lines), 1) >= 0.4:
+        return True
+    if 'table of contents' in text_lower or 'contents' == lines[0].lower():
+        if toc_lines >= 2:
+            return True
+
+    # About the author / contributors (short page in front matter)
+    author_signals = [
+        'about the author', 'about the authors', 'about the contributors',
+        'author biography', 'author\'s note', 'editor\'s note',
+    ]
+    if page_num <= 30 and any(s in text_lower for s in author_signals) and len(lines) <= 15:
+        return True
+
+    # Publisher / series page: very short, no sentence-length lines
+    if page_num <= 5 and len(lines) <= 6:
+        sentence_lines = sum(1 for l in lines if len(l.split()) > 7)
+        if sentence_lines == 0:
+            return True
+
+    # Legacy signals (course slides front pages)
+    if page_num <= 10:
+        slide_cover_signals = [
+            'university', 'department of', 'course:', 'course no', 'semester',
+            'instructor:', 'professor:', 'presented by', 'submitted to',
+            'lecture notes', 'study material', 'prepared by', 'module',
+            'unit -', 'unit–', 'subject code', 'class notes',
+        ]
+        signal_count = sum(1 for s in slide_cover_signals if s in text_lower)
+        if signal_count >= 2 and len(lines) <= 10:
+            return True
+
+    return False
+
+
+# Keep old name as alias for backwards compatibility
+_is_cover_page = _is_front_matter_page
+
+
+_REFERENCES_HEADING_RE = re.compile(
+    r'^\s*(?:references|bibliography|works cited|further reading|selected bibliography'
+    r'|suggested reading|cited works|literature cited)\s*$',
+    re.IGNORECASE | re.MULTILINE,
+)
+_CITATION_LINE_RE = re.compile(
+    r'(?:\[\d+\]|\(\d{4}[a-z]?\)|^\d+\.\s+[A-Z]|[A-Z][a-z]+,\s+[A-Z]\.)',
+)
+
+
+def _is_references_page(text: str) -> bool:
+    """
+    Detect pages that are entirely references/bibliography — skip them.
+    A page qualifies if:
+      • It has a References/Bibliography heading near the top, OR
+      • ≥55% of non-empty lines look like citations (author-year or numbered)
+    We do NOT skip if the page mixes citations with substantive paragraphs.
+    """
+    lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
+    if not lines:
+        return False
+
+    # Heading match in first 3 lines
+    first_chunk = '\n'.join(lines[:3])
+    if _REFERENCES_HEADING_RE.search(first_chunk):
+        return True
+
+    # Citation density check
+    citation_lines = sum(1 for l in lines if _CITATION_LINE_RE.search(l))
+    sentence_lines = sum(1 for l in lines if len(l.split()) > 10 and not _CITATION_LINE_RE.search(l))
+    if len(lines) >= 4 and citation_lines / len(lines) >= 0.55 and sentence_lines == 0:
+        return True
+
+    return False
 
 
 
+def extract_text_from_pdf(file_bytes: bytes) -> str:
     """
     Extract full text from a PDF file.
 
@@ -132,15 +218,30 @@ def _is_cover_page(text: str, page_num: int) -> bool:
     try:
         import pdfplumber
         pages_text: list[str] = []
+        in_references = False
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             for i, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text(x_tolerance=3, y_tolerance=3)
-                if text and text.strip():
-                    page_text = text.strip()
-                    if _is_cover_page(page_text, i):
-                        logger.info("Skipping cover/title page %d", i)
-                        continue
-                    pages_text.append(f"--- Page {i} ---\n{page_text}")
+                if not text or not text.strip():
+                    continue
+                page_text = text.strip()
+                # Strip per-page metadata lines (author names, institutions, emails)
+                page_text = _strip_metadata_lines(page_text)
+                if not page_text.strip():
+                    continue
+                # Front-matter pages
+                if _is_front_matter_page(page_text, i):
+                    logger.info("Skipping front-matter page %d", i)
+                    continue
+                # References section: once we enter it, skip to end
+                if _is_references_page(page_text):
+                    if not in_references:
+                        logger.info("Entering references section at page %d — skipping remainder", i)
+                    in_references = True
+                    continue
+                if in_references:
+                    continue
+                pages_text.append(f"--- Page {i} ---\n{page_text}")
         if pages_text:
             return _scrub_pdf_artifacts("\n\n".join(pages_text))
     except Exception as e:
@@ -151,10 +252,22 @@ def _is_cover_page(text: str, page_num: int) -> bool:
         import PyPDF2
         reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
         pages_text = []
+        in_references = False
         for i, page in enumerate(reader.pages, start=1):
             text = page.extract_text()
-            if text and text.strip():
-                pages_text.append(f"--- Page {i} ---\n{text.strip()}")
+            if not text or not text.strip():
+                continue
+            page_text = _strip_metadata_lines(text.strip())
+            if not page_text.strip():
+                continue
+            if _is_front_matter_page(page_text, i):
+                continue
+            if _is_references_page(page_text):
+                in_references = True
+                continue
+            if in_references:
+                continue
+            pages_text.append(f"--- Page {i} ---\n{page_text}")
         if pages_text:
             return _scrub_pdf_artifacts("\n\n".join(pages_text))
     except Exception as e:
@@ -350,6 +463,18 @@ def extract_text_from_pptx(file_bytes: bytes) -> str:
                     body_parts.append(txt)
 
             body = _strip_metadata_lines("\n".join(body_parts)).strip()
+
+            # Skip cover/title slide: title-only or title + only metadata lines
+            if i == 1 and not body and title_text:
+                # First slide with no body is a title/cover slide
+                logger.info("Skipping cover slide 1: '%s'", title_text[:60])
+                continue
+
+            # Skip references/bibliography slides
+            combined = f"{title_text}\n{body}"
+            if _is_references_page(combined):
+                logger.info("Skipping references slide %d", i)
+                continue
 
             # Build slide block
             if title_text:
