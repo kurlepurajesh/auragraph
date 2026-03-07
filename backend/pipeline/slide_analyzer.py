@@ -72,7 +72,10 @@ For each topic output:
 Rules:
   1. Follow slide order exactly — do NOT reorder topics.
   2. Merge consecutive slides that cover the same concept into ONE topic entry.
-  3. Ignore metadata slides (title slide, table of contents, references, thank you).
+  3. Ignore metadata slides: cover page, title slide, table of contents, references,
+     bibliography, agenda, outline, thank you, acknowledgements, course overview,
+     learning objectives. If a slide has only a course/lecture title and author name
+     with no teaching content, skip it.
   4. Each topic must correspond to actual teaching content from the slides.
   5. EVERY topic MUST have non-empty "slide_text" containing the verbatim slide
      content for that topic.  If a topic genuinely has no slide text, omit it
@@ -285,7 +288,10 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
 
     _META = re.compile(
         r'\b(table of contents|references|bibliography|acknowledgement|'
-        r'thank you|agenda|outline|questions|q&a)\b',
+        r'thank you|agenda|outline|questions|q&a|title page|cover page|'
+        r'course overview|learning objectives|about this course|welcome to|'
+        r'course introduction|lecture overview|recap|revision)\b'
+        r'|^(cover|title|contents|intro|introduction)$',
         re.I,
     )
 
@@ -315,6 +321,14 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
         if title and _META.search(title):
             continue
         if not body and len(title) < 3:
+            continue
+        # Skip cover/title pages: body has no teaching content (no colons, bullets, or
+        # alphanumeric formulas) and is very short — typically just author + date + publisher
+        _COVER_BODY = re.compile(
+            r'^[\s\w,.\-–—()/©®™@#$%&\'"!?]+$', re.DOTALL
+        )
+        if (body and len(body) < 150 and _COVER_BODY.match(body)
+                and not re.search(r'[=+\-*/^∑∫∂√]|\\[a-zA-Z]\{|[αβγδεζθλμπρσφψω]', body)):
             continue
 
         # Try to merge into previous topic if same/no title

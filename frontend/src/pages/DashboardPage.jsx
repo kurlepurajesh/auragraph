@@ -316,7 +316,9 @@ export default function DashboardPage() {
             {/* Header */}
             <header style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <img src="/logo.jpeg" alt="AuraGraph" style={{ height: 32, width: 'auto' }} />
+                    <div style={{ background: '#fff', borderRadius: 10, padding: '4px 12px', display: 'flex', alignItems: 'center' }}>
+                        <img src="/logo.jpeg" alt="AuraGraph" style={{ height: 30, width: 'auto' }} />
+                    </div>
                     {streak > 0 && (
                         <div className="streak-badge" style={{ marginLeft: 4 }}>
                             🔥 {streak} day streak

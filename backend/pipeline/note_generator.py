@@ -724,6 +724,19 @@ async def run_generation_pipeline(
     if not topics:
         return "", "local"
 
+    # Filter out metadata/cover topics that slipped through slide analysis
+    _SKIP_RE = re.compile(
+        r'\b(table of contents|references|bibliography|acknowledgement|'
+        r'thank you|agenda|outline|questions|q&a|title page|cover page|'
+        r'course overview|learning objectives|about this course|'
+        r'course introduction|lecture overview)\b'
+        r'|^(cover|title|contents|intro)$',
+        re.I,
+    )
+    topics = [t for t in topics if not _SKIP_RE.search(t.topic)]
+    if not topics:
+        return "", "local"
+
     # FIX C3: semaphore size from env var so Groq free-tier (1 req/s) works
     _concurrency = int(os.environ.get("LLM_CONCURRENCY", "1"))
     sem = asyncio.Semaphore(_concurrency)

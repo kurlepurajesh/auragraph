@@ -51,7 +51,9 @@ export default function LoginPage() {
             <div style={{ width: '100%', maxWidth: '400px' }}>
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-                    <img src="/logo.jpeg" alt="AuraGraph" style={{ height: 56, width: 'auto', marginBottom: 16 }} />
+                    <div style={{ display: 'inline-block', background: '#fff', borderRadius: 14, padding: '10px 20px', marginBottom: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+                        <img src="/logo.jpeg" alt="AuraGraph" style={{ height: 52, width: 'auto' }} />
+                    </div>
                     <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 14 }}>Your AI-powered study companion</p>
                 </div>
 

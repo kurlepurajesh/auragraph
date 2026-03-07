@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import {
     Sparkles, Loader2, ChevronLeft, ChevronRight, Upload, FileText,
-    BookOpen, MessageSquare, ArrowLeft, Zap, Brain, CheckCircle2,
+    BookOpen, MessageSquare, ArrowLeft, Brain, CheckCircle2,
     AlertCircle, MinusCircle, RefreshCw, X, ChevronDown, ChevronUp,
     MessageCircle, GitBranch, Copy, Check, PanelRightClose, PanelRightOpen,
     Download, PenLine, Columns2, ScrollText, Moon, Sun, Search, Clock,
@@ -48,8 +48,8 @@ function FuseProgressBar({ active }) {
     const [overdue, setOverdue] = useState(false); // true after 45 s — warn student
     useEffect(() => {
         if (!active) { setStep(0); setDots(''); setOverdue(false); return; }
-        // Cycle through the last two steps so the bar never freezes on large uploads
-        const st = setInterval(() => setStep(s => s < FUSE_STEPS.length - 1 ? s + 1 : FUSE_STEPS.length - 2), 3500);
+        // Advance through steps; loop back to step 3 instead of bouncing between last two
+        const st = setInterval(() => setStep(s => s < FUSE_STEPS.length - 1 ? s + 1 : 3), 3500);
         const dt = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 400);
         const ot = setTimeout(() => setOverdue(true), 45_000); // 45 s
         return () => { clearInterval(st); clearInterval(dt); clearTimeout(ot); };
@@ -64,7 +64,7 @@ function FuseProgressBar({ active }) {
                     <div style={{ fontSize: 11, color: overdue ? '#92400E' : 'var(--text3)', marginTop: 2, fontWeight: overdue ? 600 : 400 }}>
                         {overdue
                             ? '⚠️ Large upload — still processing, please keep this tab open'
-                            : `Step ${step + 1} of ${FUSE_STEPS.length} — large files (500 slides + textbooks) can take several minutes`}
+                            : `Step ${step + 1} of ${FUSE_STEPS.length} — processing your materials, large uploads may take a few minutes`}
                     </div>
                 </div>
             </div>
@@ -139,7 +139,7 @@ function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
 }
 
 // ─── Mutation / Doubt Modal ───────────────────────────────────────────────────
-function MutateModal({ page, notebookId, pageIdx, onClose, onMutate, initialDoubt = '' }) {
+function MutateModal({ page, notebookId, pageIdx, onClose, onMutate, onDoubtAnswered, initialDoubt = '' }) {
     const [doubt, setDoubt] = useState(initialDoubt);
     const [busy, setBusy] = useState(false);
     const [answer, setAnswer] = useState('');
@@ -171,6 +171,10 @@ function MutateModal({ page, notebookId, pageIdx, onClose, onMutate, initialDoub
                 setAnswerVerification(data.verification_status || 'correct');
                 setAnswerCorrection(data.correction || '');
                 setAnswerFootnote(data.footnote || '');
+                // Save to doubts sidebar so the answer persists after modal closes
+                if (onDoubtAnswered && data.answer) {
+                    onDoubtAnswered({ doubt, answer: data.answer, source: data.source || 'local' });
+                }
             } else {
                 setAnswer('Could not get an answer. Try again or use Mutate to rewrite this page.');
             }
@@ -1302,7 +1306,7 @@ function DoubtsPanel({ doubts, currentPage }) {
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {pageDiagnostics.map(d => {
                     const isExp = !!expanded[d.id];
-                    const pl = 130;
+                    const pl = 380;
                     const needsExp = d.insight.length > pl;
                     const preview = needsExp && !isExp ? d.insight.slice(0, pl).replace(/\*\*[^*]*$/, '').replace(/\$[^$]*$/, '') + '…' : d.insight;
                     return (
@@ -1728,15 +1732,15 @@ export default function NotebookWorkspace() {
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 {!hasNote ? (
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
-                        <div style={{ maxWidth: 620, width: '100%' }}>
+                        <div style={{ maxWidth: 760, width: '100%' }}>
                             <div style={{ textAlign: 'center', marginBottom: 36 }}>
-                                <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}><Zap size={24} color="white" /></div>
+                                <div style={{ display: 'inline-block', background: '#fff', borderRadius: 12, padding: '8px 18px', margin: '0 auto 14px' }}><img src="/logo.jpeg" alt="AuraGraph" style={{ height: 44, width: 'auto' }} /></div>
                                 <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Generate Fused Notes</h2>
                                 <p style={{ fontSize: 14, color: 'var(--text3)', lineHeight: 1.7 }}>Upload your course materials and AuraGraph will generate a personalised digital study note calibrated to your level.</p>
                             </div>
                             <FuseProgressBar active={fusing} />
                             {!fusing && (<>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 24 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14, marginBottom: 24 }}>
                                     <FileDrop label="Professor's Slides" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />
                                     <FileDrop label="Handwritten Notes" icon={PenLine} files={notesFiles} onFiles={setNotesFiles} imageOnly />
                                     <FileDrop label="Textbook / Reference" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
@@ -1885,7 +1889,7 @@ export default function NotebookWorkspace() {
                     <button onClick={() => setTextSelection(null)} style={{ background: 'none', border: '1px solid #4C1D95', color: '#A78BFA', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>&#x2715;</button>
                 </div>
             )}
-            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} initialDoubt={pendingSelectionText} />}
+            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true }; setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; }); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
             {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx) => { setCurrentPage(idx); }} onClose={() => setShowSearch(false)} />}
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
         </div>
