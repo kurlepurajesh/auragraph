@@ -10,7 +10,8 @@ import {
     BookOpen, MessageSquare, ArrowLeft, Zap, Brain, CheckCircle2,
     AlertCircle, MinusCircle, RefreshCw, X, ChevronDown, ChevronUp,
     MessageCircle, GitBranch, Copy, Check, PanelRightClose, PanelRightOpen,
-    Download, PenLine, Columns2, ScrollText
+    Download, PenLine, Columns2, ScrollText, Moon, Sun, Search, Clock,
+    Keyboard
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -337,7 +338,500 @@ function ExaminerModal({ concept, onClose }) {
     );
 }
 
-// ─── Knowledge Graph ──────────────────────────────────────────────────────────
+
+// ─── Dark Mode hook ────────────────────────────────────────────────────────────
+function useDarkMode() {
+    const [dark, setDark] = React.useState(() => localStorage.getItem('ag_dark') === '1');
+    React.useEffect(() => {
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        localStorage.setItem('ag_dark', dark ? '1' : '0');
+    }, [dark]);
+    return [dark, setDark];
+}
+
+// ─── GalaxyGraph ──────────────────────────────────────────────────────────────
+function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
+    const canvasRef = React.useRef();
+    const animRef   = React.useRef();
+    const starsRef  = React.useRef([]);
+    const W = 280, H = 360;
+
+    // Init stars once
+    React.useEffect(() => {
+        starsRef.current = Array.from({ length: 28 }, () => ({
+            x: Math.random() * W, y: Math.random() * H,
+            r: Math.random() * 1.2 + 0.3,
+            alpha: Math.random() * 0.7 + 0.3,
+            speed: Math.random() * 0.008 + 0.003,
+            phase: Math.random() * Math.PI * 2,
+        }));
+    }, []);
+
+    React.useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+        let t = 0;
+        const getPos = n => ({ x: (n.x / 100) * (W - 60) + 30, y: (n.y / 100) * (H - 60) + 30 });
+        const statusColor = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
+        const nodeById = Object.fromEntries((nodes || []).map(n => [n.id, n]));
+
+        const draw = () => {
+            t += 0.016;
+            ctx.clearRect(0, 0, W, H);
+
+            // Background
+            const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)/1.2);
+            bg.addColorStop(0, isDark ? '#08081A' : '#0a0a1e');
+            bg.addColorStop(1, isDark ? '#020208' : '#050510');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, W, H);
+
+            // Stars
+            for (const s of starsRef.current) {
+                const a = s.alpha * (0.5 + 0.5 * Math.sin(t * s.speed * 60 + s.phase));
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255,255,255,${a})`;
+                ctx.fill();
+            }
+
+            // Edges
+            for (const e of (edges || [])) {
+                const s = nodeById[e[0]], d = nodeById[e[1]];
+                if (!s || !d) continue;
+                const sp = getPos(s), dp = getPos(d);
+                ctx.beginPath();
+                ctx.moveTo(sp.x, sp.y);
+                ctx.lineTo(dp.x, dp.y);
+                const grad = ctx.createLinearGradient(sp.x, sp.y, dp.x, dp.y);
+                grad.addColorStop(0, statusColor[s.status] + '66');
+                grad.addColorStop(1, statusColor[d.status] + '66');
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 1.2;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Nodes
+            for (const n of (nodes || [])) {
+                const { x, y } = getPos(n);
+                const c = statusColor[n.status] || '#F59E0B';
+                const isSel = n.id === selectedNodeId;
+                const pulse = 1 + 0.12 * Math.sin(t * 2 + (n.x + n.y) / 40);
+
+                // Outer glow ring (animated)
+                const glowR = (isSel ? 22 : 16) * pulse;
+                const glowGrad = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+                glowGrad.addColorStop(0, c + '44');
+                glowGrad.addColorStop(1, c + '00');
+                ctx.beginPath();
+                ctx.arc(x, y, glowR, 0, Math.PI * 2);
+                ctx.fillStyle = glowGrad;
+                ctx.fill();
+
+                // Selection ring
+                if (isSel) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 18, 0, Math.PI * 2);
+                    ctx.strokeStyle = c + 'CC';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([3, 3]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // Core orb
+                const orbGrad = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, 10);
+                orbGrad.addColorStop(0, c + 'FF');
+                orbGrad.addColorStop(0.6, c + 'CC');
+                orbGrad.addColorStop(1, c + '88');
+                ctx.beginPath();
+                ctx.arc(x, y, 10, 0, Math.PI * 2);
+                ctx.fillStyle = orbGrad;
+                ctx.fill();
+
+                // Mutation badge
+                if ((n.mutation_count || 0) > 0) {
+                    ctx.beginPath();
+                    ctx.arc(x + 8, y - 8, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#7C3AED';
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 7px Space Grotesk, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(n.mutation_count, x + 8, y - 8);
+                }
+
+                // Label
+                const lbl = n.label.length > 14 ? n.label.slice(0, 12) + '…' : n.label;
+                ctx.font = `${isSel ? 'bold ' : ''}9px Space Grotesk, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillStyle = isSel ? '#fff' : 'rgba(255,255,255,0.8)';
+                ctx.fillText(lbl, x, y + 13);
+            }
+
+            animRef.current = requestAnimationFrame(draw);
+        };
+        draw();
+        return () => cancelAnimationFrame(animRef.current);
+    }, [nodes, edges, selectedNodeId]);
+
+    const handleClick = (e) => {
+        if (!nodes?.length) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const scaleX = W / rect.width, scaleY = H / rect.height;
+        const mx = (e.clientX - rect.left) * scaleX;
+        const my = (e.clientY - rect.top)  * scaleY;
+        const getPos = n => ({ x: (n.x / 100) * (W - 60) + 30, y: (n.y / 100) * (H - 60) + 30 });
+        const hit = nodes.find(n => { const p = getPos(n); return Math.hypot(p.x - mx, p.y - my) < 14; });
+        if (hit) onNodeClick?.(hit);
+    };
+
+    if (!nodes?.length) return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--text3)', fontSize: 12, textAlign: 'center', padding: '0 16px' }}>
+            <Brain size={28} color="var(--border2)" style={{ marginBottom: 10 }} />
+            <p>Concept graph appears after generating notes.</p>
+        </div>
+    );
+
+    return (
+        <canvas ref={canvasRef} width={W} height={H}
+            className="galaxy-canvas"
+            style={{ display: 'block', width: '100%', cursor: 'pointer', borderRadius: 12 }}
+            onClick={handleClick}
+        />
+    );
+}
+
+// ─── SniperExamModal ──────────────────────────────────────────────────────────
+function SniperExamModal({ nodes, onClose }) {
+    const weakNodes = nodes.filter(n => n.status === 'struggling' || n.status === 'partial');
+    const [questions, setQuestions] = React.useState([]);
+    const [loading, setLoading]     = React.useState(true);
+    const [qIdx, setQIdx]           = React.useState(0);
+    const [selected, setSelected]   = React.useState(null);
+    const [revealed, setRevealed]   = React.useState(false);
+    const [score, setScore]         = React.useState(0);
+    const [done, setDone]           = React.useState(false);
+
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch(`${API}/api/sniper-exam`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ weak_concepts: weakNodes.map(n => n.label) }),
+                });
+                const data = await res.json();
+                setQuestions(data.questions || []);
+            } catch {
+                setQuestions([]);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, []);
+
+    const current = questions[qIdx];
+    const total   = questions.length;
+
+    const handleSelect = (opt) => {
+        if (revealed) return;
+        setSelected(opt);
+        setRevealed(true);
+        if (opt === current.correct) setScore(s => s + 1);
+    };
+
+    const next = () => {
+        if (qIdx + 1 >= total) { setDone(true); return; }
+        setQIdx(i => i + 1);
+        setSelected(null);
+        setRevealed(false);
+    };
+
+    const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+
+    return (
+        <div className="modal-backdrop" onClick={onClose}>
+            <div className="modal fade-in-scale" onClick={e => e.stopPropagation()} style={{ maxWidth: 560, width: '96vw' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ fontSize: 22 }}>🎯</div>
+                        <div>
+                            <h3 style={{ marginBottom: 1 }}>Sniper Exam</h3>
+                            <p style={{ fontSize: 11, color: 'var(--text3)' }}>Targeted at your weak concepts</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)' }}><X size={18} /></button>
+                </div>
+
+                {loading && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '30px 0', justifyContent: 'center', color: 'var(--text3)', fontSize: 13 }}>
+                        <Loader2 className="spin" size={18} /> Generating targeted questions…
+                    </div>
+                )}
+
+                {!loading && done && (
+                    <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                        <div style={{ fontSize: 48, marginBottom: 12 }}>{pct >= 70 ? '🏆' : pct >= 40 ? '📈' : '💪'}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{score}/{total} correct</div>
+                        <div style={{ fontSize: 14, color: 'var(--text3)', marginBottom: 20 }}>
+                            {pct >= 70 ? 'Great job! Your weak areas are improving.' : pct >= 40 ? 'Good effort — keep practising these concepts.' : 'Keep going — revisit these topics in your notes.'}
+                        </div>
+                        <div className="progress-bar-track" style={{ marginBottom: 20 }}>
+                            <div className="progress-bar-fill" style={{ width: `${pct}%`, background: pct >= 70 ? 'linear-gradient(90deg,#10B981,#34D399)' : pct >= 40 ? 'linear-gradient(90deg,#F59E0B,#FCD34D)' : 'linear-gradient(90deg,#EF4444,#FCA5A5)' }} />
+                        </div>
+                        <button className="btn btn-primary" onClick={onClose}>Done</button>
+                    </div>
+                )}
+
+                {!loading && !done && total === 0 && (
+                    <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+                        No questions available — make sure the backend is running.
+                    </div>
+                )}
+
+                {!loading && !done && current && (
+                    <>
+                        {/* Progress */}
+                        <div style={{ marginBottom: 14 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)', marginBottom: 5, fontWeight: 600 }}>
+                                <span>Question {qIdx + 1} of {total}</span>
+                                <span style={{ color: '#10B981' }}>Score: {score}</span>
+                            </div>
+                            <div className="progress-bar-track">
+                                <div className="progress-bar-fill" style={{ width: `${((qIdx) / total) * 100}%`, background: 'linear-gradient(90deg,#7C3AED,#2563EB)' }} />
+                            </div>
+                        </div>
+
+                        {/* Concept tag */}
+                        {current.concept && (
+                            <div style={{ marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--purple-light)', color: 'var(--purple)', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>
+                                🎯 {current.concept}
+                            </div>
+                        )}
+
+                        {/* Question */}
+                        <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.7, color: 'var(--text)', marginBottom: 16, padding: '12px 14px', background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                            <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}>{current.question}</ReactMarkdown>
+                        </div>
+
+                        {/* Options */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                            {['A', 'B', 'C', 'D'].map(opt => (
+                                <button key={opt}
+                                    className={`sniper-option${revealed && opt === current.correct ? ' correct' : revealed && opt === selected && opt !== current.correct ? ' wrong' : ''}`}
+                                    onClick={() => handleSelect(opt)}
+                                    disabled={revealed}
+                                >
+                                    <span style={{ fontWeight: 700, marginRight: 8 }}>{opt})</span>
+                                    {current.options?.[opt] || ''}
+                                    {revealed && opt === current.correct && <span style={{ float: 'right' }}>✅</span>}
+                                    {revealed && opt === selected && opt !== current.correct && <span style={{ float: 'right' }}>❌</span>}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Explanation */}
+                        {revealed && current.explanation && (
+                            <div style={{ padding: '10px 12px', borderRadius: 8, background: selected === current.correct ? '#DCFCE7' : '#FEF2F2', border: `1px solid ${selected === current.correct ? '#BBF7D0' : '#FECACA'}`, fontSize: 12, lineHeight: 1.7, marginBottom: 14, color: selected === current.correct ? '#065F46' : '#991B1B' }}>
+                                <span style={{ fontWeight: 700 }}>Explanation: </span>{current.explanation}
+                            </div>
+                        )}
+
+                        {revealed && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button className="btn btn-primary" onClick={next}>
+                                    {qIdx + 1 >= total ? 'See Results' : 'Next Question →'}
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ─── Study Timer (Pomodoro) ───────────────────────────────────────────────────
+function StudyTimer() {
+    const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
+    const [mode, setMode]       = React.useState('focus');
+    const [secs, setSecs]       = React.useState(MODES.focus);
+    const [running, setRunning] = React.useState(false);
+    const [sessions, setSessions] = React.useState(() => parseInt(localStorage.getItem('ag_sessions') || '0'));
+    const [open, setOpen]       = React.useState(false);
+    const timerRef = React.useRef();
+
+    React.useEffect(() => {
+        if (running) {
+            timerRef.current = setInterval(() => {
+                setSecs(s => {
+                    if (s <= 1) {
+                        clearInterval(timerRef.current);
+                        setRunning(false);
+                        if (mode === 'focus') {
+                            const n = sessions + 1;
+                            setSessions(n);
+                            localStorage.setItem('ag_sessions', n);
+                        }
+                        try { new Audio('data:audio/wav;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7xA4Tvh9Rz/y8QADBwMWgQAZG/ILNAARQ4GLTcDeIIIhxGOBAuD7hOfBB3/94gcJ3w+o5/5eIAIAAAVwWgQAVQ2ORaIQwEMAJiDg95G4nQL7mQVWI6GwRcfsZAcsKkJvxgxEjzFUgfHoSQ9Qq7KNwqHwuB13MA4a1q/DmBrHgPcmjiGoh//EwC5nGPEmS4RcfkVKOhJf+WOgoxJclFz3kgn//dBA+ya1GhurNn8zb//9NNutNuhz31f////9vt///z+IdAEAAAK4LQIAKobHItEIYCGAExBwe8jcToF9zIKrEdDYIuP2MgOWFSE34wYiR5iqQPj0JIeoVdlG4VD4XA67mAcNa1fhzA1jwHuTRxDUQ//iYBczjHiTJcIuPyKlHQkv/LHQUYkuSi57yQT//uggfZNajQ3Vmz+Zt//+mm3Wm3Q576v////+32///5/EOgAAADVghQAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAAi2BWACAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAA').play(); } catch {}
+                        return MODES[mode];
+                    }
+                    return s - 1;
+                });
+            }, 1000);
+        }
+        return () => clearInterval(timerRef.current);
+    }, [running, mode]);
+
+    const switchMode = (m) => { setMode(m); setSecs(MODES[m]); setRunning(false); };
+    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+    const ss = String(secs % 60).padStart(2, '0');
+    const total = MODES[mode];
+    const pct = secs / total;
+    const R = 18, C = 2 * Math.PI * R;
+    const isAlmostDone = secs < 60 && mode === 'focus';
+
+    if (!open) return (
+        <button onClick={() => setOpen(true)} className="btn btn-ghost btn-sm" title="Pomodoro timer" style={{ padding: '5px 8px', position: 'relative' }}>
+            <Clock size={14} />
+            {sessions > 0 && <span style={{ position: 'absolute', top: -2, right: -2, background: '#7C3AED', color: '#fff', fontSize: 8, fontWeight: 700, width: 14, height: 14, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sessions}</span>}
+        </button>
+    );
+
+    return (
+        <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-md)', zIndex: 100, width: 200, animation: 'fadeIn 0.2s ease' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>⏱ Focus Timer</span>
+                    <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)' }}><X size={13} /></button>
+                </div>
+                {/* Mode tabs */}
+                <div style={{ display: 'flex', gap: 3, marginBottom: 12, background: 'var(--surface)', borderRadius: 7, padding: 2 }}>
+                    {[['focus','25m'],['short','5m'],['long','15m']].map(([m,l]) => (
+                        <button key={m} onClick={() => switchMode(m)} style={{ flex: 1, padding: '4px 0', borderRadius: 5, border: 'none', cursor: 'pointer', background: mode === m ? 'var(--text)' : 'transparent', color: mode === m ? '#fff' : 'var(--text3)', fontSize: 10, fontWeight: 600, transition: 'all 0.15s' }}>{l}</button>
+                    ))}
+                </div>
+                {/* SVG ring timer */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                    <svg width={80} height={80} viewBox="0 0 50 50">
+                        <circle cx={25} cy={25} r={R} fill="none" stroke="var(--border)" strokeWidth={4} />
+                        <circle cx={25} cy={25} r={R} fill="none"
+                            stroke={isAlmostDone ? '#EF4444' : mode === 'focus' ? '#7C3AED' : '#10B981'}
+                            strokeWidth={4}
+                            strokeDasharray={`${pct * C} ${C}`}
+                            strokeDashoffset={C * 0.25}
+                            strokeLinecap="round"
+                            style={{ transition: 'stroke-dasharray 0.5s ease, stroke 0.5s ease', transform: 'rotate(-90deg)', transformOrigin: '25px 25px' }}
+                        />
+                        <text x={25} y={28} textAnchor="middle" fontSize={9} fontWeight={700} fill={isAlmostDone ? '#EF4444' : 'var(--text)'} fontFamily="Space Grotesk, monospace">{mm}:{ss}</text>
+                    </svg>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-primary btn-sm" style={{ flex: 1, fontSize: 11 }} onClick={() => setRunning(r => !r)}>
+                        {running ? '⏸ Pause' : '▶ Start'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{ padding: '6px 8px' }} onClick={() => { setSecs(MODES[mode]); setRunning(false); }} title="Reset">
+                        <RefreshCw size={12} />
+                    </button>
+                </div>
+                {sessions > 0 && <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text3)', textAlign: 'center' }}>🍅 {sessions} session{sessions > 1 ? 's' : ''} today</div>}
+            </div>
+        </div>
+    );
+}
+
+// ─── NoteSearch ───────────────────────────────────────────────────────────────
+function NoteSearch({ pages, onJumpToPage, onClose }) {
+    const [query, setQuery] = React.useState('');
+    const inputRef = React.useRef();
+    React.useEffect(() => { inputRef.current?.focus(); }, []);
+
+    const results = React.useMemo(() => {
+        if (!query.trim() || query.length < 2) return [];
+        const q = query.toLowerCase();
+        return pages.map((page, idx) => {
+            const lower = page.toLowerCase();
+            const pos = lower.indexOf(q);
+            if (pos === -1) return null;
+            const start = Math.max(0, pos - 40);
+            const end   = Math.min(page.length, pos + query.length + 60);
+            const preview = (start > 0 ? '…' : '') + page.slice(start, end) + (end < page.length ? '…' : '');
+            return { idx, preview, pos: pos - start + (start > 0 ? 1 : 0) };
+        }).filter(Boolean);
+    }, [query, pages]);
+
+    const highlight = (text, q) => {
+        const idx = text.toLowerCase().indexOf(q.toLowerCase());
+        if (idx === -1) return text;
+        return <>{text.slice(0, idx)}<mark style={{ background: 'rgba(250,204,21,0.5)', borderRadius: 2, padding: '0 1px' }}>{text.slice(idx, idx + q.length)}</mark>{text.slice(idx + q.length)}</>;
+    };
+
+    return (
+        <div className="modal-backdrop" onClick={onClose}>
+            <div className="modal fade-in-scale" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, padding: '16px 16px 10px' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    <input ref={inputRef} className="input" placeholder="Search in notes… (e.g. Fourier, gradient)" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Escape' && onClose()} style={{ flex: 1 }} />
+                    <button className="btn btn-ghost btn-sm" onClick={onClose}><X size={14} /></button>
+                </div>
+                <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                    {query.length >= 2 && results.length === 0 && (
+                        <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>No results for "{query}"</div>
+                    )}
+                    {results.map(r => (
+                        <button key={r.idx} onClick={() => { onJumpToPage(r.idx); onClose(); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid transparent', background: 'var(--surface)', marginBottom: 6, cursor: 'pointer', transition: 'all 0.12s' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--purple)'; e.currentTarget.style.background = 'var(--purple-light)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'var(--surface)'; }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--purple)', marginBottom: 3 }}>Page {r.idx + 1}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>{highlight(r.preview.replace(/[#*`]/g, ''), query)}</div>
+                        </button>
+                    ))}
+                </div>
+                {query.length < 2 && <div style={{ padding: '8px 0', textAlign: 'center', fontSize: 11, color: 'var(--text3)' }}>Type at least 2 characters to search</div>}
+            </div>
+        </div>
+    );
+}
+
+// ─── KeyboardShortcutsModal ───────────────────────────────────────────────────
+function ShortcutsModal({ onClose }) {
+    const shorts = [
+        ['← / →', 'Previous / Next page'],
+        ['Ctrl+D', 'Ask a doubt (opens modal)'],
+        ['Ctrl+F', 'Search in notes'],
+        ['Ctrl+Enter', 'Submit doubt in modal'],
+        ['Esc', 'Close modal / selection'],
+    ];
+    return (
+        <div className="modal-backdrop" onClick={onClose}>
+            <div className="modal fade-in-scale" onClick={e => e.stopPropagation()} style={{ maxWidth: 360 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <h3>⌨️ Keyboard Shortcuts</h3>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)' }}><X size={16} /></button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {shorts.map(([k, d]) => (
+                        <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                            <kbd>{k}</kbd>
+                            <span style={{ fontSize: 12, color: 'var(--text2)' }}>{d}</span>
+                        </div>
+                    ))}
+                </div>
+                <div style={{ marginTop: 14, fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>Press <kbd>Esc</kbd> to close</div>
+            </div>
+        </div>
+    );
+}
+
+
+// ─── Knowledge Graph (fallback SVG) ─────────────────────────────────────────
 const SC = { mastered: { fill: '#10B981', ring: '#6EE7B7' }, partial: { fill: '#F59E0B', ring: '#FCD34D' }, struggling: { fill: '#EF4444', ring: '#FCA5A5' } };
 
 function KnowledgeGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
@@ -803,6 +1297,9 @@ export default function NotebookWorkspace() {
     const [jumpHighlightSet, setJumpHighlightSet] = useState(new Set()); // page indices to pulse
     const [textSelection, setTextSelection] = useState(null);       // { text, x, y } | null
     const [pendingSelectionText, setPendingSelectionText] = useState(''); // pre-fills MutateModal
+    const [showSearch, setShowSearch] = useState(false);       // note search overlay
+    const [showShortcuts, setShowShortcuts] = useState(false); // keyboard shortcuts modal
+    const [darkMode, setDarkMode] = useDarkMode();             // dark mode toggle
     const noteScrollRef = useRef();
 
     const pages = useMemo(() => {
@@ -862,6 +1359,8 @@ export default function NotebookWorkspace() {
             if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); setCurrentPage(p => Math.min(pages.length - 1, p + 1)); }
             else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); setCurrentPage(p => Math.max(0, p - 1)); }
             else if (e.key === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setMutating(true); }
+            else if (e.key === 'f' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setShowSearch(true); }
+            else if (e.key === '?' || (e.key === '/' && e.shiftKey)) { setShowShortcuts(true); }
         };
         window.addEventListener('keydown', h);
         return () => window.removeEventListener('keydown', h);
@@ -1073,6 +1572,15 @@ export default function NotebookWorkspace() {
                         <CopyNoteButton note={note} />
                         <DownloadNoteButton note={note} name={notebook.name} />
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
+                        {/* Search */}
+                        <button className="btn btn-ghost btn-sm" style={{ padding: '5px 8px' }} onClick={() => setShowSearch(true)} title="Search in notes (Ctrl+F)"><Search size={14} /></button>
+                        {/* Timer */}
+                        <StudyTimer />
+                        {/* Shortcuts */}
+                        <button className="btn btn-ghost btn-sm" style={{ padding: '5px 8px' }} onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (?)" ><Keyboard size={14} /></button>
+                        {/* Dark mode */}
+                        <button className="btn btn-ghost btn-sm" style={{ padding: '5px 8px' }} onClick={() => setDarkMode(d => !d)} title="Toggle dark mode">{darkMode ? <Sun size={14} /> : <Moon size={14} />}</button>
+                        <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
                         <button data-testid="ask-doubt-btn" className="btn btn-primary btn-sm" style={{ gap: 5 }} onClick={() => setMutating(true)} title="Ask a doubt (Ctrl+D)"><MessageSquare size={13} /> Ask a Doubt</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => setSidebarOpen(o => !o)} title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} style={{ padding: '6px 8px' }}>
                             {sidebarOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
@@ -1112,7 +1620,7 @@ export default function NotebookWorkspace() {
                                 <button data-testid="generate-notes-btn" className="btn btn-primary btn-lg" style={{ width: '100%', gap: 8 }} onClick={handleFuse} disabled={fusing || (!slidesFiles.length && !notesFiles.length)}>
                                     <Sparkles size={16} /> Generate Digital Notes
                                 </button>
-                                <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 12 }}>← → arrow keys to navigate pages · Ctrl+D to ask a doubt</p>
+                                <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 12 }}>← → to navigate · <kbd>Ctrl+D</kbd> doubt · <kbd>Ctrl+F</kbd> search · <kbd>?</kbd> shortcuts</p>
                             </>)}
                         </div>
                     </div>
@@ -1232,6 +1740,8 @@ export default function NotebookWorkspace() {
                 </div>
             )}
             {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} initialDoubt={pendingSelectionText} />}
+            {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx) => { setCurrentPage(idx); }} onClose={() => setShowSearch(false)} />}
+            {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
         </div>
     );
 }

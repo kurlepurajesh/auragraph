@@ -82,9 +82,7 @@ Each object MUST have EXACTLY these keys:
 Math: inline $...$, display $$...$$ on its own line. NEVER use \\( \\) or \\[ \\].
 """
 
-
-class ExaminerAgent:
-    def __init__(self, kernel: Kernel):
+class ExaminerAgent:    def __init__(self, kernel: Kernel):
         self._kernel = kernel
         config = PromptTemplateConfig(
             template=EXAMINER_PROMPT,
