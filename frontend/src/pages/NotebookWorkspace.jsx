@@ -45,20 +45,27 @@ const FUSE_STEPS = [
 function FuseProgressBar({ active }) {
     const [step, setStep] = useState(0);
     const [dots, setDots] = useState('');
+    const [overdue, setOverdue] = useState(false); // true after 45 s — warn student
     useEffect(() => {
-        if (!active) { setStep(0); setDots(''); return; }
-        const st = setInterval(() => setStep(s => Math.min(s + 1, FUSE_STEPS.length - 1)), 3500);
+        if (!active) { setStep(0); setDots(''); setOverdue(false); return; }
+        // Cycle through the last two steps so the bar never freezes on large uploads
+        const st = setInterval(() => setStep(s => s < FUSE_STEPS.length - 1 ? s + 1 : FUSE_STEPS.length - 2), 3500);
         const dt = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 400);
-        return () => { clearInterval(st); clearInterval(dt); };
+        const ot = setTimeout(() => setOverdue(true), 45_000); // 45 s
+        return () => { clearInterval(st); clearInterval(dt); clearTimeout(ot); };
     }, [active]);
     if (!active) return null;
     return (
-        <div style={{ marginBottom: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+        <div style={{ marginBottom: 20, background: overdue ? '#FFFBEB' : 'var(--surface)', border: `1px solid ${overdue ? '#FDE68A' : 'var(--border)'}`, borderRadius: 12, padding: '16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <span style={{ fontSize: 22 }}>{FUSE_STEPS[step].icon}</span>
                 <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{FUSE_STEPS[step].label}{dots}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Step {step + 1} of {FUSE_STEPS.length} — this usually takes 15–30 seconds</div>
+                    <div style={{ fontSize: 11, color: overdue ? '#92400E' : 'var(--text3)', marginTop: 2, fontWeight: overdue ? 600 : 400 }}>
+                        {overdue
+                            ? '⚠️ Large upload — still processing, please keep this tab open'
+                            : `Step ${step + 1} of ${FUSE_STEPS.length} — large files (500 slides + textbooks) can take several minutes`}
+                    </div>
                 </div>
             </div>
             <div style={{ height: 4, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
@@ -108,6 +115,7 @@ function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>{label}</div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{imageOnly ? 'JPG · PNG · WebP · HEIC · TIFF' : 'PDF · PPTX · JPG · PNG · WebP · HEIC'}</div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>Drag & drop or click to browse</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1, opacity: 0.65 }}>Max 50 MB per file</div>
                 </div>
             ) : (
                 <>
@@ -257,9 +265,9 @@ function MutateModal({ page, notebookId, pageIdx, onClose, onMutate, initialDoub
                         {mode === 'answering' ? <Loader2 className="spin" size={14} /> : <MessageCircle size={14} />}
                         {mode === 'answering' ? 'Searching…' : 'Ask (get answer)'}
                     </button>
-                    <button className="btn btn-primary btn-sm" onClick={doMutate} disabled={busy || !doubt.trim()} style={{ gap: 6 }}>
+                    <button className="btn btn-primary btn-sm" onClick={doMutate} disabled={busy || !doubt.trim()} style={{ gap: 6 }} title="Permanently rewrites this page to incorporate your doubt">
                         {mode === 'mutating' ? <Loader2 className="spin" size={14} /> : <Sparkles size={14} />}
-                        {mode === 'mutating' ? 'Rewriting…' : 'Mutate This Page'}
+                        {mode === 'mutating' ? 'Rewriting…' : 'Rewrite This Page'}
                     </button>
                 </div>
             </div>
@@ -804,7 +812,8 @@ function NoteSearch({ pages, onJumpToPage, onClose }) {
 function ShortcutsModal({ onClose }) {
     const shorts = [
         ['← / →', 'Previous / Next page'],
-        ['Ctrl+D', 'Ask a doubt (opens modal)'],
+        ['Click page counter', 'Jump to any page number'],
+        ['Ctrl+D', 'Ask a doubt / Rewrite page'],
         ['Ctrl+F', 'Search in notes'],
         ['Ctrl+Enter', 'Submit doubt in modal'],
         ['Esc', 'Close modal / selection'],
@@ -1049,13 +1058,30 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
     const [selectedNode, setSelectedNode] = useState(null);
     const [examinerConcept, setExaminerConcept] = useState(null);
     const [sniperOpen, setSniperOpen] = useState(false);
+    const [nudgeDismissed, setNudgeDismissed] = useState(false);
     const handleNodeClick = n => setSelectedNode(p => p?.id === n.id ? null : n);
     const handleStatusChange = (node, status) => { onNodeStatusChange(node, status); setSelectedNode(p => p?.id === node.id ? { ...p, status } : p); };
     const mc = nodes.filter(n => n.status === 'mastered').length;
     const pc = nodes.filter(n => n.status === 'partial').length;
     const sc = nodes.filter(n => n.status === 'struggling').length;
+    const weakCount = sc + pc;
     return (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+            {/* Sniper exam nudge — shown once when there are weak/struggling concepts */}
+            {weakCount > 0 && !nudgeDismissed && nodes.length > 0 && (
+                <div style={{ margin: '10px 12px 0', padding: '10px 12px', borderRadius: 9, background: sc > 0 ? '#FEF2F2' : '#FFFBEB', border: `1px solid ${sc > 0 ? '#FECACA' : '#FDE68A'}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>🎯</span>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: sc > 0 ? '#991B1B' : '#92400E' }}>
+                            {sc > 0 ? `${sc} concept${sc > 1 ? 's' : ''} in the red zone` : `${pc} concept${pc > 1 ? 's' : ''} need practice`}
+                        </div>
+                        <button onClick={() => setSniperOpen(true)} style={{ fontSize: 11, fontWeight: 600, color: sc > 0 ? '#DC2626' : '#D97706', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', marginTop: 1 }}>
+                            Take Sniper Exam →
+                        </button>
+                    </div>
+                    <button onClick={() => setNudgeDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 2, flexShrink: 0 }}><X size={12} /></button>
+                </div>
+            )}
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Cognitive Knowledge Map</div>
                 {nodes.length > 0 && (
@@ -1300,6 +1326,8 @@ export default function NotebookWorkspace() {
     const [showSearch, setShowSearch] = useState(false);       // note search overlay
     const [showShortcuts, setShowShortcuts] = useState(false); // keyboard shortcuts modal
     const [darkMode, setDarkMode] = useDarkMode();             // dark mode toggle
+    const [editingPage, setEditingPage] = useState(false);     // page-jump input active
+    const [pageInputVal, setPageInputVal] = useState('');      // page-jump input value
     const noteScrollRef = useRef();
 
     const pages = useMemo(() => {
@@ -1421,9 +1449,12 @@ export default function NotebookWorkspace() {
             await extractAndSaveGraph(data.fused_note);
         } catch (err) {
             const isNetworkError = !err.message || err.message === 'Failed to fetch' || err.message.includes('NetworkError');
+            const isFileTooLarge = err.message?.toLowerCase().includes('too large') || err.message?.includes('413');
             const errMsg = isNetworkError
                 ? `## ⚠️ Backend Not Running\n\nNotes could not be generated because the backend server is not reachable.\n\n**To fix this, start the backend:**\n\n\`\`\`bash\ncd backend\nsource venv/bin/activate\nuvicorn main:app --reload --port 8000\n\`\`\`\n\n> The local summarizer generates notes from your PDFs even without Azure OpenAI keys.`
-                : `## ⚠️ Generation Failed\n\n**Error:** ${err.message}\n\nPlease check the backend logs and try again.`;
+                : isFileTooLarge
+                    ? `## ⚠️ File Too Large\n\n**${err.message}**\n\n**What you can do:**\n- Compress the PDF (Adobe Acrobat → Reduce File Size, or smallpdf.com)\n- Split a large textbook into chapters and upload one at a time\n- For slides, export only the relevant lecture deck`
+                    : `## ⚠️ Generation Failed\n\n**Error:** ${err.message}\n\nPlease try again.`;
             setNote(errMsg); setCurrentPage(0); await saveNote(errMsg, prof);
         }
         setFusing(false); setFuseProgress('');
@@ -1557,7 +1588,31 @@ export default function NotebookWorkspace() {
                         {/* Page nav */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)' }}>
                             <button data-testid="prev-page" onClick={() => setCurrentPage(Math.max(0, currentPage - (viewMode === 'two' ? 2 : 1)))} disabled={currentPage === 0} title="Previous (←)" style={{ background: 'none', border: 'none', color: currentPage === 0 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronLeft size={14} /></button>
-                            <span style={{ fontSize: 12, color: 'var(--text2)', minWidth: 48, textAlign: 'center' }}>{currentPage + 1}{viewMode === 'two' && pages[currentPage + 1] ? `–${currentPage + 2}` : ''} / {pages.length}</span>
+                            {editingPage ? (
+                                <input
+                                    autoFocus
+                                    type="number" min={1} max={pages.length}
+                                    value={pageInputVal}
+                                    onChange={e => setPageInputVal(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            const n = parseInt(pageInputVal, 10);
+                                            if (!isNaN(n)) setCurrentPage(Math.max(0, Math.min(pages.length - 1, n - 1)));
+                                            setEditingPage(false); setPageInputVal('');
+                                        } else if (e.key === 'Escape') { setEditingPage(false); setPageInputVal(''); }
+                                    }}
+                                    onBlur={() => { setEditingPage(false); setPageInputVal(''); }}
+                                    style={{ width: 46, textAlign: 'center', fontSize: 12, border: '1px solid var(--purple)', borderRadius: 4, padding: '1px 4px', background: 'var(--bg)', color: 'var(--text)', outline: 'none' }}
+                                />
+                            ) : (
+                                <span
+                                    onClick={() => { setEditingPage(true); setPageInputVal(String(currentPage + 1)); }}
+                                    title="Click to jump to a page"
+                                    style={{ fontSize: 12, color: 'var(--text2)', minWidth: 48, textAlign: 'center', cursor: 'pointer', borderRadius: 4, padding: '1px 3px' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >{currentPage + 1}{viewMode === 'two' && pages[currentPage + 1] ? `–${currentPage + 2}` : ''} / {pages.length}</span>
+                            )}
                             <button data-testid="next-page" onClick={() => setCurrentPage(Math.min(pages.length - 1, currentPage + (viewMode === 'two' ? 2 : 1)))} disabled={currentPage >= pages.length - 1} title="Next (→)" style={{ background: 'none', border: 'none', color: currentPage >= pages.length - 1 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage >= pages.length - 1 ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronRight size={14} /></button>
                         </div>
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
@@ -1620,7 +1675,7 @@ export default function NotebookWorkspace() {
                                 <button data-testid="generate-notes-btn" className="btn btn-primary btn-lg" style={{ width: '100%', gap: 8 }} onClick={handleFuse} disabled={fusing || (!slidesFiles.length && !notesFiles.length)}>
                                     <Sparkles size={16} /> Generate Digital Notes
                                 </button>
-                                <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 12 }}>← → to navigate · <kbd>Ctrl+D</kbd> doubt · <kbd>Ctrl+F</kbd> search · <kbd>?</kbd> shortcuts</p>
+                                <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 12 }}>← → to navigate · <kbd>Ctrl+D</kbd> ask/rewrite · <kbd>Ctrl+F</kbd> search · click page counter to jump · <kbd>?</kbd> shortcuts</p>
                             </>)}
                         </div>
                     </div>
