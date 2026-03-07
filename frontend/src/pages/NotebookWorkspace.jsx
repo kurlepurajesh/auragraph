@@ -48,8 +48,12 @@ function FuseProgressBar({ active }) {
     const [overdue, setOverdue] = useState(false); // true after 45 s — warn student
     useEffect(() => {
         if (!active) { setStep(0); setDots(''); setOverdue(false); return; }
-        // Advance through steps; loop back to step 3 instead of bouncing between last two
-        const st = setInterval(() => setStep(s => s < FUSE_STEPS.length - 1 ? s + 1 : 3), 3500);
+        // Advance through first 5 steps, then hold on step 4 (Fusion Agent) — never bounce back
+        const st = setInterval(() => setStep(s => {
+            if (s < 4) return s + 1;   // advance up to "Calibrating"
+            if (s === 4) return 3;     // loop: Calibrating → Fusion Agent (same phase, stay here)
+            return s;                  // steps 5+ only set manually when truly done
+        }), 3500);
         const dt = setInterval(() => setDots(d => d.length >= 3 ? '' : d + '.'), 400);
         const ot = setTimeout(() => setOverdue(true), 45_000); // 45 s
         return () => { clearInterval(st); clearInterval(dt); clearTimeout(ot); };
@@ -63,8 +67,8 @@ function FuseProgressBar({ active }) {
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{FUSE_STEPS[step].label}{dots}</div>
                     <div style={{ fontSize: 11, color: overdue ? '#92400E' : 'var(--text3)', marginTop: 2, fontWeight: overdue ? 600 : 400 }}>
                         {overdue
-                            ? '⚠️ Large upload — still processing, please keep this tab open'
-                            : `Step ${step + 1} of ${FUSE_STEPS.length} — processing your materials, large uploads may take a few minutes`}
+                            ? '⚠️ Large upload detected — AI is still working, please keep this tab open'
+                            : `Step ${step + 1} of ${FUSE_STEPS.length} — processing your materials${step >= 3 ? ' (large books may take a few minutes)' : ''}`}
                     </div>
                 </div>
             </div>
@@ -107,7 +111,7 @@ function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
             onDragOver={e => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={e => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
-            style={{ border: `2px dashed ${drag ? 'var(--text)' : hasFiles ? '#10B981' : 'var(--border2)'}`, borderRadius: 12, padding: 16, background: drag ? 'var(--surface2)' : hasFiles ? '#F0FDF4' : 'var(--surface)', transition: 'all 0.15s', minHeight: 120 }}>
+            style={{ border: `2px dashed ${drag ? 'var(--text)' : hasFiles ? '#10B981' : 'var(--border2)'}`, borderRadius: 12, padding: 16, background: drag ? 'var(--surface2)' : hasFiles ? 'var(--zone-files-bg)' : 'var(--surface)', transition: 'all 0.15s', minHeight: 140 }}>
             <input ref={ref} type="file" accept={imageOnly ? ".jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.tiff,.tif" : ".pdf,.pptx,.ppt,.jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.tiff,.tif"} multiple style={{ display: 'none' }} onChange={e => addFiles(e.target.files)} />
             {!hasFiles ? (
                 <div onClick={() => ref.current.click()} style={{ textAlign: 'center', cursor: 'pointer', padding: '12px 0' }}>
@@ -115,15 +119,15 @@ function FileDrop({ label, icon, files, onFiles, imageOnly = false }) {
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>{label}</div>
                     <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>{imageOnly ? 'JPG · PNG · WebP · HEIC · TIFF' : 'PDF · PPTX · JPG · PNG · WebP · HEIC'}</div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>Drag & drop or click to browse</div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1, opacity: 0.65 }}>500 MB total across all files</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1, opacity: 0.65 }}>Up to 500 MB per upload session</div>
                 </div>
             ) : (
                 <>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
                         {files.map((f, i) => (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 6, padding: '6px 10px', border: '1px solid #d1fae5' }}>
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--file-chip-bg)', borderRadius: 6, padding: '6px 10px', border: '1px solid var(--file-chip-border)' }}>
                                 <span style={{ fontSize: 14, flexShrink: 0 }}>{fileIcon(f)}</span>
-                                <span style={{ fontSize: 12, color: '#065f46', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                                <span style={{ fontSize: 12, color: 'var(--file-chip-text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                                 <span style={{ fontSize: 10, color: 'var(--text3)' }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
                                 <button onClick={e => { e.stopPropagation(); onFiles(prev => prev.filter((_, j) => j !== i)); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text3)', display: 'flex' }}><X size={12} /></button>
                             </div>
@@ -1060,7 +1064,7 @@ function ConceptDetailPanel({ node, notebookId, onClose, onStatusChange, onJumpT
                     ))}
                 </div>
                 {/* Jump to notes */}
-                <button onClick={() => onJumpToSection(node.label)} style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 12 }}>
+                <button onClick={() => onJumpToSection(node.full_label || node.label)} style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 12 }}>
                     <ChevronRight size={12} /> Jump to Concept in Notes
                 </button>
                 {/* Practice level picker */}
@@ -1167,10 +1171,16 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>All Concepts</div>
                         {nodes.map(n => {
                             const c = SC[n.status] || SC.partial; return (
-                                <div key={n.id} onClick={() => handleNodeClick(n)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, marginBottom: 3, background: selectedNode?.id === n.id ? 'var(--surface2)' : 'transparent', cursor: 'pointer', border: selectedNode?.id === n.id ? '1px solid var(--border)' : '1px solid transparent', transition: 'all 0.1s' }}>
+                                <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 7, marginBottom: 3, background: selectedNode?.id === n.id ? 'var(--surface2)' : 'transparent', border: selectedNode?.id === n.id ? '1px solid var(--border)' : '1px solid transparent', transition: 'all 0.1s' }}>
                                     <div style={{ width: 9, height: 9, borderRadius: '50%', background: c.fill, flexShrink: 0, boxShadow: `0 0 5px ${c.fill}88` }} />
-                                    <div style={{ flex: 1, fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.label}</div>
-                                    <div style={{ fontSize: 10, color: c.fill, textTransform: 'capitalize', fontWeight: 600 }}>{n.status}</div>
+                                    <div onClick={() => handleNodeClick(n)} style={{ flex: 1, fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}>{n.label}</div>
+                                    <button
+                                        onClick={e => { e.stopPropagation(); onJumpToSection(n.full_label || n.label); }}
+                                        title="Jump to this concept in notes"
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: '2px 3px', borderRadius: 4, display: 'flex', alignItems: 'center', flexShrink: 0, opacity: 0.6, transition: 'opacity 0.15s' }}
+                                        onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                        onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+                                    ><ChevronRight size={13} /></button>
                                 </div>
                             );
                         })}
@@ -1594,13 +1604,10 @@ export default function NotebookWorkspace() {
                 setMutatedPages(prev => new Set([...prev, currentPage]));
                 await saveNote(newNote, prof);
                 extractAndSaveGraph(newNote).catch(() => { });
-                const pl = data.mutated_paragraph.split('\n');
-                // Only extract the 💡 Intuition block added by the mutation agent.
-                // "> 📝 Exam Tip:" blockquotes that were already in the note must NOT
-                // be used as the insight — they are not answers to the student's doubt.
-                const bqs = pl.findIndex(l => l.includes('💡') && (l.startsWith('> ') || l.trimStart().startsWith('> ')));
-                let insight = data.concept_gap || 'Your note was rewritten to address this doubt.';
-                if (bqs !== -1) { const bl = []; for (let i = bqs; i < pl.length; i++) { if (pl[i].startsWith('> ') || pl[i] === '>') bl.push(pl[i].replace(/^>\s?/, '')); else if (bl.length > 0) break; } if (bl.length) insight = bl.join(' ').trim(); }
+                // Use the full answer/explanation from the backend as insight shown in doubts sidebar.
+                // Prefer data.answer (full explanation), fall back to concept_gap, then generic message.
+                // Never extract a 2-word 💡 snippet — the student needs a real answer.
+                const insight = data.answer || data.concept_gap || 'Your note was rewritten to address this doubt.';
                 const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true };
                 setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
                 setRightTab('doubts');
@@ -1618,8 +1625,38 @@ export default function NotebookWorkspace() {
     };
 
     const handleJumpToSection = useCallback((label) => {
-        const ll = label.toLowerCase();
-        const idx = pages.findIndex(p => p.toLowerCase().includes(ll));
+        if (!label || !pages.length) return;
+
+        const normalise = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        const searchWords = normalise(label).split(' ').filter(w => w.length > 2);
+        const ll = normalise(label);
+
+        // 1. Exact substring match
+        let idx = pages.findIndex(p => normalise(p).includes(ll));
+
+        // 2. Strip ## prefix if present
+        if (idx === -1 && ll.startsWith('##')) {
+            idx = pages.findIndex(p => normalise(p).includes(ll.replace(/^#+\s*/, '')));
+        }
+
+        // 3. Word-overlap on heading area (first 200 chars)
+        if (idx === -1 && searchWords.length > 0) {
+            let bestScore = 0;
+            pages.forEach((p, i) => {
+                const headingArea = normalise(p.slice(0, 200));
+                const score = searchWords.filter(w => headingArea.includes(w)).length;
+                const fraction = score / searchWords.length;
+                if (fraction > 0.5 && score > bestScore) { bestScore = score; idx = i; }
+            });
+        }
+
+        // 4. Any significant word (>4 chars) in heading area
+        if (idx === -1 && searchWords.length > 0) {
+            const significant = searchWords.filter(w => w.length > 4);
+            if (significant.length > 0)
+                idx = pages.findIndex(p => significant.some(w => normalise(p.slice(0, 300)).includes(w)));
+        }
+
         if (idx !== -1) {
             setCurrentPage(idx);
             setJumpHighlightSet(new Set([idx]));
@@ -1742,13 +1779,13 @@ export default function NotebookWorkspace() {
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
                         <div style={{ maxWidth: 760, width: '100%' }}>
                             <div style={{ textAlign: 'center', marginBottom: 36 }}>
-                                <div style={{ display: 'inline-block', background: '#fff', borderRadius: 12, padding: '8px 18px', margin: '0 auto 14px' }}><img src="/logo.jpeg" alt="AuraGraph" style={{ height: 44, width: 'auto' }} /></div>
+                                <div style={{ display: 'inline-block', background: '#fff', borderRadius: 12, padding: '8px 18px', margin: '0 auto 14px', border: '1px solid var(--border)' }}><img src="/logo.jpeg" alt="AuraGraph" style={{ height: 44, width: 'auto', display: 'block' }} /></div>
                                 <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Generate Fused Notes</h2>
                                 <p style={{ fontSize: 14, color: 'var(--text3)', lineHeight: 1.7 }}>Upload your course materials and AuraGraph will generate a personalised digital study note calibrated to your level.</p>
                             </div>
                             <FuseProgressBar active={fusing} />
                             {!fusing && (<>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14, marginBottom: 24 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 24 }}>
                                     <FileDrop label="Professor's Slides" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />
                                     <FileDrop label="Handwritten Notes" icon={PenLine} files={notesFiles} onFiles={setNotesFiles} />
                                     <FileDrop label="Textbook / Reference" icon={FileText} files={textbookFiles} onFiles={setTextbookFiles} />
@@ -1779,13 +1816,13 @@ export default function NotebookWorkspace() {
                                 if (idx < 0 || idx >= pages.length) return <div key={`empty-${idx}`} style={{ flex: 1, minWidth: 0 }} />;
                                 const isHighlighted = jumpHighlightSet.has(idx);
                                 return (
-                                    <div key={idx} style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: isHighlighted ? '0 0 0 3px #7C3AED, 0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: isHighlighted ? '1px solid #7C3AED' : '1px solid #d0d0d0', overflow: 'hidden', flex: 1, minWidth: 0, transition: 'box-shadow 0.4s, border-color 0.4s' }}>
+                                    <div key={idx} className="note-page-card" style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: isHighlighted ? '0 0 0 3px #7C3AED, 0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: isHighlighted ? '1px solid #7C3AED' : '1px solid #d0d0d0', overflow: 'hidden', flex: 1, minWidth: 0, transition: 'box-shadow 0.4s, border-color 0.4s' }}>
                                         <div style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
                                             {[0, 1, 2, 3, 4, 5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />)}
                                         </div>
                                         <div style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
                                         <div style={{ flex: 1, padding: '40px 48px 48px 36px', minWidth: 0 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
+                                            <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
                                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     {mutatedPages.has(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EDE9FE', color: '#7C3AED', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
@@ -1793,7 +1830,7 @@ export default function NotebookWorkspace() {
                                                 </div>
                                             </div>
                                             <NoteRenderer content={pages[idx]} onDoubtLink={onDoubtLink} />
-                                            <div style={{ marginTop: 32, paddingTop: 10, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div className="note-footer-bar" style={{ marginTop: 32, paddingTop: 10, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>{notebook?.course || ''}</span>
                                                 <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>AuraGraph · {prof}</span>
                                             </div>

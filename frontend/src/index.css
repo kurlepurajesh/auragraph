@@ -181,9 +181,68 @@ kbd {
 .progress-bar-track { height: 6px; background: var(--border); border-radius: 6px; overflow: hidden; }
 .progress-bar-fill { height: 100%; border-radius: 6px; transition: width 0.8s cubic-bezier(0.16,1,0.3,1); }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Additional dark-mode-aware colour tokens  (extends the :root block above)
-───────────────────────────────────────────────────────────────────────────── */
+/* ─── KaTeX dark-mode fix — formulas invisible on dark background ─────────── */
+/* The note page (.note-page-content) always renders on a white card in light
+   mode. In dark mode we invert the card background to near-black, so KaTeX's
+   default black glyphs become invisible. Force KaTeX text to use a visible
+   colour that adapts to the current theme. */
+[data-theme="dark"] .katex,
+[data-theme="dark"] .katex-display,
+[data-theme="dark"] .katex .mord,
+[data-theme="dark"] .katex .mrel,
+[data-theme="dark"] .katex .mopen,
+[data-theme="dark"] .katex .mclose,
+[data-theme="dark"] .katex .mbin,
+[data-theme="dark"] .katex .mpunct,
+[data-theme="dark"] .katex .minner,
+[data-theme="dark"] .katex .mop,
+[data-theme="dark"] .katex .mfrac,
+[data-theme="dark"] .katex .msqrt,
+[data-theme="dark"] .katex .msupsub,
+[data-theme="dark"] .katex .mspace,
+[data-theme="dark"] .katex span {
+  color: #E4E4F0 !important;
+}
+[data-theme="dark"] .katex-display {
+  background: rgba(124,58,237,0.06);
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+/* Inline math in note cards - cards have white bg in light, dark bg in dark */
+[data-theme="dark"] .note-page-card {
+  background: #13131A !important;
+  border-color: #2A2A38 !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 12px 40px rgba(0,0,0,0.5) !important;
+}
+[data-theme="dark"] .note-page-card .note-header-bar {
+  border-bottom-color: #2A2A38 !important;
+}
+[data-theme="dark"] .note-page-card .note-footer-bar {
+  border-top-color: #2A2A38 !important;
+}
+/* NoteRenderer uses hardcoded colours — override for dark */
+[data-theme="dark"] .note-page-card p,
+[data-theme="dark"] .note-page-card li,
+[data-theme="dark"] .note-page-card span:not(.katex *) {
+  color: var(--nr-text);
+}
+[data-theme="dark"] .note-page-card h1,
+[data-theme="dark"] .note-page-card h2 {
+  color: var(--nr-text-h) !important;
+}
+[data-theme="dark"] .note-page-card code {
+  background: var(--nr-surface) !important;
+  color: var(--nr-text) !important;
+}
+[data-theme="dark"] .note-page-card blockquote {
+  background: var(--nr-surface) !important;
+  border-left-color: var(--purple) !important;
+  color: var(--nr-text) !important;
+}
+[data-theme="dark"] .note-page-card strong {
+  color: var(--nr-text-h) !important;
+}
+
 :root {
   /* NoteRenderer — markdown component colours */
   --nr-text:              #18181B;

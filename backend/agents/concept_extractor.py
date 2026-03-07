@@ -210,6 +210,7 @@ def extract_concepts(note_text: str) -> dict[str, Any]:
             found.append({
                 "id": node_id,
                 "label": label,
+                "full_label": label,
                 "status": "partial",
                 "x": x,
                 "y": y,
@@ -240,6 +241,7 @@ def extract_concepts(note_text: str) -> dict[str, Any]:
             found.append({
                 'id': i + 1,
                 'label': label[:30],
+                'full_label': label,
                 'status': 'partial',
                 'x': 20 + col * 30,
                 'y': 15 + row * 25,
@@ -331,7 +333,12 @@ async def llm_extract_concepts(note_text: str) -> dict:
             n.setdefault("x", 50)
             n.setdefault("y", 50)
             n.setdefault("mutation_count", 0)
-            n["label"] = str(n.get("label", "Concept"))[:30]
+            # Store full label for jump-to-section matching.
+            # Display label is capped at 30 chars for the graph bubble,
+            # but full_label is the complete heading name used for navigation.
+            full = str(n.get("label", "Concept")).strip()
+            n["full_label"] = full
+            n["label"] = full[:30] if len(full) > 30 else full
         if not isinstance(graph.get("edges"), list):
             graph["edges"] = []
 
