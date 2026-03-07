@@ -29,9 +29,22 @@ class ErrorBoundary extends React.Component {
     }
 }
 
+const DEMO_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 function PrivateRoute({ children }) {
     const user = useSelector(s => s.graph.user);
     const token = localStorage.getItem('ag_token');
+    // Check demo token expiry
+    if (token === 'demo-token') {
+        const issuedAt = parseInt(localStorage.getItem('ag_demo_issued_at') || '0', 10);
+        if (issuedAt && Date.now() - issuedAt > DEMO_TTL_MS) {
+            // Demo session expired — clear and redirect to login
+            localStorage.removeItem('ag_token');
+            localStorage.removeItem('ag_user');
+            localStorage.removeItem('ag_demo_issued_at');
+            return <Navigate to="/" replace />;
+        }
+    }
     return user || token ? children : <Navigate to="/" replace />;
 }
 

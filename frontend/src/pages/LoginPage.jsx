@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setUser } from '../store';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles, FlaskConical } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -15,6 +15,36 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [demoLoading, setDemoLoading] = useState(false);
+
+    const tryDemo = async () => {
+        setDemoLoading(true);
+        try {
+            const res = await fetch(`${API}/auth/demo-login`, { method: 'POST' });
+            const data = await res.json();
+            const mockUser = { id: data.id, name: data.name, email: data.email, token: data.token };
+            dispatch(setUser(mockUser));
+            localStorage.setItem('ag_token', data.token);
+            localStorage.setItem('ag_user', JSON.stringify(mockUser));
+            localStorage.setItem('ag_demo_issued_at', String(Date.now()));
+            localStorage.removeItem('ag_offline_mode'); // backend is reachable
+            if (data.demo_notebook_id) {
+                navigate(`/notebook/${data.demo_notebook_id}`);
+            } else {
+                navigate('/dashboard');
+            }
+        } catch {
+            // Offline fallback — still let them explore the UI
+            const mockUser = { id: 'demo-user', name: 'Demo Student', email: 'demo@auragraph.local', token: 'demo-token' };
+            dispatch(setUser(mockUser));
+            localStorage.setItem('ag_token', 'demo-token');
+            localStorage.setItem('ag_user', JSON.stringify(mockUser));
+            localStorage.setItem('ag_demo_issued_at', String(Date.now()));
+            localStorage.setItem('ag_offline_mode', '1');
+            navigate('/dashboard');
+        }
+        setDemoLoading(false);
+    };
 
     const submit = async (e) => {
         e.preventDefault();
@@ -91,6 +121,20 @@ export default function LoginPage() {
                         <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }} style={{ background: 'none', border: 'none', color: 'var(--text)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>
                             {mode === 'login' ? 'Sign up' : 'Sign in'}
                         </button>
+                    </div>
+
+                    <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-lg"
+                            style={{ width: '100%', gap: 8, background: 'linear-gradient(135deg, #F5F3FF, #EDE9FE)', border: '1px solid #C4B5FD', color: '#5B21B6' }}
+                            onClick={tryDemo}
+                            disabled={demoLoading}
+                        >
+                            {demoLoading ? <Loader2 className="spin" size={16} /> : <FlaskConical size={16} />}
+                            Try Demo — no sign-up needed
+                        </button>
+                        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>Loads a sample DSP notebook with pre-generated notes</p>
                     </div>
                 </div>
 

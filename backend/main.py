@@ -51,7 +51,7 @@ from typing import Optional, List
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 import semantic_kernel as sk
@@ -79,6 +79,8 @@ from agents.image_ocr import describe_slide_image, is_image_file
 from agents.notebook_store import (
     create_notebook, get_notebooks, get_notebook,
     update_notebook_note, update_notebook_graph, delete_notebook,
+    get_sections, create_section, get_section, update_section,
+    delete_section, reorder_sections, rebuild_note_from_sections,
 )
 
 load_dotenv()
@@ -477,6 +479,18 @@ class MutationResponse(BaseModel):
     can_mutate:        bool = True
 
 
+class RegenerateSectionRequest(BaseModel):
+    notebook_id: str
+    page_idx:    int
+    proficiency: str = "Practitioner"
+
+
+class RegenerateSectionResponse(BaseModel):
+    new_section: str
+    page_idx:    int
+    source:      str
+
+
 class ExaminerRequest(BaseModel):
     concept_name: str
     notebook_id: Optional[str] = None          # used to retrieve course-specific context
@@ -527,6 +541,26 @@ class NotebookUpdateRequest(BaseModel):
     proficiency: Optional[str] = None
 
 
+class SectionCreateRequest(BaseModel):
+    title:     str
+    note_type: str = "topic"
+
+
+class SectionUpdateRequest(BaseModel):
+    title:     Optional[str] = None
+    content:   Optional[str] = None
+    note_type: Optional[str] = None
+    order_idx: Optional[int] = None
+
+
+class SectionReorderRequest(BaseModel):
+    order: List[dict]   # [{"id": ..., "order_idx": ...}]
+
+
+class SectionGenerateRequest(BaseModel):
+    proficiency: Optional[str] = "Intermediate"
+
+
 # ── Auth routes ────────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -558,6 +592,117 @@ async def auth_login(req: AuthRequest):
     if not user:
         raise HTTPException(401, "Invalid credentials")
     return user
+
+
+_DEMO_SAMPLE_NOTE = """## Fourier Transform
+
+The **Fourier Transform** decomposes a continuous-time signal into its constituent sinusoidal frequencies. It is the foundational tool of spectral analysis.
+
+$$X(f) = \\int_{-\\infty}^{\\infty} x(t) \\cdot e^{-j 2\\pi f t} \\, dt$$
+
+The **inverse** recovers the original signal from its spectrum:
+
+$$x(t) = \\int_{-\\infty}^{\\infty} X(f) \\cdot e^{+j 2\\pi f t} \\, df$$
+
+**Key properties:**
+
+| Property | Time Domain | Frequency Domain |
+|----------|-------------|-----------------|
+| Linearity | $\\alpha x(t) + \\beta y(t)$ | $\\alpha X(f) + \\beta Y(f)$ |
+| Time shift | $x(t - t_0)$ | $e^{-j2\\pi f t_0} X(f)$ |
+| Duality | $X(t)$ | $x(-f)$ |
+| Parseval | $\\int |x(t)|^2 dt$ | $\\int |X(f)|^2 df$ |
+
+---
+
+## Convolution Theorem
+
+Convolution in the time domain is equivalent to **pointwise multiplication** in the frequency domain — this is the key insight that makes filtering efficient.
+
+$$y(t) = (x * h)(t) = \\int_{-\\infty}^{\\infty} x(\\tau)\\, h(t-\\tau)\\, d\\tau \\iff Y(f) = X(f) \\cdot H(f)$$
+
+**Intuition:** A filter $h(t)$ selects or attenuates specific frequency bands. In the frequency domain this is just multiplication — no integral needed.
+
+**Correlation theorem** (related):
+
+$$R_{xy}(\\tau) = x(-t) * y(t) \\iff S_{xy}(f) = X^*(f) \\cdot Y(f)$$
+
+---
+
+## Discrete Fourier Transform (DFT)
+
+For $N$-point discrete sequences, the DFT is:
+
+$$X[k] = \\sum_{n=0}^{N-1} x[n]\\, e^{-j \\frac{2\\pi}{N} k n}, \\quad k = 0, 1, \\ldots, N-1$$
+
+The **Fast Fourier Transform (FFT)** computes the DFT in $O(N \\log N)$ (vs. $O(N^2)$ naively) by exploiting the periodic and symmetric properties of the twiddle factors $W_N^{kn} = e^{-j2\\pi kn / N}$.
+
+**Spectral resolution:** $\\Delta f = f_s / N$ — use zero-padding to interpolate the spectrum.
+
+---
+
+## Sampling Theorem (Nyquist–Shannon)
+
+A band-limited signal with maximum frequency $f_{\\max}$ can be **perfectly reconstructed** from its samples if and only if the sampling rate satisfies:
+
+$$f_s \\geq 2 f_{\\max}$$
+
+The quantity $2f_{\\max}$ is the **Nyquist rate**. Sampling below it causes **aliasing** — high-frequency energy folds back and corrupts lower frequencies.
+
+**Anti-aliasing filter:** Apply a low-pass filter with cutoff $f_s/2$ *before* sampling to eliminate energy above the Nyquist frequency.
+
+---
+
+## Z-Transform
+
+The Z-transform is the discrete-time analogue of the Laplace transform:
+
+$$X(z) = \\sum_{n=-\\infty}^{\\infty} x[n]\\, z^{-n}, \\quad z \\in \\mathbb{C}$$
+
+**System function:** For an LTI system described by the difference equation
+
+$$y[n] = \\sum_k b_k x[n-k] - \\sum_k a_k y[n-k]$$
+
+the transfer function is $H(z) = B(z)/A(z)$ and the frequency response is $H(e^{j\\omega})$.
+
+**Stability criterion:** All poles of $H(z)$ must lie **strictly inside** the unit circle $|z| < 1$.
+"""
+
+
+@app.post("/auth/demo-login")
+async def auth_demo_login():
+    """
+    One-click demo: returns a fixed demo-token and seeds a sample DSP notebook
+    (only the first time — subsequent calls reuse the existing notebook).
+    """
+    demo_user_id = "demo"
+    demo_nbs = get_notebooks(demo_user_id)
+
+    # Look for the existing demo notebook
+    demo_nb = next((nb for nb in demo_nbs if nb.get("name") == "Digital Signal Processing"), None)
+
+    if demo_nb is None:
+        demo_nb = create_notebook(demo_user_id, "Digital Signal Processing", "EC301 — DSP")
+        update_notebook_note(demo_nb["id"], _DEMO_SAMPLE_NOTE, "Practitioner")
+        demo_nb = get_notebook(demo_nb["id"])
+        # Seed concept graph for demo notebook (background task — non-blocking)
+        import asyncio
+        async def _seed_graph():
+            try:
+                g = await llm_extract_concepts(_DEMO_SAMPLE_NOTE)
+                if g.get("nodes"):
+                    update_notebook_graph(demo_nb["id"], g)
+            except Exception as exc:
+                logger.debug("Demo graph seed failed: %s", exc)
+        asyncio.create_task(_seed_graph())
+
+    return {
+        "id": demo_user_id,
+        "email": "demo@auragraph.local",
+        "name": "Demo Student",
+        "token": "demo-token",
+        "demo_notebook_id": demo_nb["id"],
+    }
 
 
 # ── Notebook routes ────────────────────────────────────────────────────────────
@@ -608,6 +753,108 @@ async def get_knowledge_stats(nb_id: str, authorization: Optional[str] = Header(
     user = get_current_user(authorization)
     _require_notebook_owner(nb_id, user)   # FIX A1
     return get_chunk_stats(nb_id)
+
+
+# ── Sections routes ─────────────────────────────────────────────────────────
+
+@app.get("/notebooks/{nb_id}/sections")
+async def list_sections(nb_id: str, authorization: Optional[str] = Header(None)):
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)
+    return get_sections(nb_id)
+
+
+@app.post("/notebooks/{nb_id}/sections")
+async def add_section(
+    nb_id: str, req: SectionCreateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)
+    return create_section(nb_id, req.title, req.note_type)
+
+
+@app.patch("/notebooks/{nb_id}/sections/{section_id}")
+async def edit_section(
+    nb_id: str, section_id: str, req: SectionUpdateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)
+    updates = req.model_dump(exclude_none=True)
+    result = update_section(section_id, **updates)
+    if not result:
+        raise HTTPException(404, "Section not found")
+    return result
+
+
+@app.delete("/notebooks/{nb_id}/sections/{section_id}")
+async def remove_section(
+    nb_id: str, section_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)
+    if not delete_section(section_id):
+        raise HTTPException(404, "Section not found")
+    return {"status": "deleted"}
+
+
+@app.put("/notebooks/{nb_id}/sections/reorder")
+async def reorder_notebook_sections(
+    nb_id: str, req: SectionReorderRequest,
+    authorization: Optional[str] = Header(None),
+):
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)
+    return reorder_sections(nb_id, req.order)
+
+
+@app.post("/notebooks/{nb_id}/sections/{section_id}/generate")
+async def generate_section_note(
+    nb_id: str, section_id: str, req: SectionGenerateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Generate LLM note content for a single section topic."""
+    user = get_current_user(authorization)
+    nb = _require_notebook_owner(nb_id, user)
+    sec = get_section(section_id)
+    if not sec or sec["notebook_id"] != nb_id:
+        raise HTTPException(404, "Section not found")
+
+    topic_prompt = (
+        f"You are generating a detailed study note for the topic: **{sec['title']}**\n"
+        f"Course context: {nb.get('name', '')} ({nb.get('course', '')})\n"
+        f"Student proficiency level: {req.proficiency}\n\n"
+        "Write a comprehensive yet focused note covering key concepts, examples, and "
+        "any important formulas or definitions. Use Markdown with ## headings, bullet lists, "
+        "and LaTeX math where appropriate (delimited by $...$ or $$...$$)."
+    )
+
+    messages = [
+        {"role": "system", "content": "You are an expert academic note writer. Produce well-structured Markdown notes."},
+        {"role": "user", "content": topic_prompt},
+    ]
+    content = ""
+    if _is_azure_available():
+        try:
+            content = await _azure_chat(messages, max_tokens=2048)
+        except Exception as e:
+            logger.warning("Azure section generate failed: %s", e)
+    if not content and _is_groq_available():
+        try:
+            content = await _groq_chat(messages, max_tokens=2048)
+        except Exception as e:
+            logger.warning("Groq section generate failed: %s", e)
+    if not content:
+        raise HTTPException(503, "LLM unavailable — cannot generate section note")
+    from pipeline.note_generator import _fix_tables
+    content = fix_latex_delimiters(_fix_tables(content))
+    updated = update_section(section_id, content=content)
+    # Rebuild the flat note on the notebook so existing views still work
+    full_note = rebuild_note_from_sections(nb_id)
+    update_notebook_note(nb_id, full_note, req.proficiency or nb.get("proficiency"))
+    return updated
 
 
 # ── Upload + Generate Notes ────────────────────────────────────────────────────
@@ -988,6 +1235,176 @@ async def upload_fuse(
     )
 
 
+# ── SSE Streaming fuse endpoint ────────────────────────────────────────────────
+
+@app.post("/api/upload-fuse-stream")
+async def upload_fuse_stream(
+    proficiency:   str             = Form("Practitioner"),
+    slides_pdfs:   List[UploadFile] = File(default=[]),
+    textbook_pdfs: List[UploadFile] = File(default=[]),
+    notebook_id:   Optional[str]   = Form(None),
+    authorization: Optional[str]   = Header(None),
+):
+    """
+    Streaming (SSE) version of /api/upload-fuse-multi.
+
+    Emits newline-delimited JSON events (text/event-stream):
+      data: {"type":"status","message":"Extracting slides..."}
+      data: {"type":"start","total":12}
+      data: {"type":"section","topic":"Fourier Transform","content":"## ...","index":0}
+      ...
+      data: {"type":"done","note":"<full_note>","source":"azure"}
+
+    The client can reconstruct the note incrementally by accumulating section.content.
+    """
+    user = get_current_user(authorization)
+    from pipeline.chunker      import chunk_textbook
+    from pipeline.embedder     import Embedder
+    from pipeline.vector_db    import VectorDB
+    from pipeline.slide_analyzer import analyse_slides
+    from pipeline.topic_retriever import TopicRetriever
+    from pipeline.note_generator  import run_generation_pipeline_stream
+
+    # ── Preprocessing (same as upload-fuse-multi) ─────────────────────────────
+    all_slides_text  = ""
+    all_textbook_text = ""
+    _total_bytes = 0
+    extraction_errors = []
+
+    for upload in slides_pdfs:
+        raw   = await upload.read()
+        fname = upload.filename or "slides.pdf"
+        _total_bytes += len(raw)
+        if _total_bytes > MAX_TOTAL_UPLOAD_BYTES:
+            raise HTTPException(413, f"Upload exceeds {MAX_TOTAL_UPLOAD_BYTES//1024//1024} MB limit")
+        try:
+            file_marker = f"\n\n{'='*60}\n=== FILE: {fname} ===\n{'='*60}\n\n"
+            if is_image_file(fname):
+                extracted = await asyncio.to_thread(extract_text_from_file, raw, fname)
+            else:
+                extracted = extract_text_from_file(raw, fname)
+            all_slides_text += file_marker + extracted + "\n\n"
+        except Exception as e:
+            extraction_errors.append(f"{fname}: {e}")
+
+    for upload in (textbook_pdfs or []):
+        raw   = await upload.read()
+        fname = upload.filename or "textbook.pdf"
+        _total_bytes += len(raw)
+        if _total_bytes > MAX_TOTAL_UPLOAD_BYTES:
+            raise HTTPException(413, f"Upload exceeds {MAX_TOTAL_UPLOAD_BYTES//1024//1024} MB limit")
+        try:
+            if is_image_file(fname):
+                all_textbook_text += await asyncio.to_thread(extract_text_from_file, raw, fname) + "\n\n"
+            else:
+                all_textbook_text += extract_text_from_file(raw, fname) + "\n\n"
+        except Exception as e:
+            extraction_errors.append(f"{fname}: {e}")
+
+    if not all_slides_text.strip() and not all_textbook_text.strip():
+        raise HTTPException(422, "Could not extract text from any uploaded file. " + "; ".join(extraction_errors))
+
+    slide_raw_chunks    = chunk_text(all_slides_text,   max_chars=4000)
+    textbook_raw_chunks = chunk_text(all_textbook_text, max_chars=4000)
+    textbook_hash       = hashlib.md5(all_textbook_text.encode()).hexdigest()[:16]
+
+    chunks_stored = None
+    if notebook_id:
+        try:
+            chunks_stored = store_source_chunks(
+                nb_id=notebook_id,
+                slide_chunks=slide_raw_chunks,
+                textbook_chunks=textbook_raw_chunks,
+                textbook_hash=textbook_hash,
+            )
+        except Exception as e:
+            logger.warning("Knowledge store write failed: %s", e)
+
+    textbook_semantic_chunks = []
+    if all_textbook_text.strip():
+        try:
+            textbook_semantic_chunks = chunk_textbook(all_textbook_text)
+        except Exception as e:
+            logger.warning("Textbook semantic chunking failed: %s", e)
+
+    embedder  = Embedder()
+    vector_db = VectorDB()
+    if textbook_semantic_chunks:
+        try:
+            loaded = notebook_id and vector_db.load(notebook_id, expected_hash=textbook_hash)
+            if loaded:
+                embedder.rebuild_from_chunks(vector_db.chunks)
+            else:
+                embedder.embed_chunks(textbook_semantic_chunks)
+                vector_db.add_chunks(textbook_semantic_chunks)
+                if notebook_id:
+                    vector_db.save(notebook_id, textbook_hash=textbook_hash)
+        except Exception as e:
+            logger.warning("Embedding failed: %s", e)
+
+    topics = []
+    try:
+        topics = await analyse_slides(all_slides_text)
+    except Exception as e:
+        logger.warning("Slide analysis failed: %s", e)
+
+    topic_contexts: dict[str, str] = {}
+    if topics and vector_db.size > 0:
+        try:
+            retriever = TopicRetriever(vector_db, embedder)
+            topic_contexts = retriever.retrieve_all_topics(topics)
+        except Exception as e:
+            logger.warning("Topic retrieval failed: %s", e)
+
+    # ── Stream generation ──────────────────────────────────────────────────────
+    async def event_generator():
+        import json as _json
+        from pipeline.note_generator import _fix_tables
+
+        if not topics:
+            fallback = generate_local_note(all_slides_text, all_textbook_text, proficiency)
+            fallback = fix_latex_delimiters(_fix_tables(fallback))
+            if notebook_id:
+                try:
+                    update_notebook_note(notebook_id, fallback, proficiency)
+                except Exception:
+                    pass
+            yield f"data: {_json.dumps({'type':'done','note':fallback,'source':'local'})}\n\n"
+            return
+
+        yield f"data: {_json.dumps({'type':'status','message':'Starting note generation…'})}\n\n"
+
+        final_note = ""
+        final_source = "local"
+        async for event in run_generation_pipeline_stream(topics, topic_contexts, proficiency):
+            if event["type"] == "section":
+                event["content"] = fix_latex_delimiters(_fix_tables(event["content"]))
+            elif event["type"] == "done":
+                final_note   = fix_latex_delimiters(_fix_tables(event.get("note", "")))
+                final_source = event.get("source", "local")
+                event["note"] = final_note
+                event["source"] = final_source
+                # Persist
+                if notebook_id and final_note:
+                    try:
+                        pages = _note_to_pages(final_note)
+                        store_note_pages(notebook_id, pages)
+                        update_notebook_note(notebook_id, final_note, proficiency)
+                    except Exception as e:
+                        logger.warning("Stream persist failed: %s", e)
+            yield f"data: {_json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "X-Accel-Buffering":  "no",
+            "Cache-Control":      "no-cache",
+            "Connection":         "keep-alive",
+        },
+    )
+
+
 # ── Doubt answering (FIX A3: auth required) ───────────────────────────────────
 
 @app.post("/api/doubt", response_model=DoubtResponse)
@@ -1119,6 +1536,95 @@ async def mutate_note(
         source=llm_source,
         can_mutate=can_mutate,
     )
+
+
+@app.post("/api/regenerate-section", response_model=RegenerateSectionResponse)
+async def regenerate_section(
+    req: RegenerateSectionRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Re-generate a single note page section from scratch using stored source chunks.
+    Useful when the student wants a fresh take on a topic without re-uploading all files.
+    """
+    user = get_current_user(authorization)
+    nb = _require_notebook_owner(req.notebook_id, user)
+
+    # Get the current page text (used to extract the topic heading)
+    current_page_text = get_note_page(req.notebook_id, req.page_idx) or ""
+    # Fall back to splitting the full note
+    if not current_page_text and nb.get("note"):
+        note_pages = re.split(r'(?m)^(?=## )', nb["note"])
+        note_pages = [p.strip() for p in note_pages if p.strip()]
+        if req.page_idx < len(note_pages):
+            current_page_text = note_pages[req.page_idx]
+
+    if not current_page_text:
+        raise HTTPException(404, "Page not found in notebook")
+
+    # Extract heading for targeted retrieval
+    heading_match = re.match(r'^#{1,3}\s+(.+)', current_page_text)
+    topic = heading_match.group(1) if heading_match else current_page_text[:80]
+
+    # Retrieve source material
+    slide_hits    = retrieve_relevant_chunks(req.notebook_id, topic, top_k=8, source_filter="slides")
+    textbook_hits = retrieve_relevant_chunks(req.notebook_id, topic, top_k=8, source_filter="textbook")
+    slide_ctx    = _format_chunks_for_prompt(slide_hits,    10_000)
+    textbook_ctx = _format_chunks_for_prompt(textbook_hits, 10_000)
+
+    # Build a generation prompt
+    regen_prompt = f"""You are AuraGraph's note-generation engine. Re-write the following study note section **from scratch**, using only the source material below.
+
+TOPIC: {topic}
+PROFICIENCY LEVEL: {req.proficiency}
+
+SOURCE MATERIAL:
+--- SLIDES ---
+{slide_ctx}
+
+--- TEXTBOOK ---
+{textbook_ctx}
+
+INSTRUCTIONS:
+- Write a single cohesive section starting with "## {topic}"
+- Use LaTeX math ($...$ for inline, $$...$$ for display)
+- Include key formulas, definitions, and intuition calibrated to {req.proficiency} level
+- Do NOT copy the old note — write a fresh, improved version
+- Output ONLY the markdown note section (no preamble)"""
+
+    llm_source = "local"
+    new_section = ""
+
+    if _is_azure_available():
+        try:
+            new_section = await _azure_chat([{"role": "user", "content": regen_prompt}], max_tokens=3000)
+            llm_source = "azure"
+        except Exception as e:
+            logger.warning("Azure regenerate failed: %s", e)
+
+    if not new_section and _is_groq_available():
+        try:
+            new_section = await _groq_chat([{"role": "user", "content": regen_prompt}], max_tokens=3000)
+            llm_source = "groq"
+        except Exception as e:
+            logger.warning("Groq regenerate failed: %s", e)
+
+    if not new_section:
+        # Offline fallback — return original with a notice
+        new_section = current_page_text + "\n\n> *(Regeneration unavailable — AI offline. Original section kept.)*"
+        llm_source = "local"
+    else:
+        from pipeline.note_generator import _fix_tables
+        new_section = fix_latex_delimiters(_fix_tables(new_section))
+        # Persist the updated page
+        try:
+            update_note_page(req.notebook_id, req.page_idx, new_section)
+            full_note = "\n\n".join(get_all_note_pages(req.notebook_id))
+            update_notebook_note(req.notebook_id, full_note)
+        except Exception as e:
+            logger.warning("Failed to persist regenerated section: %s", e)
+
+    return RegenerateSectionResponse(new_section=new_section, page_idx=req.page_idx, source=llm_source)
 
 
 # ── Sniper Exam ───────────────────────────────────────────────────────

@@ -1123,3 +1123,90 @@ async def run_generation_pipeline(
         merged = await verify_notes(merged)
 
     return merged, source
+
+
+async def run_generation_pipeline_stream(
+    topics:         list[SlideTopic],
+    topic_contexts: dict[str, str],
+    proficiency:    str = "Practitioner",
+):
+    """
+    Streaming variant of run_generation_pipeline.
+
+    Async generator that yields SSE-ready dicts as each topic finishes:
+      {"type": "start",   "total": <N>}
+      {"type": "section", "topic": <str>, "content": <str>, "index": <int>}
+      ...
+      {"type": "done",    "note": <full_merged_str>, "source": <str>}
+
+    Topics are generated concurrently (respects LLM_CONCURRENCY).
+    The final "done" event contains the merged + refined + verified note.
+    """
+    _HARD_SKIP_RE = re.compile(
+        r'^(table of contents|references|bibliography|acknowledgement|acknowledgements|'
+        r'thank you|q&a|title page|cover page|about this course)$',
+        re.I,
+    )
+    def _should_skip(t: SlideTopic) -> bool:
+        if _HARD_SKIP_RE.match(t.topic.strip()):
+            return True
+        _SOFT_SKIP = re.compile(r'\b(agenda|outline|questions|learning objectives|lecture overview|course overview|course introduction)\b', re.I)
+        if _SOFT_SKIP.search(t.topic) and len(t.slide_text.strip()) < 60:
+            return True
+        return False
+
+    filtered = [t for t in topics if not _should_skip(t)]
+    if not filtered:
+        yield {"type": "done", "note": "", "source": "local"}
+        return
+
+    yield {"type": "start", "total": len(filtered)}
+
+    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "3"))
+    api_sem = asyncio.Semaphore(_concurrency)
+
+    async def _wrapped(t: SlideTopic, idx: int):
+        ctx = topic_contexts.get(t.topic, "")
+        section, src = await generate_topic_note(t, ctx, proficiency, api_sem=api_sem)
+        return idx, t.topic, section, src
+
+    # Launch all tasks; use asyncio.Queue to yield results as they arrive
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def _run_task(t, idx):
+        result = await _wrapped(t, idx)
+        await queue.put(result)
+
+    tasks = [asyncio.create_task(_run_task(t, i)) for i, t in enumerate(filtered)]
+
+    ordered_sections: list[str | None] = [None] * len(filtered)
+    last_source = "local"
+
+    for _ in range(len(filtered)):
+        idx, topic_name, section, src = await queue.get()
+        ordered_sections[idx] = section
+        if src != "local":
+            last_source = src
+        yield {"type": "section", "topic": topic_name, "content": section, "index": idx}
+
+    await asyncio.gather(*tasks, return_exceptions=True)  # ensure all done
+
+    # Merge in original topic order
+    merged = merge_sections(ordered_sections)
+
+    # Refinement pass (skip for very large notes)
+    _REFINE_CHAR_LIMIT = 80_000
+    if len(merged) <= _REFINE_CHAR_LIMIT and (_azure_available() or _groq_available()):
+        try:
+            merged = await refine_notes(merged)
+        except Exception as e:
+            logger.warning("Stream refinement pass failed: %s", e)
+
+    # Verification pass
+    if _azure_available() or _groq_available():
+        try:
+            merged = await verify_notes(merged)
+        except Exception as e:
+            logger.warning("Stream verification pass failed: %s", e)
+
+    yield {"type": "done", "note": merged, "source": last_source}

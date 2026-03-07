@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { setUser } from '../store';
 import { ls_getNotebooks, ls_createNotebook, ls_deleteNotebook } from '../localNotebooks';
 import {
     BookOpen, Plus, Trash2, ChevronRight, LogOut, Loader2, BookMarked,
-    Calendar, Moon, Sun, Target, TrendingUp, Clock, Award, Star
+    Calendar, Moon, Sun, Target, TrendingUp, Clock, Award, Star,
+    ChevronDown, FolderOpen, Folder
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -241,6 +242,32 @@ export default function DashboardPage() {
     const [showCreate, setShowCreate] = useState(false);
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem('ag_dark') === '1');
     const [streak] = useState(getStreak);
+    const [collapsedCourses, setCollapsedCourses] = useState(() => {
+        try { return new Set(JSON.parse(localStorage.getItem('ag_collapsed_courses') || '[]')); }
+        catch { return new Set(); }
+    });
+
+    const byCourse = useMemo(() => {
+        const map = {};
+        for (const nb of notebooks) {
+            const key = (nb.course?.trim()) || 'Uncategorized';
+            (map[key] = map[key] || []).push(nb);
+        }
+        return Object.entries(map).sort(([a], [b]) => {
+            if (a === 'Uncategorized') return 1;
+            if (b === 'Uncategorized') return -1;
+            return a.localeCompare(b);
+        });
+    }, [notebooks]);
+
+    const toggleCourse = (key) => {
+        setCollapsedCourses(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            localStorage.setItem('ag_collapsed_courses', JSON.stringify([...next]));
+            return next;
+        });
+    };
 
     const userId = getUserId();
 
@@ -305,11 +332,11 @@ export default function DashboardPage() {
 
     return (
         <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
-            {/* Demo banner */}
-            {localStorage.getItem('ag_token') === 'demo-token' && (
+            {/* Demo banner — only shown when truly offline (backend unreachable) */}
+            {localStorage.getItem('ag_offline_mode') === '1' && (
                 <div style={{ background: darkMode ? '#1a1200' : '#FEF3C7', borderBottom: '1px solid #FDE68A', padding: '8px 32px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#92400E' }}>
                     <span style={{ fontSize: 14 }}>⚠️</span>
-                    <span><b>Demo mode:</b> Backend is offline. Notes are stored in your browser only.</span>
+                    <span><b>Offline demo mode:</b> Backend is unreachable. Notes are stored in your browser only.</span>
                 </div>
             )}
 
@@ -376,7 +403,7 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Notebook grid */}
+                {/* Notebook grid — grouped by course */}
                 {loading ? (
                     <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text3)' }}>
                         <Loader2 className="spin" size={28} style={{ margin: '0 auto 12px' }} />
@@ -396,10 +423,45 @@ export default function DashboardPage() {
                         </button>
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-                        {notebooks.map(nb => (
-                            <NotebookCard key={nb.id} nb={nb} onOpen={id => navigate(`/notebook/${id}`)} onDelete={handleDelete} />
-                        ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        {byCourse.map(([courseKey, nbs]) => {
+                            const collapsed = collapsedCourses.has(courseKey);
+                            return (
+                                <div key={courseKey}>
+                                    {/* Course header */}
+                                    <button
+                                        onClick={() => toggleCourse(courseKey)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: collapsed ? 0 : 12,
+                                            background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%' }}
+                                    >
+                                        <div style={{ width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(135deg,#7C3AED22,#2563EB22)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #7C3AED22' }}>
+                                            {collapsed
+                                                ? <Folder size={14} color="#7C3AED" />
+                                                : <FolderOpen size={14} color="#7C3AED" />}
+                                        </div>
+                                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', flexGrow: 1, textAlign: 'left' }}>
+                                            {courseKey}
+                                        </span>
+                                        <span style={{ fontSize: 11, color: 'var(--text3)', marginRight: 6, fontWeight: 500 }}>
+                                            {nbs.length} notebook{nbs.length !== 1 ? 's' : ''}
+                                        </span>
+                                        <ChevronDown size={15} color="var(--text3)"
+                                            style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                    </button>
+
+                                    {/* Notebooks grid for this course */}
+                                    {!collapsed && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                                            {nbs.map(nb => (
+                                                <NotebookCard key={nb.id} nb={nb}
+                                                    onOpen={id => navigate(`/notebook/${id}`)}
+                                                    onDelete={handleDelete} />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </main>

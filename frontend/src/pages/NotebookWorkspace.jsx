@@ -11,7 +11,7 @@ import {
     AlertCircle, MinusCircle, RefreshCw, X, ChevronDown, ChevronUp,
     MessageCircle, GitBranch, Copy, Check, PanelRightClose, PanelRightOpen,
     Download, PenLine, Columns2, ScrollText, Moon, Sun, Search, Clock,
-    Keyboard
+    Keyboard, Printer, Undo2, Plus, Trash2, Zap, List
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -1206,7 +1206,7 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
 }
 
 // ─── Note Renderer ────────────────────────────────────────────────────────────
-function NoteRenderer({ content, onDoubtLink }) {
+function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
     const mk = {
         h1({ children }) { return <div style={{ marginBottom: 28 }}><div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#71717A', marginBottom: 6, fontFamily: '"DM Sans",sans-serif', fontWeight: 600 }}>AuraGraph · Study Notes</div><div style={{ fontSize: 22, fontWeight: 800, color: '#000', lineHeight: 1.25, fontFamily: '"Sora",sans-serif' }}>{children}</div></div>; },
         h2({ children }) { return <div style={{ marginTop: 36, marginBottom: 14 }}><div style={{ fontSize: 17, fontWeight: 700, color: '#000', lineHeight: 1.3, fontFamily: '"Sora",sans-serif' }}>{children}</div><div style={{ height: 1.5, background: '#E4E4E7', marginTop: 8 }} /></div>; },
@@ -1232,9 +1232,9 @@ function NoteRenderer({ content, onDoubtLink }) {
         strong({ children }) { return <strong style={{ fontWeight: 700, color: '#000' }}>{children}</strong>; },
         em({ children }) { return <span style={{ fontStyle: 'italic', color: '#3F3F46' }}>{children}</span>; },
         hr() { return <div style={{ border: 'none', borderTop: '1.5px solid #E4E4E7', margin: '28px 0' }} />; },
-        p({ children }) { return <p style={{ marginBottom: 12, lineHeight: 1.9, color: '#18181B', fontFamily: '"Source Serif 4",Georgia,serif', fontSize: 16 }}>{children}</p>; },
-        ul({ children }) { return <ul style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize: 16, color: '#18181B' }}>{children}</ul>; },
-        ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize: 16, color: '#18181B' }}>{children}</ol>; },
+        p({ children }) { return <p style={{ marginBottom: 12, lineHeight: 1.9, color: '#18181B', fontFamily: '"Source Serif 4",Georgia,serif', fontSize }}>{children}</p>; },
+        ul({ children }) { return <ul style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#18181B' }}>{children}</ul>; },
+        ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#18181B' }}>{children}</ol>; },
         li({ children }) { return <li style={{ marginBottom: 5 }}>{children}</li>; },
         img({ src, alt }) {
             const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -1290,7 +1290,11 @@ function NoteRenderer({ content, onDoubtLink }) {
         th({ children }) { return <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#18181B', borderBottom: '2px solid #D4D4D8', whiteSpace: 'nowrap' }}>{children}</th>; },
         td({ children }) { return <td style={{ padding: '7px 14px', color: '#3F3F46', verticalAlign: 'top', lineHeight: 1.6 }}>{children}</td>; },
     };
-    return <div style={{ color: '#18181B' }}><ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{content || ''}</ReactMarkdown></div>;
+    // Pre-process: escape pipe chars inside inline $...$ so GFM table parser doesn't split cells
+    const safeMath = (src) => src.replace(/\$([^$\n]+?)\$/g, (m, inner) =>
+        inner.includes('|') ? '$' + inner.replace(/\|/g, '\\vert ') + '$' : m
+    );
+    return <div style={{ color: '#18181B' }}><ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{safeMath(content || '')}</ReactMarkdown></div>;
 }
 
 // ─── Doubts Panel ─────────────────────────────────────────────────────────────
@@ -1369,6 +1373,52 @@ function DownloadNoteButton({ note, name }) {
     return <button className="btn btn-ghost btn-sm" onClick={dl} title="Download as .md" style={{ fontSize: 12, gap: 5 }}><Download size={12} /> Export</button>;
 }
 
+function PrintNoteButton({ onPrint }) {
+    return <button className="btn btn-ghost btn-sm" onClick={onPrint} title="Export as PDF – prints all pages" style={{ fontSize: 12, gap: 5 }}><Printer size={12} /> Print PDF</button>;
+}
+
+// ─── Undo Toast ───────────────────────────────────────────────────────────────
+const UNDO_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function UndoToast({ toast, onUndo, onDismiss }) {
+    const [remaining, setRemaining] = useState(() => Math.max(0, toast.expiresAt - Date.now()));
+    useEffect(() => {
+        const tick = setInterval(() => {
+            const r = Math.max(0, toast.expiresAt - Date.now());
+            setRemaining(r);
+            if (r === 0) onDismiss();
+        }, 1000);
+        return () => clearInterval(tick);
+    }, [toast.expiresAt, onDismiss]);
+    const pct = (remaining / UNDO_TTL_MS) * 100;
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    const timeStr = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`;
+    const barColor = pct > 50 ? '#10B981' : pct > 20 ? '#F59E0B' : '#EF4444';
+    return (
+        <div className="no-print" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 10000, background: '#1E1B4B', borderRadius: 12, padding: '12px 16px', boxShadow: '0 8px 32px rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 270, animation: 'slideUpFade 0.25s ease' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Check size={13} color="#10B981" />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#E0E7FF' }}>{toast.label}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button onClick={onUndo} style={{ background: '#4F46E5', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Undo2 size={11} /> Undo
+                    </button>
+                    <button onClick={onDismiss} style={{ background: 'none', border: '1px solid #4C1D95', color: '#A78BFA', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>✕</button>
+                </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 2, background: barColor, width: `${pct}%`, transition: 'width 1s linear, background 0.5s' }} />
+                </div>
+                <span style={{ fontSize: 10, color: '#6B7280', fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'right' }}>{timeStr}</span>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Workspace ───────────────────────────────────────────────────────────
 export default function NotebookWorkspace() {
     const { id } = useParams();
@@ -1403,7 +1453,162 @@ export default function NotebookWorkspace() {
     const [darkMode, setDarkMode] = useDarkMode();             // dark mode toggle
     const [editingPage, setEditingPage] = useState(false);     // page-jump input active
     const [pageInputVal, setPageInputVal] = useState('');      // page-jump input value
+    const [regenLoadingPages, setRegenLoadingPages] = useState(new Set()); // pages being re-generated
+    const [undoToast, setUndoToast] = useState(null); // { note, prof, label, expiresAt } | null
+    const undoTimerRef = useRef(null);
     const noteScrollRef = useRef();
+    const prevViewModeRef = useRef(null);
+    const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem('ag_font_size') || '16', 10));
+    const [isPrinting, setIsPrinting] = useState(false);
+
+    // ── Sections (TOC) state ──────────────────────────────────────────────────
+    const [sections, setSections] = useState([]);
+    const [sectionInput, setSectionInput] = useState('');
+    const [sectionInputType, setSectionInputType] = useState('topic'); // topic | chapter
+    const [generatingSection, setGeneratingSection] = useState(null); // section id | null
+
+    const loadSections = useCallback(async () => {
+        try {
+            const res = await fetch(`${API}/notebooks/${id}/sections`, { headers: authHeaders() });
+            if (res.ok) setSections(await res.json());
+        } catch {}
+    }, [id]);
+
+    // Refresh note text after section generation rebuilds the flat note
+    const loadNotebook = useCallback(async () => {
+        try {
+            const res = await fetch(`${API}/notebooks/${id}`, { headers: authHeaders() });
+            if (!res.ok) return;
+            const nb = await res.json();
+            setNote(nb.note || '');
+            setProf(nb.proficiency || 'Practitioner');
+        } catch {}
+    }, [id]);
+
+    useEffect(() => { loadSections(); }, [loadSections]);
+    useEffect(() => { localStorage.setItem('ag_font_size', String(fontSize)); }, [fontSize]);
+
+    // Print: using isPrinting state so the useEffect fires only AFTER React
+    // has committed the scroll-mode DOM update (all pages rendered), then prints.
+    useEffect(() => {
+        if (!isPrinting) return;
+        window.print();
+        setIsPrinting(false);
+        const restore = () => {
+            if (prevViewModeRef.current) {
+                setViewMode(prevViewModeRef.current);
+                prevViewModeRef.current = null;
+            }
+            window.removeEventListener('afterprint', restore);
+        };
+        window.addEventListener('afterprint', restore);
+    }, [isPrinting]);
+
+    const handlePrint = useCallback(() => {
+        if (viewMode !== 'scroll') {
+            prevViewModeRef.current = viewMode;
+            setViewMode('scroll');
+            setIsPrinting(true);
+        } else {
+            window.print();
+        }
+    }, [viewMode]);
+
+    const handleAddSection = async (e) => {
+        e.preventDefault();
+        const title = sectionInput.trim();
+        if (!title) return;
+        try {
+            const res = await fetch(`${API}/notebooks/${id}/sections`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({ title, note_type: sectionInputType }),
+            });
+            if (res.ok) {
+                const sec = await res.json();
+                setSections(prev => [...prev, sec]);
+                setSectionInput('');
+            }
+        } catch {}
+    };
+
+    const handleDeleteSection = async (secId) => {
+        try {
+            const res = await fetch(`${API}/notebooks/${id}/sections/${secId}`, {
+                method: 'DELETE', headers: authHeaders(),
+            });
+            if (res.ok) setSections(prev => prev.filter(s => s.id !== secId));
+        } catch {}
+    };
+
+    const handleGenerateSection = async (sec) => {
+        setGeneratingSection(sec.id);
+        try {
+            const res = await fetch(`${API}/notebooks/${id}/sections/${sec.id}/generate`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({ proficiency: notebook?.proficiency || 'Intermediate' }),
+            });
+            if (res.ok) {
+                const updated = await res.json();
+                setSections(prev => prev.map(s => s.id === sec.id ? updated : s));
+                // Reload the note pages so the main viewer reflects the new content
+                loadNotebook();
+            }
+        } catch {}
+        setGeneratingSection(null);
+    };
+
+    const handleMoveSectionUp = async (idx) => {
+        if (idx === 0) return;
+        const next = [...sections];
+        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+        setSections(next);
+        try {
+            await fetch(`${API}/notebooks/${id}/sections/reorder`, {
+                method: 'PUT',
+                headers: authHeaders(),
+                body: JSON.stringify({ order: next.map((s, i) => ({ id: s.id, order_idx: i })) }),
+            });
+        } catch {}
+    };
+
+    const handleMoveSectionDown = async (idx) => {
+        if (idx === sections.length - 1) return;
+        const next = [...sections];
+        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+        setSections(next);
+        try {
+            await fetch(`${API}/notebooks/${id}/sections/reorder`, {
+                method: 'PUT',
+                headers: authHeaders(),
+                body: JSON.stringify({ order: next.map((s, i) => ({ id: s.id, order_idx: i })) }),
+            });
+        } catch {}
+    };
+
+    // ── Undo helpers ──────────────────────────────────────────────────────────
+    const pushUndo = useCallback((prevNote, prevProf, label) => {
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        const expiresAt = Date.now() + UNDO_TTL_MS;
+        setUndoToast({ note: prevNote, prof: prevProf, label, expiresAt });
+        undoTimerRef.current = setTimeout(() => setUndoToast(null), UNDO_TTL_MS);
+    }, []);
+
+    const handleUndoCommit = useCallback(async () => {
+        if (!undoToast) return;
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        const { note: prevNote, prof: prevProf } = undoToast;
+        setUndoToast(null);
+        setNote(prevNote);
+        setProf(prevProf);
+        await saveNote(prevNote, prevProf);
+    }, [undoToast]);
+
+    const dismissUndo = useCallback(() => {
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        setUndoToast(null);
+    }, []);
 
     const startResizeSidebar = useCallback((e) => {
         e.preventDefault();
@@ -1493,32 +1698,49 @@ export default function NotebookWorkspace() {
         return () => window.removeEventListener('keydown', h);
     }, [pages.length, mutating]);
 
+    const autoExtractRef = useRef(false); // prevent duplicate auto-extract attempts
+
     // Load notebook + restore doubts
     useEffect(() => {
+        autoExtractRef.current = false;
         setDoubtsLog(loadDoubts(id));
         const isErrorNote = (n) => typeof n === 'string' && (
             n.includes('Backend Not Running') ||
             n.includes('Failed to fetch') ||
-            n.includes('Backend Not Running')
+            n.includes('⚠️ Generation Failed') ||
+            n.includes('⚠️ Backend') ||
+            n.includes('⚠️ Upload')
         );
         fetch(`${API}/notebooks/${id}`, { headers: authHeaders() })
             .then(r => { if (!r.ok) throw new Error(); return r.json(); })
             .then(nb => {
                 setNotebook(nb);
                 const loadedNote = nb.note || '';
-                // If the saved note is a stale error message, clear it so the user sees the upload panel
-                setNote(isErrorNote(loadedNote) ? '' : loadedNote);
+                const cleanNote = isErrorNote(loadedNote) ? '' : loadedNote;
+                setNote(cleanNote);
                 setProf(nb.proficiency || 'Practitioner');
-                if (nb.graph?.nodes?.length) { setGraphNodes(nb.graph.nodes); setGraphEdges(nb.graph.edges || []); }
+                if (nb.graph?.nodes?.length) {
+                    setGraphNodes(nb.graph.nodes); setGraphEdges(nb.graph.edges || []);
+                } else if (cleanNote && !autoExtractRef.current) {
+                    // Auto-seed concept graph — notebook has notes but graph was never extracted
+                    autoExtractRef.current = true;
+                    setTimeout(() => extractAndSaveGraph(cleanNote), 800);
+                }
             })
             .catch(() => {
                 const l = ls_getNotebook(id);
                 if (l) {
                     setNotebook(l);
                     const loadedNote = l.note || '';
-                    setNote(isErrorNote(loadedNote) ? '' : loadedNote);
+                    const cleanNote = isErrorNote(loadedNote) ? '' : loadedNote;
+                    setNote(cleanNote);
                     setProf(l.proficiency || 'Practitioner');
-                    if (l.graph?.nodes?.length) { setGraphNodes(l.graph.nodes); setGraphEdges(l.graph.edges || []); }
+                    if (l.graph?.nodes?.length) {
+                        setGraphNodes(l.graph.nodes); setGraphEdges(l.graph.edges || []);
+                    } else if (cleanNote && !autoExtractRef.current) {
+                        autoExtractRef.current = true;
+                        setTimeout(() => extractAndSaveGraph(cleanNote), 800);
+                    }
                 } else {
                     setNotebook({ id, name: 'Untitled', course: '' });
                 }
@@ -1545,45 +1767,80 @@ export default function NotebookWorkspace() {
         if (!slidesFiles.length && !notesFiles.length) return;
         setFusing(true); setFuseProgress('Uploading files…');
         setMutatedPages(new Set()); setGraphNodes([]); setGraphEdges([]);
+        setNote(''); setCurrentPage(0);
         try {
             const form = new FormData();
             slidesFiles.forEach(f => form.append('slides_pdfs', f));
-            // Handwritten notes images are OCR'd by the backend and merged with slide content
             notesFiles.forEach(f => form.append('slides_pdfs', f));
             textbookFiles.forEach(f => form.append('textbook_pdfs', f));
             form.append('proficiency', prof);
             if (id) form.append('notebook_id', id);
             setFuseProgress('Running Fusion Agent…');
-            const res = await fetch(`${API}/api/upload-fuse-multi`, { method: 'POST', headers: authHeaders(), body: form });
+
+            const res = await fetch(`${API}/api/upload-fuse-stream`, { method: 'POST', headers: authHeaders(), body: form });
+
             if (!res.ok) {
                 let detail = `Server error (${res.status})`;
                 try { const j = await res.json(); detail = j.detail || detail; } catch { }
                 throw new Error(detail);
             }
-            const data = await res.json();
-            setNote(data.fused_note); setCurrentPage(0);
-            setNoteSource(data.source || 'azure');
-            setFallbackWarning(data.source === 'local'
-                ? (data.fallback_reason
-                    ? `⚠️ Azure OpenAI was unavailable — notes were generated using the offline summariser. (${data.fallback_reason})`
-                    : '⚠️ Azure OpenAI is not configured — notes were generated using the offline summariser.')
+
+            // Stream SSE events
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let streamedNote = '';
+            let streamSource = 'azure';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                // Split on double newline (SSE event boundary)
+                const parts = buffer.split('\n\n');
+                buffer = parts.pop(); // last part may be incomplete
+                for (const part of parts) {
+                    const line = part.trim();
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const event = JSON.parse(line.slice(6));
+                        if (event.type === 'start') {
+                            setFuseProgress(`Generating ${event.total} topic sections…`);
+                        } else if (event.type === 'section') {
+                            streamedNote += (streamedNote ? '\n\n' : '') + event.content;
+                            setNote(streamedNote);
+                            setFuseProgress(`Generated: ${event.topic}`);
+                        } else if (event.type === 'done') {
+                            // Final merged + refined note (may differ from streaming accumulation)
+                            streamedNote = event.note;
+                            streamSource = event.source || 'azure';
+                            setNote(event.note);
+                        }
+                    } catch { /* ignore malformed events */ }
+                }
+            }
+
+            setNoteSource(streamSource);
+            setFallbackWarning(streamSource === 'local'
+                ? '⚠️ Azure OpenAI was unavailable — notes were generated using the offline summariser.'
                 : ''
             );
-            if (data.chunks_stored) {
-                console.info(`📚 Knowledge store: ${data.chunks_stored.slides} slide chunks + ${data.chunks_stored.textbook} textbook chunks stored`);
-            }
-            await saveNote(data.fused_note, prof);
+            await saveNote(streamedNote, prof);
             setFuseProgress('Extracting concept map…');
-            await extractAndSaveGraph(data.fused_note);
+            await extractAndSaveGraph(streamedNote);
         } catch (err) {
             const isNetworkError = !err.message || err.message === 'Failed to fetch' || err.message.includes('NetworkError');
             const isFileTooLarge = err.message?.toLowerCase().includes('too large') || err.message?.toLowerCase().includes('exceeds') || err.message?.includes('413');
-            const errMsg = isNetworkError
-                ? `## ⚠️ Backend Not Running\n\nNotes could not be generated because the backend server is not reachable.\n\n**To fix this, start the backend:**\n\n\`\`\`bash\ncd backend\nsource venv/bin/activate\nuvicorn main:app --reload --port 8000\n\`\`\`\n\n> The local summarizer generates notes from your PDFs even without Azure OpenAI keys.`
+            const isAuth = err.message?.includes('401') || err.message?.includes('403') || err.message?.toLowerCase().includes('unauthorized');
+            const bannerMsg = isNetworkError
+                ? '⚠️ Backend unreachable — start the server: cd backend && source venv/bin/activate && uvicorn main:app --reload --port 8000'
                 : isFileTooLarge
-                    ? `## ⚠️ Upload Too Large\n\n**${err.message}**\n\n**What you can do:**\n- Split into two requests: upload half the slides + textbooks now, generate notes, then upload the remaining slides in a second notebook\n- Compress large PDFs (smallpdf.com or Adobe Acrobat → Reduce File Size)\n- For very large textbooks, upload only the relevant chapters`
-                    : `## ⚠️ Generation Failed\n\n**Error:** ${err.message}\n\nPlease try again.`;
-            setNote(errMsg); setCurrentPage(0); await saveNote(errMsg, prof);
+                    ? `⚠️ Upload too large — ${err.message}. Try splitting files across two notebooks or compressing large PDFs.`
+                    : isAuth
+                        ? '⚠️ Authentication failed — try logging out and back in.'
+                        : `⚠️ Generation failed: ${err.message}`;
+            setFallbackWarning(bannerMsg);
+            // Keep note empty so the upload panel stays visible — don't persist the error
         }
         setFusing(false); setFuseProgress('');
     };
@@ -1629,6 +1886,7 @@ export default function NotebookWorkspace() {
                 } else {
                     newNote = note + '\n\n---\n\n**Amendment (page ' + (currentPage + 1) + '):**\n\n' + data.mutated_paragraph;
                 }
+                pushUndo(note, prof, `Page ${currentPage + 1} mutated`);
                 setNote(newNote); setGapText(data.concept_gap);
                 setMutatedPages(prev => new Set([...prev, currentPage]));
                 await saveNote(newNote, prof);
@@ -1647,6 +1905,41 @@ export default function NotebookWorkspace() {
             setRightTab('doubts');
         }
     }, [note, prof, id, currentPage, pages]);
+
+    const handleRegenSection = useCallback(async (pageIdx) => {
+        setRegenLoadingPages(prev => new Set([...prev, pageIdx]));
+        try {
+            const res = await fetch(`${API}/api/regenerate-section`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({ notebook_id: id, page_idx: pageIdx, proficiency: prof }),
+            });
+            if (!res.ok) {
+                let detail = `Server error (${res.status})`;
+                try { const j = await res.json(); detail = j.detail || detail; } catch {}
+                throw new Error(detail);
+            }
+            const data = await res.json();
+            if (!data.new_section?.trim()) throw new Error('Empty response from server');
+
+            // The backend already rebuilt and saved the full note after regenerating.
+            // Re-fetch it so we display exactly what the backend stored — no client-side
+            // string surgery that can misplace headings or leave raw markdown.
+            pushUndo(note, prof, `Page ${pageIdx + 1} regenerated`);
+            const nbRes = await fetch(`${API}/notebooks/${id}`, { headers: authHeaders() });
+            if (nbRes.ok) {
+                const nb = await nbRes.json();
+                const freshNote = nb.note || '';
+                setNote(freshNote);
+                await saveNote(freshNote, prof);
+            }
+            setCurrentPage(pageIdx);
+            setMutatedPages(prev => new Set([...prev, pageIdx]));
+        } catch (err) {
+            console.error('Re-generate section failed:', err);
+        }
+        setRegenLoadingPages(prev => { const s = new Set(prev); s.delete(pageIdx); return s; });
+    }, [note, prof, id]);
 
     const handleNodeStatusChange = async (node, status) => {
         setGraphNodes(prev => prev.map(n => n.id === node.id ? { ...n, status } : n));
@@ -1784,6 +2077,14 @@ export default function NotebookWorkspace() {
                         {/* Export (compact) */}
                         <CopyNoteButton note={note} />
                         <DownloadNoteButton note={note} name={notebook.name} />
+                        <PrintNoteButton onPrint={handlePrint} />
+                        <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
+                        {/* Font size controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 1, background: 'var(--surface)', padding: 2, borderRadius: 7, border: '1px solid var(--border)' }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setFontSize(f => Math.max(12, f - 1))} title="Decrease font size (A−)" style={{ padding: '3px 7px', fontSize: 10, fontWeight: 700, lineHeight: 1 }}>A−</button>
+                            <span style={{ fontSize: 10, color: 'var(--text3)', minWidth: 28, textAlign: 'center', fontFamily: 'Inter,sans-serif' }}>{fontSize}px</span>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setFontSize(f => Math.min(24, f + 1))} title="Increase font size (A+)" style={{ padding: '3px 7px', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>A+</button>
+                        </div>
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
                         {/* Search */}
                         <button className="btn btn-ghost btn-sm" style={{ padding: '5px 8px' }} onClick={() => setShowSearch(true)} title="Search in notes (Ctrl+F)"><Search size={14} /></button>
@@ -1838,7 +2139,7 @@ export default function NotebookWorkspace() {
                         </div>
                     </div>
                 ) : (
-                    <div ref={noteScrollRef} onMouseUp={handleNoteMouseUp} style={{ flex: 1, overflowY: 'auto', background: '#F0F2F5', padding: viewMode === 'two' ? '28px 16px' : '28px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div ref={noteScrollRef} onMouseUp={handleNoteMouseUp} data-print-scroll style={{ flex: 1, overflowY: 'auto', background: '#F0F2F5', padding: viewMode === 'two' ? '28px 16px' : '28px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         {(() => {
                             const onDoubtLink = (doubtId) => { setRightTab('doubts'); setTimeout(() => { document.getElementById(doubtId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150); };
                             const renderPage = (idx) => {
@@ -1851,14 +2152,27 @@ export default function NotebookWorkspace() {
                                         </div>
                                         <div style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
                                         <div style={{ flex: 1, padding: '40px 48px 48px 36px', minWidth: 0 }}>
-                                            <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
+                                        <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
                                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     {mutatedPages.has(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EDE9FE', color: '#7C3AED', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
                                                     <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>Page {idx + 1} of {pages.length}</span>
+                                                    <button
+                                                        onClick={() => handleRegenSection(idx)}
+                                                        disabled={regenLoadingPages.has(idx)}
+                                                        title="Re-generate this section with fresh AI output"
+                                                        className="no-print"
+                                                        style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '3px 8px', cursor: regenLoadingPages.has(idx) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#9CA3AF', transition: 'all 0.15s' }}
+                                                        onMouseEnter={e => { if (!regenLoadingPages.has(idx)) { e.currentTarget.style.borderColor = '#7C3AED'; e.currentTarget.style.color = '#7C3AED'; }}}
+                                                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#9CA3AF'; }}
+                                                    >
+                                                        {regenLoadingPages.has(idx)
+                                                            ? <><Loader2 size={10} className="spin" /> Regenerating…</>
+                                                            : <><RefreshCw size={10} /> Regenerate</>}
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <NoteRenderer content={pages[idx]} onDoubtLink={onDoubtLink} />
+                                            <NoteRenderer content={pages[idx]} onDoubtLink={onDoubtLink} fontSize={fontSize} />
                                             <div className="note-footer-bar" style={{ marginTop: 32, paddingTop: 10, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>{notebook?.course || ''}</span>
                                                 <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>AuraGraph · {prof}</span>
@@ -1943,13 +2257,92 @@ export default function NotebookWorkspace() {
                         />
                     )}
                     <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                        {[{ key: 'map', label: 'Concept Map', icon: <Brain size={12} /> }, { key: 'doubts', label: (() => { const onPage = doubtsLog.filter(d => d.pageIdx === currentPage).length; const total = doubtsLog.length; if (!total) return 'Doubts'; if (onPage) return `Doubts (${onPage}/${total})`; return `Doubts (${total})`; })(), icon: <MessageCircle size={12} /> }].map(tab => (
-                            <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? '#7C3AED' : 'var(--text3)' }}>
+                        {[
+                            { key: 'map', label: 'Concept Map', icon: <Brain size={12} /> },
+                            { key: 'doubts', label: (() => { const onPage = doubtsLog.filter(d => d.pageIdx === currentPage).length; const total = doubtsLog.length; if (!total) return 'Doubts'; if (onPage) return `Doubts (${onPage}/${total})`; return `Doubts (${total})`; })(), icon: <MessageCircle size={12} /> },
+                            { key: 'contents', label: `Contents${sections.length ? ` (${sections.length})` : ''}`, icon: <List size={12} /> },
+                        ].map(tab => (
+                            <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? '#7C3AED' : 'var(--text3)' }}>
                                 {tab.icon} {tab.label}
                             </button>
                         ))}
                     </div>
-                    {rightTab === 'map'
+                    {rightTab === 'contents' ? (
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {/* Add section form */}
+                            <form onSubmit={handleAddSection} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px', background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 4 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 2 }}>Add Topic / Chapter</div>
+                                <input
+                                    className="input"
+                                    style={{ fontSize: 12, padding: '6px 8px' }}
+                                    placeholder="e.g. Fourier Transform"
+                                    value={sectionInput}
+                                    onChange={e => setSectionInput(e.target.value)}
+                                />
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    <select
+                                        className="input"
+                                        style={{ fontSize: 11, padding: '4px 6px', flex: 1 }}
+                                        value={sectionInputType}
+                                        onChange={e => setSectionInputType(e.target.value)}
+                                    >
+                                        <option value="topic">Topic</option>
+                                        <option value="chapter">Chapter</option>
+                                    </select>
+                                    <button type="submit" className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px', gap: 4 }} disabled={!sectionInput.trim()}>
+                                        <Plus size={12} /> Add
+                                    </button>
+                                </div>
+                            </form>
+
+                            {sections.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text3)', fontSize: 12 }}>
+                                    No sections yet. Add a topic or chapter above.
+                                </div>
+                            ) : sections.map((sec, idx) => (
+                                <div key={sec.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                                        {/* Reorder arrows */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0, marginTop: 1 }}>
+                                            <button onClick={() => handleMoveSectionUp(idx)} disabled={idx === 0}
+                                                style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.25 : 0.7, padding: 1, lineHeight: 1 }}>
+                                                <ChevronUp size={12} color="var(--text3)" />
+                                            </button>
+                                            <button onClick={() => handleMoveSectionDown(idx)} disabled={idx === sections.length - 1}
+                                                style={{ background: 'none', border: 'none', cursor: idx === sections.length - 1 ? 'default' : 'pointer', opacity: idx === sections.length - 1 ? 0.25 : 0.7, padding: 1, lineHeight: 1 }}>
+                                                <ChevronDown size={12} color="var(--text3)" />
+                                            </button>
+                                        </div>
+                                        {/* Title + type */}
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', lineHeight: 1.35, wordBreak: 'break-word' }}>{sec.title}</div>
+                                            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, textTransform: 'capitalize' }}>{sec.note_type} · {sec.content?.length ? `${sec.content.length} chars` : 'empty'}</div>
+                                        </div>
+                                        {/* Actions */}
+                                        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                                            <button
+                                                onClick={() => handleGenerateSection(sec)}
+                                                disabled={generatingSection === sec.id}
+                                                title="Generate note for this section"
+                                                style={{ background: 'none', border: '1px solid #7C3AED33', borderRadius: 5, cursor: 'pointer', padding: '3px 6px', color: '#7C3AED', opacity: generatingSection === sec.id ? 0.5 : 1 }}
+                                            >
+                                                {generatingSection === sec.id
+                                                    ? <Loader2 className="spin" size={11} />
+                                                    : <Zap size={11} />}
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteSection(sec.id)}
+                                                title="Delete section"
+                                                style={{ background: 'none', border: '1px solid #EF444433', borderRadius: 5, cursor: 'pointer', padding: '3px 6px', color: '#EF4444' }}
+                                            >
+                                                <Trash2 size={11} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : rightTab === 'map'
                         ? <KnowledgePanel nodes={graphNodes} edges={graphEdges} notebookId={id} onNodeStatusChange={handleNodeStatusChange} onJumpToSection={handleJumpToSection} />
                         : <DoubtsPanel doubts={doubtsLog} currentPage={currentPage} />}
                 </aside>
@@ -1963,6 +2356,7 @@ export default function NotebookWorkspace() {
                     <button onClick={() => setTextSelection(null)} style={{ background: 'none', border: '1px solid #4C1D95', color: '#A78BFA', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>&#x2715;</button>
                 </div>
             )}
+            {undoToast && <UndoToast toast={undoToast} onUndo={handleUndoCommit} onDismiss={dismissUndo} />}
             {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true }; setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; }); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
             {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx) => { setCurrentPage(idx); }} onClose={() => setShowSearch(false)} />}
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}

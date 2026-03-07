@@ -331,3 +331,89 @@ kbd {
   /* Purple accent for "Mutated" badge */
   --purple-light:     #2a1a4a;
 }
+
+/* ─── Print / Export PDF ──────────────────────────────────────────────────── */
+@media print {
+  /* Hide everything except note pages */
+  header,
+  aside,
+  .sidebar-panel,
+  .sidebar-resize-handle,
+  [data-testid="prev-page"],
+  [data-testid="next-page"],
+  [data-testid="re-upload-btn"],
+  [data-testid="ask-doubt-btn"],
+  .btn,
+  .page-dot,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Remove viewport clipping so all pages print */
+  body, #root, html {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Force scroll-view — all pages visible */
+  [data-print-scroll] {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* Each note card gets its own page */
+  .note-page-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    margin-bottom: 24px;
+  }
+
+  /* Hide ringed-binder decoration and red margin line */
+  .note-page-card > div:first-child,
+  .note-page-card > div:nth-child(2) {
+    display: none !important;
+  }
+
+  /* Reset flex to block for print, expand content to full width */
+  .note-page-card {
+    display: block !important;
+  }
+
+  .note-page-card > div:last-child {
+    padding: 24px 32px !important;
+    width: 100% !important;
+  }
+
+  /* Hide regenerate button and page dots already have .no-print,
+     but also hide the note-header-bar action icons */
+  .note-header-bar .no-print { display: none !important; }
+  .note-footer-bar { display: none !important; }
+}
+
+/* ─── Undo Toast animation ────────────────────────────────────────────────── */
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Mobile layout ───────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Hide right sidebar on small screens */
+  .sidebar-panel { display: none !important; }
+  /* Compact header padding */
+  header { padding-left: 12px !important; padding-right: 12px !important; }
+  /* Note area fills full width */
+  .note-area { min-width: 0 !important; flex: 1 !important; padding: 12px !important; }
+  /* Resize handle irrelevant on mobile */
+  .sidebar-resize-handle { display: none !important; }
+  /* Narrower modal */
+  .modal { max-width: 95vw !important; margin: 0 auto; }
+  /* Upload zone */
+  .upload-zone { padding: 16px !important; }
+  /* Stats row wrap */
+  .stats-row { flex-wrap: wrap !important; }
+  /* Dashboard main padding */
+  main { padding: 20px 12px !important; }
+}
