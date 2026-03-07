@@ -40,8 +40,14 @@ _CONCEPT_PATTERNS: list[tuple[str, str, int, int]] = [
     (r'\bconditional\s*probability',       'Conditional Prob.',    30, 40),
     (r'\bindependen',                      'Independence',         70, 40),
     (r'\bnormal\s*distribution|\bgaussian', 'Normal Distribution', 50, 55),
+    (r'\bbernoulli\s*dist|\bbernoulli\s*random|\bbernoulli\s*trial', 'Bernoulli Distribution', 15, 55),
     (r'\bbinomial\s*distribution',         'Binomial Dist.',       25, 55),
     (r'\bpoisson\s*distribution',          'Poisson Dist.',        75, 55),
+    (r'\buniform\s*distribution',          'Uniform Distribution', 85, 45),
+    (r'\bgeometric\s*distribution',        'Geometric Dist.',      15, 70),
+    (r'\bnegative\s*binomial',             'Negative Binomial',    25, 70),
+    (r'\bexponential\s*distribution',      'Exponential Dist.',    75, 70),
+    (r'\bgamma\s*distribution',            'Gamma Distribution',   85, 70),
     (r'\bcentral\s*limit\s*theorem',       'Central Limit Theorem',50, 70),
     (r'\bmoment\s*generat|\bMGF\b',        'MGF',                  35, 70),
     (r'\bcumulative\s*dist|\bCDF\b',       'CDF',                  65, 70),
@@ -264,7 +270,10 @@ Exact schema required:
 }}
 
 Rules:
-- Labels must be ≤ 30 characters.
+- Labels must be ≤ 30 characters and SPECIFIC — include the full name, e.g.
+  "Bernoulli Distribution" (NOT just "Bernoulli"), "Poisson Distribution" (NOT "Poisson"),
+  "Normal Distribution", "Bayes Theorem", "Central Limit Theorem" etc.
+- For probability distributions always append " Distribution" or " Dist." to the name.
 - x and y are integers from 5 to 95 representing canvas position (%).
 - Spread nodes evenly — avoid clustering everything at the same spot.
 - Edges flow from prerequisite → dependent concept.

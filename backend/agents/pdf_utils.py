@@ -129,7 +129,45 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
     except Exception as e:
         raise ValueError(f"Failed to parse PDF: {e}") from e
 
+    # OCR fallback: PDF is image-based (scanned / handwritten) — render pages and OCR
+    logger.info("PDF yielded no selectable text — attempting OCR via image render")
+    try:
+        ocr_text = _extract_pdf_with_ocr(file_bytes)
+        if ocr_text.strip():
+            return ocr_text
+    except Exception as e:
+        logger.warning("PDF OCR fallback failed: %s", e)
+
     raise ValueError("No text could be extracted from the PDF.")
+
+
+def _extract_pdf_with_ocr(file_bytes: bytes) -> str:
+    """
+    Render each page of a scanned / handwritten PDF as an image via PyMuPDF
+    and OCR it using the existing image_ocr pipeline (Groq vision → Tesseract).
+    Returns page-boundary-marked text identical to the text extraction path.
+    """
+    import fitz  # PyMuPDF — already in requirements.txt
+    from agents.image_ocr import extract_text_from_image
+
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    pages_text: list[str] = []
+    try:
+        for i, page in enumerate(doc, start=1):
+            # Render at 2× scale (~144 dpi) for good OCR quality with manageable size
+            mat  = fitz.Matrix(2.0, 2.0)
+            pix  = page.get_pixmap(matrix=mat, alpha=False)
+            img_bytes = pix.tobytes("png")
+            try:
+                text = extract_text_from_image(img_bytes, f"page_{i}.png")
+            except Exception as e:
+                logger.warning("OCR failed on page %d: %s", i, e)
+                text = ""
+            if text.strip():
+                pages_text.append(f"--- Page {i} ---\n{text.strip()}")
+    finally:
+        doc.close()
+    return "\n\n".join(pages_text) if pages_text else ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────

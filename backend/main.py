@@ -447,6 +447,7 @@ class MutationResponse(BaseModel):
 
 class ExaminerRequest(BaseModel):
     concept_name: str
+    notebook_id: Optional[str] = None          # used to retrieve course-specific context
     custom_instruction: Optional[str] = None   # e.g. "numerical only", "focus on derivations"
 
 
@@ -457,6 +458,7 @@ class ExaminerResponse(BaseModel):
 class ConceptPracticeRequest(BaseModel):
     concept_name: str
     level: str = "partial"   # struggling | partial | mastered
+    notebook_id: Optional[str] = None          # used to retrieve course-specific context
     custom_instruction: Optional[str] = None   # e.g. "only numerical", "include proofs"
 
 
@@ -1083,12 +1085,13 @@ async def mutate_note(
 
 
 # ── Sniper Exam ───────────────────────────────────────────────────────
-async def _groq_sniper_exam(struggling: list[str], partial: list[str]) -> str:
+async def _groq_sniper_exam(struggling: list[str], partial: list[str], notebook_context: str = "") -> str:
     from agents.examiner_agent import SNIPER_EXAM_PROMPT
     prompt = (
         SNIPER_EXAM_PROMPT
         .replace("{{$struggling_concepts}}", ", ".join(struggling) if struggling else "None")
         .replace("{{$partial_concepts}}",    ", ".join(partial)    if partial    else "None")
+        .replace("{{$notebook_context}}",    notebook_context or "(no course context available)")
     )
     return await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2500)
 
@@ -1118,16 +1121,24 @@ async def sniper_exam(
         [{"label": l, "status": "partial"}    for l in partial]
     )
 
+    # Retrieve course-specific context so questions are grounded in the student's materials
+    nb_ctx = ""
+    if req.notebook_id:
+        combined_query = " ".join(struggling + partial)
+        hits = retrieve_relevant_chunks(req.notebook_id, combined_query, top_k=12,
+                                        source_filter=None)
+        nb_ctx = _format_chunks_for_prompt(hits, 4500)
+
     raw = ""
     if _is_azure_available():
         try:
             from agents.examiner_agent import SNIPER_EXAM_PROMPT
-            from semantic_kernel.functions import KernelArguments
             # Build prompt string directly (no SK function for sniper yet)
             prompt = (
                 SNIPER_EXAM_PROMPT
                 .replace("{{$struggling_concepts}}", ", ".join(struggling) or "None")
                 .replace("{{$partial_concepts}}",    ", ".join(partial)    or "None")
+                .replace("{{$notebook_context}}",    nb_ctx or "(no course context available)")
             )
             raw = await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2500)
         except Exception as e:
@@ -1135,7 +1146,7 @@ async def sniper_exam(
 
     if not raw and _is_groq_available():
         try:
-            raw = await _groq_sniper_exam(struggling, partial)
+            raw = await _groq_sniper_exam(struggling, partial, notebook_context=nb_ctx)
         except Exception as e:
             logger.warning("Groq sniper exam failed: %s", e)
 
@@ -1184,15 +1195,28 @@ async def examine_concept(
     get_current_user(authorization)
 
     ci = (req.custom_instruction or "").strip()
+    # Retrieve course-specific context so the examiner uses the student's own materials
+    nb_ctx = ""
+    if req.notebook_id:
+        hits = retrieve_relevant_chunks(req.notebook_id, req.concept_name, top_k=10,
+                                        source_filter=None)
+        nb_ctx = _format_chunks_for_prompt(hits, 4000)
     if examiner_agent and _is_azure_available():
         try:
-            q = await examiner_agent.examine(req.concept_name, custom_instruction=ci)
+            q = await examiner_agent.examine(req.concept_name, notebook_context=nb_ctx,
+                                              custom_instruction=ci)
             return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
         except Exception as e:
             logger.warning("Azure examiner failed: %s", e)
     if _is_groq_available():
         try:
-            q = await _groq_examine(req.concept_name, custom_instruction=ci)
+            from agents.examiner_agent import EXAMINER_PROMPT
+            ci_full = f"\n\nCUSTOM FOCUS (follow exactly): {ci}" if ci else ""
+            prompt = (EXAMINER_PROMPT
+                      .replace("{{$concept_name}}", req.concept_name)
+                      .replace("{{$notebook_context}}", nb_ctx or "(no course context available)")
+                      .replace("{{$custom_instruction}}", ci_full))
+            q = await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2500)
             return ExaminerResponse(practice_questions=fix_latex_delimiters(q))
         except Exception as e:
             logger.warning("Groq examiner failed: %s", e)
@@ -1202,13 +1226,14 @@ async def examine_concept(
 
 # ── Concept Practice (level-aware structured MCQs) ────────────────────────────
 
-async def _groq_concept_practice(concept_name: str, level: str, custom_instruction: str = "") -> str:
+async def _groq_concept_practice(concept_name: str, level: str, notebook_context: str = "", custom_instruction: str = "") -> str:
     from agents.examiner_agent import CONCEPT_PRACTICE_PROMPT
     ci = f"\n\nCUSTOM FOCUS (follow exactly): {custom_instruction}" if custom_instruction.strip() else ""
     prompt = (
         CONCEPT_PRACTICE_PROMPT
         .replace("{{$concept_name}}", concept_name)
         .replace("{{$level}}",        level)
+        .replace("{{$notebook_context}}", notebook_context or "(no course context available)")
         .replace("{{$custom_instruction}}", ci)
     )
     return await _groq_chat([{"role": "user", "content": prompt}], max_tokens=2000)
@@ -1227,17 +1252,28 @@ async def concept_practice_endpoint(
         level = "partial"
     ci = (req.custom_instruction or "").strip()
 
+    # Retrieve course-specific context so questions are grounded in the student's materials
+    nb_ctx = ""
+    if req.notebook_id:
+        hits = retrieve_relevant_chunks(req.notebook_id, req.concept_name, top_k=10,
+                                        source_filter=None)
+        nb_ctx = _format_chunks_for_prompt(hits, 4000)
+
     raw: str | None = None
 
     if examiner_agent and _is_azure_available():
         try:
-            raw = await examiner_agent.concept_practice(req.concept_name, level, custom_instruction=ci)
+            raw = await examiner_agent.concept_practice(req.concept_name, level,
+                                                        notebook_context=nb_ctx,
+                                                        custom_instruction=ci)
         except Exception as e:
             logger.warning("Azure concept-practice failed: %s", e)
 
     if raw is None and _is_groq_available():
         try:
-            raw = await _groq_concept_practice(req.concept_name, level, custom_instruction=ci)
+            raw = await _groq_concept_practice(req.concept_name, level,
+                                               notebook_context=nb_ctx,
+                                               custom_instruction=ci)
         except Exception as e:
             logger.warning("Groq concept-practice failed: %s", e)
 

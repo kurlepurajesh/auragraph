@@ -1275,7 +1275,7 @@ function NoteRenderer({ content, onDoubtLink }) {
         th({ children }) { return <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#18181B', borderBottom: '2px solid #D4D4D8', whiteSpace: 'nowrap' }}>{children}</th>; },
         td({ children }) { return <td style={{ padding: '7px 14px', color: '#3F3F46', verticalAlign: 'top', lineHeight: 1.6 }}>{children}</td>; },
     };
-    return <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{content || ''}</ReactMarkdown>;
+    return <div style={{ color: '#18181B' }}><ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{content || ''}</ReactMarkdown></div>;
 }
 
 // ─── Doubts Panel ─────────────────────────────────────────────────────────────
@@ -1590,8 +1590,11 @@ export default function NotebookWorkspace() {
                 await saveNote(newNote, prof);
                 extractAndSaveGraph(newNote).catch(() => { });
                 const pl = data.mutated_paragraph.split('\n');
-                const bqs = pl.findIndex(l => l.includes('💡') || l.trimStart().startsWith('> '));
-                let insight = data.concept_gap || 'Page updated.';
+                // Only extract the 💡 Intuition block added by the mutation agent.
+                // "> 📝 Exam Tip:" blockquotes that were already in the note must NOT
+                // be used as the insight — they are not answers to the student's doubt.
+                const bqs = pl.findIndex(l => l.includes('💡') && (l.startsWith('> ') || l.trimStart().startsWith('> ')));
+                let insight = data.concept_gap || 'Your note was rewritten to address this doubt.';
                 if (bqs !== -1) { const bl = []; for (let i = bqs; i < pl.length; i++) { if (pl[i].startsWith('> ') || pl[i] === '>') bl.push(pl[i].replace(/^>\s?/, '')); else if (bl.length > 0) break; } if (bl.length) insight = bl.join(' ').trim(); }
                 const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true };
                 setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });

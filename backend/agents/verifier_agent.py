@@ -102,10 +102,17 @@ STEP 6 — FORMAT YOUR RESPONSE
 
 Use the EXACT separator tokens below (no extra spaces or punctuation):
 
-<Direct answer to the student. Explain the concept clearly. If a formula
- is involved show it in display LaTeX. Add one concrete example if helpful.
- End with one > 📝 **Exam Tip:** if the doubt touches a commonly tested
- misconception.>
+<Write a FULL, DIRECT explanation answering the student's question. This
+ MUST contain at minimum 2-4 paragraphs of real explanation — never reduce
+ this to a single tip line. Structure as follows:
+   1. One-sentence direct answer to the question.
+   2. Detailed explanation with any relevant formulas in display LaTeX.
+   3. A concrete example that illustrates the concept.
+   OPTIONAL: If the question touches a commonly tested misconception ONLY,
+   you MAY add ONE exam tip line at the very end using this exact format:
+     > 📝 **Exam Tip:** …
+   CRITICAL: DO NOT make the Exam Tip the entire answer. The exam tip is
+   a brief addendum, NOT a substitute for the explanation above.>
 |||VERIFY|||
 <One word only — exactly one of: correct / partially_correct / incorrect>
 |||CORRECT|||

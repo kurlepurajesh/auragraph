@@ -14,9 +14,15 @@ A student is struggling with the following concept:
 
 CONCEPT: {{$concept_name}}
 
+COURSE CONTEXT — retrieved from the student's own slides, notes, and textbooks:
+{{$notebook_context}}
+
 TASK:
-Generate EXACTLY 5 multiple-choice questions (MCQs) that test this concept,
-focusing on the most commonly examined aspects and typical exam mistakes.
+Generate EXACTLY 5 multiple-choice questions (MCQs) that test this concept.
+Base ALL questions on the course context above — do NOT use general knowledge from
+other fields. For example, if the context is about probability, "Bernoulli" means
+Bernoulli Distribution, NOT Bernoulli's principle in fluid mechanics.
+Focus on the most commonly examined aspects and typical exam mistakes.
 
 For each question use this format:
 Q[n]. [Question text]
@@ -38,10 +44,17 @@ You are AuraGraph's Concept Practice Engine. Generate exactly 3 targeted MCQ que
 CONCEPT: {{$concept_name}}
 DIFFICULTY: {{$level}}
 
+COURSE CONTEXT — from the student's own slides, notes, and textbooks:
+{{$notebook_context}}
+
 DIFFICULTY GUIDE:
   struggling  → Foundational — definitions, basic recall, single-step application.
   partial     → Standard — formula application, typical exam-style problems.
   mastered    → Advanced / Exam Level — edge cases, derivations, tricky variants, subtle distinctions.
+
+IMPORTANT: Ground all questions in the COURSE CONTEXT above. Use terminology, formulas,
+and examples exactly as they appear in the student's materials. Never introduce content
+from unrelated fields even if the concept name is ambiguous.
 
 Output ONLY a valid JSON array of exactly 3 objects.
 No markdown code fences, no prose, no backticks — raw JSON only.
@@ -65,11 +78,15 @@ TARGET CONCEPTS — Struggling (70% weight → questions 1, 2, 3):
 REVIEW CONCEPTS — Partial (30% weight → questions 4, 5):
 {{$partial_concepts}}
 
+COURSE CONTEXT — from the student's own slides, notes, and textbooks (ground ALL questions here):
+{{$notebook_context}}
+
 ALLOCATION RULES:
   • Questions 1–3 MUST test the struggling concepts — rotate evenly if multiple.
   • Questions 4–5 MUST test the partial concepts — rotate evenly if multiple.
   • If only struggling concepts exist, spread them across all 5 questions.
   • If only partial concepts exist, spread them across all 5 questions.
+  • Base EVERY question on the course context above — no outside-field content.
 
 Output ONLY a valid JSON array of exactly 5 objects. Raw JSON, no markdown fences.
 Each object MUST have EXACTLY these keys:
@@ -90,6 +107,7 @@ class ExaminerAgent:
             template_format="semantic-kernel",
             input_variables=[
                 InputVariable(name="concept_name", description="The concept to generate questions for"),
+                InputVariable(name="notebook_context", description="Retrieved course material context", default_value="(no course context available)", is_required=False),
                 InputVariable(name="custom_instruction", description="Optional extra instruction from the student", default_value="", is_required=False),
             ],
         )
@@ -104,6 +122,7 @@ class ExaminerAgent:
             input_variables=[
                 InputVariable(name="concept_name", description="Concept to generate questions for"),
                 InputVariable(name="level", description="Difficulty level: struggling / partial / mastered"),
+                InputVariable(name="notebook_context", description="Retrieved course material context", default_value="(no course context available)", is_required=False),
                 InputVariable(name="custom_instruction", description="Optional extra instruction from the student", default_value="", is_required=False),
             ],
         )
@@ -113,14 +132,16 @@ class ExaminerAgent:
             prompt_template_config=practice_config,
         )
 
-    async def examine(self, concept_name: str, custom_instruction: str = "") -> str:
+    async def examine(self, concept_name: str, notebook_context: str = "", custom_instruction: str = "") -> str:
         ci = f"\n\nCUSTOM FOCUS (follow exactly): {custom_instruction}" if custom_instruction.strip() else ""
-        args = KernelArguments(concept_name=concept_name, custom_instruction=ci)
+        ctx = notebook_context or "(no course context available)"
+        args = KernelArguments(concept_name=concept_name, notebook_context=ctx, custom_instruction=ci)
         result = await self._kernel.invoke(self._fn, args)
         return str(result).strip()
 
-    async def concept_practice(self, concept_name: str, level: str, custom_instruction: str = "") -> str:
+    async def concept_practice(self, concept_name: str, level: str, notebook_context: str = "", custom_instruction: str = "") -> str:
         ci = f"\n\nCUSTOM FOCUS (follow exactly): {custom_instruction}" if custom_instruction.strip() else ""
-        args = KernelArguments(concept_name=concept_name, level=level, custom_instruction=ci)
+        ctx = notebook_context or "(no course context available)"
+        args = KernelArguments(concept_name=concept_name, level=level, notebook_context=ctx, custom_instruction=ci)
         result = await self._kernel.invoke(self._practice_fn, args)
         return str(result).strip()
