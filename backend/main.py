@@ -1118,13 +1118,22 @@ async def sniper_exam(
     questions: list = []
     if raw:
         try:
+            # Strip markdown fences
             clean = re.sub(r"^```[a-z]*\n?", "", raw.strip())
             clean = re.sub(r"\n?```$", "", clean.strip())
+            # If still not a bare array, try to extract [...] block
+            if not clean.lstrip().startswith('['):
+                m = re.search(r'\[[\s\S]+\]', clean)
+                if m:
+                    clean = m.group(0)
+            # Fix LaTeX \-sequences that are invalid JSON escapes (\frac, \sigma, \beta, etc.)
+            # Only protect " \ / \n \u — everything else (f,b,r,t,d,...) must be doubled.
+            clean = re.sub(r'\\(?!["\\/nu])', r'\\\\', clean)
             questions = json.loads(clean)
             if not isinstance(questions, list):
                 questions = []
-        except Exception:
-            questions = []
+        except Exception as e:
+            logger.warning("Sniper exam JSON parse failed: %s | raw[:200]=%s", e, raw[:200])
 
     if not questions:
         # Offline fallback — one stub question per struggling concept
@@ -1207,12 +1216,20 @@ async def concept_practice_endpoint(
         stripped = raw.strip()
         stripped = re.sub(r'^```(?:json)?\s*', '', stripped)
         stripped = re.sub(r'\s*```$', '', stripped.strip())
+        # Fix LaTeX \-sequences that are invalid JSON escapes (\frac, \sigma, \beta, etc.)
+        # Only protect " \ / \n \u — everything else (f,b,r,t,d,...) must be doubled.
+        stripped = re.sub(r'\\(?!["\\/nu])', r'\\\\', stripped)
+        # If not a bare array, extract [...] block
+        if not stripped.lstrip().startswith('['):
+            m = re.search(r'\[[\s\S]+\]', stripped)
+            if m:
+                stripped = m.group(0)
         try:
             parsed = _json.loads(stripped)
             if isinstance(parsed, list) and parsed:
                 return ConceptPracticeResponse(questions=parsed)
         except Exception as exc:
-            logger.warning("concept-practice JSON parse failed: %s | raw: %s", exc, raw[:200])
+            logger.warning("concept-practice JSON parse failed: %s | raw[:150]=%s", exc, raw[:150] if raw else '')
 
     return ConceptPracticeResponse(questions=[
         {

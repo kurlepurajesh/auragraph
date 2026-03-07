@@ -135,7 +135,13 @@ def parse_verification_response(text: str) -> VerificationResult:
     # --- Strategy 1: exact separator tokens ------------------------------------
     parts = re.split(r'\|\|\|VERIFY\|\|\|', text, maxsplit=1)
     if len(parts) == 2:
-        result.answer = parts[0].strip()
+        raw_answer = parts[0].strip()
+        # Strip leaked prompt instruction block e.g. "<Direct answer to ...>\n\n actual answer"
+        if raw_answer.startswith('<'):
+            gt_nl = raw_answer.find('>\n')
+            if gt_nl != -1:
+                raw_answer = raw_answer[gt_nl + 2:].lstrip()
+        result.answer = raw_answer
         remainder     = parts[1]
 
         correct_split = re.split(r'\|\|\|CORRECT\|\|\|', remainder, maxsplit=1)
