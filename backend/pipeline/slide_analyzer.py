@@ -220,7 +220,8 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
         api_key = os.environ.get("GROQ_API_KEY", "")
         model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
         user_prompt = (
-            _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:18_000])
+            # FIX: was [:18_000] but chunks are 24k — full chunk now passed
+            _SLIDE_ANALYSIS_USER.replace("{slides}", slides_text[:24_000])
             + "\n\nIMPORTANT: Output ONLY valid JSON with a \"topics\" key. No markdown fences. No explanation."
         )
         payload = {

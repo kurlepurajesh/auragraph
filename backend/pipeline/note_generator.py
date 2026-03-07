@@ -546,41 +546,89 @@ def merge_sections(sections: list[str]) -> str:
     return "\n\n".join(cleaned)
 
 
+# ── Section-chunked LLM pass ─────────────────────────────────────────────────
+# Used by both refine_notes and verify_notes so that large note sets
+# (170k chars for 25 topics) are processed section-by-section instead of
+# being silently truncated at 28 000 chars.
+
+_CHUNK_BUDGET = 25_000   # chars per batch — well within Azure 128k context
+
+
+def _split_into_section_batches(notes: str, budget: int = _CHUNK_BUDGET) -> list[str]:
+    """Split notes on '## ' headings and group sections into budget-sized batches."""
+    sections = re.split(r'(?m)(?=^## )', notes)
+    batches, buf = [], ""
+    for sec in sections:
+        if buf and len(buf) + len(sec) > budget:
+            batches.append(buf)
+            buf = sec
+        else:
+            buf += sec
+    if buf:
+        batches.append(buf)
+    return batches or [notes]
+
+
+async def _apply_llm_in_chunks(
+    notes:  str,
+    system: str,
+    user_template: str,
+    min_len: int = 500,
+    label:  str = "pass",
+) -> str:
+    """
+    Run an LLM pass (refinement or verification) section-by-section so that
+    no content is dropped when notes exceed the 28 k char prompt budget.
+    Azure is preferred; Groq is used only for batches ≤ 12 k chars.
+    Returns the original notes if all batches fail.
+    """
+    if len(notes) < min_len:
+        return notes
+
+    batches = _split_into_section_batches(notes)
+    logger.info("%s: %d chars → %d batch(es)", label, len(notes), len(batches))
+
+    refined_batches: list[str] = []
+    changed = False
+
+    for i, batch in enumerate(batches):
+        user = _safe_format(user_template, notes=batch)
+        result: str | None = None
+
+        if _azure_available():
+            result = await _call_azure(system, user, max_tokens=16000)
+            if result and len(result) < len(batch) * 0.3:
+                logger.info("%s batch %d/%d: Azure too short — keeping original", label, i+1, len(batches))
+                result = None
+
+        if result is None and _groq_available() and len(batch) <= 12_000:
+            result = await _call_groq(system, user, max_tokens=8192)
+            if result and len(result) < len(batch) * 0.3:
+                logger.info("%s batch %d/%d: Groq too short — keeping original", label, i+1, len(batches))
+                result = None
+
+        if result:
+            refined_batches.append(fix_latex_delimiters(_fix_tables(result)))
+            changed = True
+        else:
+            refined_batches.append(batch)  # keep original batch on failure
+
+    if not changed:
+        logger.info("%s: all batches failed — keeping original %d-char notes", label, len(notes))
+        return notes
+
+    return "\n\n".join(refined_batches)
+
+
 async def refine_notes(notes: str) -> str:
     """
     Single refinement pass to improve clarity (Step 8).
-    Tries Azure first, then Groq. Skips if no LLM available or notes < 500 chars.
-    For large notes (>18k chars), Groq cannot reliably refine the full text
-    without truncation, so refinement is skipped for Groq on large outputs.
+    Processes notes section-by-section to avoid truncating large note sets.
     Returns original notes on failure.
     """
-    if len(notes) < 500:
-        return notes
-
-    # Groq has tight output limits — skip refinement for large note sets
-    # to avoid silently truncating 50% of the content
-    groq_refine_ok = _groq_available() and len(notes) <= 12_000
-
-    user = _safe_format(_REFINEMENT_USER, notes=notes[:28_000])
-
-    if _azure_available():
-        refined = await _call_azure(_REFINEMENT_SYSTEM, user, max_tokens=16000)
-        # FIX C2: threshold 0.3 — good compressions are kept, not discarded
-        if refined and len(refined) > len(notes) * 0.3:
-            return fix_latex_delimiters(_fix_tables(refined))
-        if refined:
-            logger.info("Azure refinement too short (%d vs %d) — keeping original", len(refined), len(notes))
-
-    if groq_refine_ok:
-        refined = await _call_groq(_REFINEMENT_SYSTEM, user, max_tokens=8192)  # Groq cap kept — large notes skip Groq refinement
-        # FIX C2: threshold 0.3
-        if refined and len(refined) > len(notes) * 0.3:
-            return fix_latex_delimiters(_fix_tables(refined))
-        if refined:
-            logger.info("Groq refinement too short (%d vs %d) — keeping original", len(refined), len(notes))
-
-    logger.info("Refinement skipped/failed — keeping original %d-char notes", len(notes))
-    return notes
+    return await _apply_llm_in_chunks(
+        notes, _REFINEMENT_SYSTEM, _REFINEMENT_USER, min_len=500, label="refinement"
+    )
 
 
 # ── Post-generation fact-verification pass ────────────────────────────────────
@@ -589,47 +637,13 @@ async def verify_notes(notes: str) -> str:
     """
     Step 9 — Self-verification pass.
 
-    A second LLM call reads the already-generated (and refined) notes with a
-    purely critical eye: it uses its own knowledge as ground truth and silently
-    rewrites every formula, definition, theorem statement, worked example, or
-    conceptual claim that is factually wrong.
-
-    This catches errors the generation prompt may have missed, especially:
-      • Wrong operator  (÷ instead of ×, − instead of +)
-      • Missing factors / conditions
-      • Wrong worked-example arithmetic
-      • Imprecise definitions
-
-    Azure is preferred (larger context window).
-    Falls back to Groq only for notes ≤ 12 000 chars (output token budget).
+    Processes notes section-by-section (see _apply_llm_in_chunks) so that
+    the full note set is fact-checked even for large (170k char) outputs.
     Returns original notes untouched on any failure.
     """
-    if len(notes) < 200:
-        return notes
-
-    groq_verify_ok = _groq_available() and len(notes) <= 8_000
-    user = _safe_format(_VERIFY_NOTES_USER, notes=notes[:28_000])
-
-    if _azure_available():
-        verified = await _call_azure(_VERIFY_NOTES_SYSTEM, user, max_tokens=16000)
-        if verified and len(verified) > len(notes) * 0.3:
-            logger.info("Verification pass: %d → %d chars (azure)", len(notes), len(verified))
-            return fix_latex_delimiters(_fix_tables(verified))
-        if verified:
-            logger.warning("Azure verification unexpectedly short (%d vs %d) — keeping original",
-                           len(verified), len(notes))
-
-    if groq_verify_ok:
-        verified = await _call_groq(_VERIFY_NOTES_SYSTEM, user, max_tokens=8192)
-        if verified and len(verified) > len(notes) * 0.3:
-            logger.info("Verification pass: %d → %d chars (groq)", len(notes), len(verified))
-            return fix_latex_delimiters(_fix_tables(verified))
-        if verified:
-            logger.warning("Groq verification unexpectedly short (%d vs %d) — keeping original",
-                           len(verified), len(notes))
-
-    logger.info("Verification pass skipped/failed — keeping %d-char notes", len(notes))
-    return notes
+    return await _apply_llm_in_chunks(
+        notes, _VERIFY_NOTES_SYSTEM, _VERIFY_NOTES_USER, min_len=200, label="verification"
+    )
 
 
 # ── Full pipeline orchestration ────────────────────────────────────────────
