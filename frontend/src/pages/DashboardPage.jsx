@@ -5,7 +5,7 @@ import { setUser } from '../store';
 import { ls_getNotebooks, ls_createNotebook, ls_deleteNotebook } from '../localNotebooks';
 import {
     BookOpen, Plus, Trash2, ChevronRight, LogOut, Loader2, BookMarked,
-    Calendar, Moon, Sun, Zap, Target, TrendingUp, Clock, Award, Star
+    Calendar, Moon, Sun, Target, TrendingUp, Clock, Award, Star
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -316,10 +316,7 @@ export default function DashboardPage() {
             {/* Header */}
             <header style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 34, height: 34, background: 'linear-gradient(135deg,#7C3AED,#2563EB)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Zap size={17} color="#fff" />
-                    </div>
-                    <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px' }}>AuraGraph</span>
+                    <img src="/logo.jpeg" alt="AuraGraph" style={{ height: 32, width: 'auto' }} />
                     {streak > 0 && (
                         <div className="streak-badge" style={{ marginLeft: 4 }}>
                             🔥 {streak} day streak

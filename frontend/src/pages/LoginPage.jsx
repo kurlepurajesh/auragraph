@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setUser } from '../store';
-import { BookOpen, Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -51,10 +51,7 @@ export default function LoginPage() {
             <div style={{ width: '100%', maxWidth: '400px' }}>
                 {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 52, height: 52, background: 'var(--text)', borderRadius: 14, marginBottom: 16 }}>
-                        <BookOpen size={26} color="white" />
-                    </div>
-                    <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.5px' }}>AuraGraph</h1>
+                    <img src="/logo.jpeg" alt="AuraGraph" style={{ height: 56, width: 'auto', marginBottom: 16 }} />
                     <p style={{ color: 'var(--text3)', marginTop: 4, fontSize: 14 }}>Your AI-powered study companion</p>
                 </div>
 
