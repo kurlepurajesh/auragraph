@@ -64,7 +64,9 @@ Extract the lecture topics IN SLIDE ORDER.
 
 For each topic output:
   - "topic": short concept name (3-6 words max, suitable as a section heading)
-  - "key_points": list of 2-5 key facts or ideas from the slides for this topic
+  - "key_points": list of ALL key facts, formulas, definitions, algorithms, and properties
+    from the slides for this topic. Do NOT cap or summarise — include every distinct
+    concept so the note generator can cover the slides completely.
   - "slide_text": the verbatim slide text that belongs to this topic
 
 Rules:

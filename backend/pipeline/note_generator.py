@@ -114,9 +114,13 @@ Five laws you NEVER break:
 ④ MNEMONIC       — If there is a pattern students forget, give a 1-line memory trick.
 ⑤ HONEST         — If the slide is sparse, write what you know accurately. Never pad with filler.
 
-CRITICAL — You are the ground truth. The source material is only a topic guide.
+CRITICAL — You are the ground truth for ACCURACY, but the slides are the ground truth for SCOPE.
 
-The slides/notes tell you WHAT topics to cover. YOUR OWN KNOWLEDGE determines what is correct.
+The slides define EXACTLY what the professor taught and what will be examined.
+Your job is to reproduce EVERY piece of content from the slides — every formula, every definition,
+every algorithm, every property, every example — and ensure it is stated correctly.
+
+The slides tell you WHAT to cover. YOUR OWN KNOWLEDGE determines whether each statement is correct.
 Before writing anything, internally verify it against what you know to be true. This applies to:
   • Formulas       — check every operator, sign, fraction, exponent, and argument.
                      Example of source error: f_Y(y) = f_X(f⁻¹(y)) / |d/dy f⁻¹(y)|
@@ -167,21 +171,32 @@ STRUCTURE:
 • No preamble sentences. No conclusion paragraphs.
 
 CONTENT:
-• The TOPIC and KEY POINTS tell you what to cover — your own knowledge determines what is correct.
+• SLIDE COVERAGE (absolute rule — proficiency level cannot override this):
+  Before writing a single word, scan the SLIDE CONTENT above and mentally list:
+    - every formula and equation
+    - every definition, concept, and property
+    - every algorithm, procedure, or process
+    - every theorem, condition, and edge case
+    - every example worked through in the slides
+  Every item on that list MUST appear in your output. Missing even one is an error.
+
+• The TOPIC and KEY POINTS tell you what to cover — your own knowledge determines what is CORRECT.
 • Before writing any formula, definition, condition, or claim: verify it internally.
   If the source has an error (wrong sign, wrong operator, missing condition, wrong direction),
   write the CORRECT version — students must be able to trust every line of these notes.
-• Source text may be OCR'd from handwritten notes — math may appear as plain text.
+• Source text may be OCR’d from handwritten notes — math may appear as plain text.
   Reconstruct the CORRECT LaTeX formula using your knowledge — never output garbled OCR literally.
 • Use textbook context to enrich explanations and add supporting examples.
-• NEVER introduce a concept that is not related to the given topic.
+• NEVER introduce a concept that is NOT present in the slides.
 
-FORMULA RULE (highest priority — overrides proficiency level):
+FORMULA RULE (enforces the coverage rule above — cannot be overridden):
 • EVERY formula, equation, and mathematical expression present in the slides or key points
   MUST appear in the output, regardless of proficiency level.
 • Proficiency level only controls how MUCH explanation surrounds each formula — never whether
   the formula is included.
 • A formula present in the source but absent from the output is always an error.
+• The same applies to definitions, properties, theorems, and algorithms — any named concept
+  in the slides that does not appear in the output is an omission error.
 
 WORKED EXAMPLE (mandatory for every section):
 • Pick a concrete number or symbol. Show 2–4 steps. Keep it compact.
@@ -205,7 +220,7 @@ FOUNDATIONS:
 PRACTITIONER:
   1. Formal definition.
   2. Intuition sentence linking the formula to real physical meaning.
-  3. Display LaTeX for every key formula; define symbols inline.
+  3. Display LaTeX for EVERY formula from the slides; define symbols inline.
   4. Key conditions / edge cases as bullets.
   5. If multiple related formulas exist, show a comparison table:
      | Formula | When to use |
@@ -259,8 +274,7 @@ RULES:
 • Fix awkward phrasing, redundancy, and unclear explanations.
 • Ensure all formulas use $...$ or $$ ... $$ LaTeX — never \\( \\) or \\[ \\].
 • Ensure every ## section ends with > 📝 **Exam Tip:** ...
-• Remove any preamble or conclusion text (e.g. "Here are your notes").
-• Output ONLY the improved notes — no commentary, no labels.
+• Remove any preamble or conclusion text (e.g. "Here are your notes").• Do NOT add new topics that were not already present.• Output ONLY the improved notes — no commentary, no labels.
 
 NOTES:
 {notes}
