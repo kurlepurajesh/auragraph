@@ -691,7 +691,7 @@ kbd {
     padding: 0 !important;
   }
 
-  /* Each note card gets its own page */
+  /* Each note card — full content, no clipping */
   .note-page-card {
     break-inside: avoid;
     page-break-inside: avoid;
@@ -699,6 +699,15 @@ kbd {
     box-shadow: none !important;
     border: 1px solid #ccc !important;
     margin-bottom: 24px !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Ensure no container clips content */
+  .note-page-card * {
+    overflow: visible !important;
+    max-height: none !important;
   }
 
   /* Hide binder ring holes (the left decoration column) */

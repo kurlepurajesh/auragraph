@@ -1511,6 +1511,7 @@ export default function NotebookWorkspace() {
     const handlePrint = useCallback(() => {
         if (viewMode !== 'scroll') {
             prevViewModeRef.current = viewMode;
+            setCurrentPage(0); // Reset to first page so scroll mode shows everything
             setViewMode('scroll');
             setIsPrinting(true);
         } else {
@@ -2071,7 +2072,7 @@ export default function NotebookWorkspace() {
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                 >{currentPage + 1}{viewMode === 'two' && pages[currentPage + 1] ? `–${currentPage + 2}` : ''} / {pages.length}</span>
                             )}
-                            <button data-testid="next-page" onClick={() => setCurrentPage(Math.min(pages.length - 1, currentPage + (viewMode === 'two' ? 2 : 1)))} disabled={currentPage >= pages.length - 1} title="Next (→)" style={{ background: 'none', border: 'none', color: currentPage >= pages.length - 1 ? 'var(--border2)' : 'var(--text2)', cursor: currentPage >= pages.length - 1 ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronRight size={14} /></button>
+                            <button data-testid="next-page" onClick={() => setCurrentPage(p => Math.min(pages.length - 1, p + (viewMode === 'two' ? 2 : 1)))} disabled={viewMode === 'two' ? currentPage + 1 >= pages.length - 1 : currentPage >= pages.length - 1} title="Next (→)" style={{ background: 'none', border: 'none', color: (viewMode === 'two' ? currentPage + 1 >= pages.length - 1 : currentPage >= pages.length - 1) ? 'var(--border2)' : 'var(--text2)', cursor: (viewMode === 'two' ? currentPage + 1 >= pages.length - 1 : currentPage >= pages.length - 1) ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronRight size={14} /></button>
                         </div>
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
                         {/* View mode toggle */}
@@ -2229,16 +2230,19 @@ export default function NotebookWorkspace() {
                                     {bottomBar}
                                 </div>
                             );
-                            if (viewMode === 'two') return (
-                                <div style={{ maxWidth: 1480, width: '100%' }}>
-                                    {banners}
-                                    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                                        {renderPage(currentPage)}
-                                        {renderPage(currentPage + 1)}
+                            if (viewMode === 'two') {
+                                const hasRight = currentPage + 1 < pages.length;
+                                return (
+                                    <div style={{ maxWidth: 1480, width: '100%' }}>
+                                        {banners}
+                                        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                                            {renderPage(currentPage)}
+                                            {hasRight ? renderPage(currentPage + 1) : <div style={{ flex: 1, minWidth: 0 }} />}
+                                        </div>
+                                        {bottomBar}
                                     </div>
-                                    {bottomBar}
-                                </div>
-                            );
+                                );
+                            }
                             return (
                                 <div style={{ maxWidth: 760, width: '100%' }}>
                                     {banners}
