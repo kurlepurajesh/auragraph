@@ -76,19 +76,22 @@ For each topic output:
   - "key_points": list of ALL key facts, formulas, definitions, algorithms, and properties
     from the slides for this topic. Do NOT cap or summarise - include every distinct
     concept so the note generator can cover the slides completely.
-  - "slide_text": the verbatim slide text that belongs to this topic
+  - "slide_text": the VERBATIM slide text for this topic, including the EXACT
+    --- Page N --- or --- Slide N --- marker line(s). These marker lines MUST be
+    preserved character-for-character. Never remove or paraphrase them.
 
 Rules:
   1. Follow slide order exactly - do NOT reorder topics.
-  2. Create one topic per distinct teaching concept. Only merge two CONSECUTIVE
-     slides into a single topic when they are literally continuing the exact same
-     explanation (e.g. 'Definition (continued)' or 'Proof (Part 2 of 2)').
-     A new formula, a new definition, a new algorithm, or a new sub-heading on
-     a slide MUST become its own topic entry — never fold it into the previous topic.
-  3. Ignore metadata slides: cover page, title slide, table of contents, references,
-     bibliography, agenda, outline, thank you, acknowledgements, course overview,
-     learning objectives. If a slide has only a course/lecture title and author name
-     with no teaching content, skip it.
+  2. Create one topic entry for EACH slide/page that contains teaching content.
+     Only merge two consecutive slides into ONE topic when they are literally the
+     continuation of the exact same explanation (e.g. "Definition (continued)" or
+     "Proof — Part 2 of 2").  A new formula, a new definition, a new algorithm,
+     a new theorem, or a new sub-heading means a NEW topic entry — never fold it
+     into the previous topic.
+  3. Ignore ONLY these metadata slide types: cover page, title slide, table of
+     contents, references / bibliography, agenda, outline, "thank you", author page.
+     EVERYTHING else — including introductory concept slides, motivation slides,
+     definition slides, short slides — MUST become its own topic entry.
   4. Each topic must correspond to actual teaching content from the slides.
   5. EVERY topic MUST have non-empty "slide_text" containing the verbatim slide
      content for that topic.  If a topic genuinely has no slide text, omit it
@@ -98,7 +101,10 @@ Rules:
      knowledge - state the formula/concept correctly, not as the OCR garbled it.
   7. FILE COVERAGE (critical): If multiple files are present, ensure at least one
      topic per file is present in your output. Never silently drop an entire file.
-  8. Output ONLY valid JSON in this exact format - a JSON object with a "topics" key containing the array.
+  8. PAGE COVERAGE (critical): Count the --- Page N --- and --- Slide N --- markers
+     in the input. Every such page that is not pure metadata MUST appear in at least
+     one topic's slide_text WITH its marker line preserved.
+  9. Output ONLY valid JSON in this exact format - a JSON object with a "topics" key containing the array.
      No preamble, no markdown fences, no extra keys.
 
 Required output format:
@@ -354,14 +360,12 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
             continue
         if not body and len(title) < 3:
             continue
-        # Skip cover/title pages: body has no teaching content (no colons, bullets, or
-        # alphanumeric formulas) and is very short - typically just author + date + publisher
-        _COVER_BODY = re.compile(
-            r'^[\s\w,.\---()/(c)(r)(tm)@#$%&\'"!?]+$', re.DOTALL
-        )
-        if (body and len(body) < 150 and _COVER_BODY.match(body)
-                and not re.search(r'[=+\-*/^sumintegraldsqrt]|\\[a-zA-Z]\{|[alphabetagammadeltaepsilonzetathetalambdamupirhosigmaphipsiomega]', body)):
-            continue
+        # Skip only truly empty author/date/institution slides — body is very
+        # short AND has no colons, bullets, or equations AND has ≤6 words.
+        # Anything with actual sentences or structured content is kept.
+        if body and len(body) < 60 and not re.search(r'[:,;]|[=+*/^]|\\[a-zA-Z]', body):
+            if len(body.split()) <= 6:
+                continue
 
         # Merge into previous topic ONLY when the same non-empty title
         # appears on consecutive slides (e.g. "Transforms (cont.)").
@@ -508,67 +512,114 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
         before_dedup = len(all_topics)
         all_topics = _deduplicate_topics(all_topics)
 
-        # ── Safety union with deterministic parser ───────────────────────────
-        # Problem solved here: when the LLM folds slides 1+2 into a single
-        # topic, ALL of slide 1's words appear in llm_covered_text — so a simple
-        # "word presence" check falsely concludes slide 1 is covered.
+        # ── Safety union: page-number tracking (primary) + word-overlap (fallback)
         #
-        # Fix: 1-to-1 bipartite matching.
-        #   • Score each (det_topic, llm_topic) pair by word overlap.
-        #   • Greedily assign the best-scoring pairs (highest score first).
-        #   • Each LLM topic can "cover" at most ONE det_topic.
-        #   • Any det_topic left without a unique LLM match is genuinely missing
-        #     → add it so every concept gets its own note section.
-        _SKIP = {"slide", "page", "figure", "table", "notes", "lecture",
-                 "course", "university", "professor", "content", "example",
-                 "following"}
+        # PRIMARY: PDF extractor stamps a unique number on every --- Page N ---
+        # marker.  If the LLM preserved them verbatim in slide_text (which the
+        # prompt requires), we know EXACTLY which pages it covered vs dropped —
+        # no word-guessing needed.
+        #
+        # FALLBACK: If the LLM stripped every marker from slide_text, fall back
+        # to bipartite word-overlap matching so nothing is silently lost.
 
-        def _sig_words(text: str) -> set[str]:
-            return {w.lower() for w in re.findall(r'[a-zA-Z]{5,}', text)
-                    if w.lower() not in _SKIP}
+        full_source = "\n".join(chunks)
 
-        det_topics: list[SlideTopic] = []
-        for chunk in chunks:
-            det_topics.extend(_deterministic_parse(chunk))
+        # All page/slide numbers in the SOURCE
+        all_page_nums: set[int] = {
+            int(m) for m in re.findall(r'---\s*(?:Slide|Page)\s+(\d+)', full_source)
+        }
+        # Page/slide numbers that appear in ANY LLM topic's slide_text
+        llm_page_nums: set[int] = {
+            int(m) for t in all_topics
+            for m in re.findall(r'---\s*(?:Slide|Page)\s+(\d+)', t.slide_text)
+        }
 
-        if det_topics:
-            # Pre-compute LLM topic word sets once
-            llm_word_sets = [_sig_words(t.slide_text) for t in all_topics]
+        added = 0
 
-            # Build all (score, det_idx, llm_idx) triples
-            pairs: list[tuple[int, int, int]] = []
-            for di, dt in enumerate(det_topics):
-                dw = _sig_words(dt.slide_text)
-                if not dw:
-                    continue
-                for li, lw in enumerate(llm_word_sets):
-                    score = len(dw & lw)
-                    if score > 0:
-                        pairs.append((score, di, li))
+        if all_page_nums and llm_page_nums:
+            # ── PRIMARY PATH ────────────────────────────────────────────────
+            missing_page_nums = all_page_nums - llm_page_nums
+            logger.info(
+                "slide_analyzer: source pages %s | LLM-covered %s | missing %s",
+                sorted(all_page_nums), sorted(llm_page_nums), sorted(missing_page_nums),
+            )
 
-            # Greedy 1-to-1 matching: highest score first
-            pairs.sort(reverse=True)
-            claimed_det: set[int] = set()
-            claimed_llm: set[int] = set()
-            for score, di, li in pairs:
-                if score < 2:
-                    break          # below noise floor
-                if di not in claimed_det and li not in claimed_llm:
-                    claimed_det.add(di)
-                    claimed_llm.add(li)
+            if missing_page_nums:
+                # Build page-number → raw text block lookup
+                page_blocks: dict[int, str] = {}
+                for block in re.split(
+                    r'(?=^---\s*(?:Slide|Page)\s+\d+)', full_source, flags=re.MULTILINE
+                ):
+                    bm = re.match(r'---\s*(?:Slide|Page)\s+(\d+)', block.strip())
+                    if bm:
+                        page_blocks[int(bm.group(1))] = block.strip()
 
-            # Any det_topic without a 1:1 LLM match is truly missing
-            added = 0
-            for di, dt in enumerate(det_topics):
-                if di not in claimed_det:
-                    all_topics.append(dt)
+                for pnum in sorted(missing_page_nums):
+                    block = page_blocks.get(pnum)
+                    if not block:
+                        continue
+                    body = re.sub(r'^---[^\n]*---', '', block, count=1).strip()
+                    if len(body) < 10:       # genuinely empty page
+                        continue
+                    tm = re.match(r'---\s*(?:Slide|Page)\s+\d+(?::\s*(.*?))?\s*---', block)
+                    inline_title = (tm.group(1) or '').strip() if tm else ''
+                    topic_name = inline_title or f"Slide {pnum}"
+                    all_topics.append(SlideTopic(
+                        topic=topic_name,
+                        slide_text=block,
+                        key_points=_extract_bullets(body),
+                    ))
                     added += 1
                     logger.info(
-                        "slide_analyzer: bipartite-union added missed topic '%s'",
-                        dt.topic,
+                        "slide_analyzer: page-number union added missed page %d '%s'",
+                        pnum, topic_name,
                     )
+
         else:
-            added = 0
+            # ── FALLBACK PATH: word-overlap bipartite matching ────────────────
+            # LLM dropped the --- Page N --- markers from slide_text.
+            logger.info(
+                "slide_analyzer: no page markers in LLM slide_text — using word-overlap union"
+            )
+            _SKIP_W = {"slide", "page", "figure", "table", "notes", "lecture",
+                       "course", "university", "professor", "content", "example"}
+
+            def _wset(text: str) -> set[str]:
+                return {w.lower() for w in re.findall(r'[a-zA-Z]{4,}', text)
+                        if w.lower() not in _SKIP_W}
+
+            det_topics: list[SlideTopic] = []
+            for chunk in chunks:
+                det_topics.extend(_deterministic_parse(chunk))
+
+            if det_topics:
+                llm_word_sets = [_wset(t.slide_text) for t in all_topics]
+                pairs_w: list[tuple[int, int, int]] = []
+                for di, dt in enumerate(det_topics):
+                    dw = _wset(dt.slide_text)
+                    if not dw:
+                        continue
+                    for li, lw in enumerate(llm_word_sets):
+                        score = len(dw & lw)
+                        if score >= 2:
+                            pairs_w.append((score, di, li))
+
+                pairs_w.sort(reverse=True)
+                claimed_d: set[int] = set()
+                claimed_l: set[int] = set()
+                for score, di, li in pairs_w:
+                    if di not in claimed_d and li not in claimed_l:
+                        claimed_d.add(di)
+                        claimed_l.add(li)
+
+                for di, dt in enumerate(det_topics):
+                    if di not in claimed_d:
+                        all_topics.append(dt)
+                        added += 1
+                        logger.info(
+                            "slide_analyzer: word-overlap union added missed topic '%s'",
+                            dt.topic,
+                        )
 
         after_dedup = len(all_topics) - added
         logger.info(
