@@ -38,6 +38,27 @@ def fix_latex_delimiters(text: str) -> str:
     6. Strip zero-width spaces and non-breaking spaces that confuse KaTeX.
     """
 
+    # ── 0. Strip code fences (```markdown … ```) ──────────────────────────
+    # LLMs often wrap their response in ```markdown or ```md or ``` fences.
+    # ReactMarkdown treats fenced content as a code block, breaking rendering.
+    text = re.sub(
+        r'^\s*```+\s*(?:markdown|md|latex|text)?\s*\n',
+        '',
+        text,
+        flags=re.MULTILINE,
+    )
+    # Remove trailing ``` fences (standalone on a line)
+    text = re.sub(r'\n\s*```+\s*$', '', text)
+    # Also strip if the entire text is wrapped in a single fence pair
+    stripped = text.strip()
+    if stripped.startswith('```') and stripped.endswith('```'):
+        # Remove opening fence line and closing fence
+        first_nl = stripped.find('\n')
+        if first_nl != -1:
+            text = stripped[first_nl + 1:]
+            if text.rstrip().endswith('```'):
+                text = text.rstrip()[:-3].rstrip()
+
     # ── 1. \\(…\\) → $…$ ────────────────────────────────────────────────────
     text = re.sub(
         r'\\\\\(\s*(.*?)\s*\\\\\)',

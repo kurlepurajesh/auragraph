@@ -399,8 +399,8 @@ function useDarkMode() {
 // ─── GalaxyGraph ──────────────────────────────────────────────────────────────
 function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
     const canvasRef = React.useRef();
-    const animRef   = React.useRef();
-    const starsRef  = React.useRef([]);
+    const animRef = React.useRef();
+    const starsRef = React.useRef([]);
     const W = 280, H = 360;
 
     // Init stars once
@@ -430,7 +430,7 @@ function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
             ctx.clearRect(0, 0, W, H);
 
             // Background
-            const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)/1.2);
+            const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) / 1.2);
             bg.addColorStop(0, isDark ? '#08081A' : '#0a0a1e');
             bg.addColorStop(1, isDark ? '#020208' : '#050510');
             ctx.fillStyle = bg;
@@ -534,7 +534,7 @@ function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
         const rect = canvasRef.current.getBoundingClientRect();
         const scaleX = W / rect.width, scaleY = H / rect.height;
         const mx = (e.clientX - rect.left) * scaleX;
-        const my = (e.clientY - rect.top)  * scaleY;
+        const my = (e.clientY - rect.top) * scaleY;
         const getPos = n => ({ x: (n.x / 100) * (W - 60) + 30, y: (n.y / 100) * (H - 60) + 30 });
         const hit = nodes.find(n => { const p = getPos(n); return Math.hypot(p.x - mx, p.y - my) < 14; });
         if (hit) onNodeClick?.(hit);
@@ -560,12 +560,12 @@ function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
 function SniperExamModal({ nodes, notebookId, onClose }) {
     const weakNodes = nodes.filter(n => n.status === 'struggling' || n.status === 'partial');
     const [questions, setQuestions] = React.useState([]);
-    const [loading, setLoading]     = React.useState(true);
-    const [qIdx, setQIdx]           = React.useState(0);
-    const [selected, setSelected]   = React.useState(null);
-    const [revealed, setRevealed]   = React.useState(false);
-    const [score, setScore]         = React.useState(0);
-    const [done, setDone]           = React.useState(false);
+    const [loading, setLoading] = React.useState(true);
+    const [qIdx, setQIdx] = React.useState(0);
+    const [selected, setSelected] = React.useState(null);
+    const [revealed, setRevealed] = React.useState(false);
+    const [score, setScore] = React.useState(0);
+    const [done, setDone] = React.useState(false);
 
     React.useEffect(() => {
         (async () => {
@@ -589,7 +589,7 @@ function SniperExamModal({ nodes, notebookId, onClose }) {
     }, []);
 
     const current = questions[qIdx];
-    const total   = questions.length;
+    const total = questions.length;
 
     const handleSelect = (opt) => {
         if (revealed) return;
@@ -712,11 +712,11 @@ function SniperExamModal({ nodes, notebookId, onClose }) {
 // ─── Study Timer (Pomodoro) ───────────────────────────────────────────────────
 function StudyTimer() {
     const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
-    const [mode, setMode]       = React.useState('focus');
-    const [secs, setSecs]       = React.useState(MODES.focus);
+    const [mode, setMode] = React.useState('focus');
+    const [secs, setSecs] = React.useState(MODES.focus);
     const [running, setRunning] = React.useState(false);
     const [sessions, setSessions] = React.useState(() => parseInt(localStorage.getItem('ag_sessions') || '0'));
-    const [open, setOpen]       = React.useState(false);
+    const [open, setOpen] = React.useState(false);
     const timerRef = React.useRef();
 
     React.useEffect(() => {
@@ -731,7 +731,7 @@ function StudyTimer() {
                             setSessions(n);
                             localStorage.setItem('ag_sessions', n);
                         }
-                        try { new Audio('data:audio/wav;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7xA4Tvh9Rz/y8QADBwMWgQAZG/ILNAARQ4GLTcDeIIIhxGOBAuD7hOfBB3/94gcJ3w+o5/5eIAIAAAVwWgQAVQ2ORaIQwEMAJiDg95G4nQL7mQVWI6GwRcfsZAcsKkJvxgxEjzFUgfHoSQ9Qq7KNwqHwuB13MA4a1q/DmBrHgPcmjiGoh//EwC5nGPEmS4RcfkVKOhJf+WOgoxJclFz3kgn//dBA+ya1GhurNn8zb//9NNutNuhz31f////9vt///z+IdAEAAAK4LQIAKobHItEIYCGAExBwe8jcToF9zIKrEdDYIuP2MgOWFSE34wYiR5iqQPj0JIeoVdlG4VD4XA67mAcNa1fhzA1jwHuTRxDUQ//iYBczjHiTJcIuPyKlHQkv/LHQUYkuSi57yQT//uggfZNajQ3Vmz+Zt//+mm3Wm3Q576v////+32///5/EOgAAADVghQAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAAi2BWACAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAA').play(); } catch {}
+                        try { new Audio('data:audio/wav;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAGDgYtAgAyN+QWaAAihwMWm4G8QQRDiMcCBcH3Cc+CDv/7xA4Tvh9Rz/y8QADBwMWgQAZG/ILNAARQ4GLTcDeIIIhxGOBAuD7hOfBB3/94gcJ3w+o5/5eIAIAAAVwWgQAVQ2ORaIQwEMAJiDg95G4nQL7mQVWI6GwRcfsZAcsKkJvxgxEjzFUgfHoSQ9Qq7KNwqHwuB13MA4a1q/DmBrHgPcmjiGoh//EwC5nGPEmS4RcfkVKOhJf+WOgoxJclFz3kgn//dBA+ya1GhurNn8zb//9NNutNuhz31f////9vt///z+IdAEAAAK4LQIAKobHItEIYCGAExBwe8jcToF9zIKrEdDYIuP2MgOWFSE34wYiR5iqQPj0JIeoVdlG4VD4XA67mAcNa1fhzA1jwHuTRxDUQ//iYBczjHiTJcIuPyKlHQkv/LHQUYkuSi57yQT//uggfZNajQ3Vmz+Zt//+mm3Wm3Q576v////+32///5/EOgAAADVghQAAAAA//uQZAUAB1WI0PZugAAAAAoQwAAAEk3nRd2qAAAAACiDgAAAAAAAi2BWACAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAAAAAAAAAAAAAAAAAAASVDhqgnAAAA').play(); } catch { }
                         return MODES[mode];
                     }
                     return s - 1;
@@ -765,7 +765,7 @@ function StudyTimer() {
                 </div>
                 {/* Mode tabs */}
                 <div style={{ display: 'flex', gap: 3, marginBottom: 12, background: 'var(--surface)', borderRadius: 7, padding: 2 }}>
-                    {[['focus','25m'],['short','5m'],['long','15m']].map(([m,l]) => (
+                    {[['focus', '25m'], ['short', '5m'], ['long', '15m']].map(([m, l]) => (
                         <button key={m} onClick={() => switchMode(m)} style={{ flex: 1, padding: '4px 0', borderRadius: 5, border: 'none', cursor: 'pointer', background: mode === m ? 'var(--text)' : 'transparent', color: mode === m ? '#fff' : 'var(--text3)', fontSize: 10, fontWeight: 600, transition: 'all 0.15s' }}>{l}</button>
                     ))}
                 </div>
@@ -812,7 +812,7 @@ function NoteSearch({ pages, onJumpToPage, onClose }) {
             const pos = lower.indexOf(q);
             if (pos === -1) return null;
             const start = Math.max(0, pos - 40);
-            const end   = Math.min(page.length, pos + query.length + 60);
+            const end = Math.min(page.length, pos + query.length + 60);
             const preview = (start > 0 ? '…' : '') + page.slice(start, end) + (end < page.length ? '…' : '');
             return { idx, preview, pos: pos - start + (start > 0 ? 1 : 0) };
         }).filter(Boolean);
@@ -1010,8 +1010,8 @@ function ConceptDetailPanel({ node, notebookId, onClose, onStatusChange, onJumpT
 
     const LEVELS = [
         { key: 'struggling', label: 'Easy', color: '#10B981', icon: <CheckCircle2 size={11} />, desc: 'Definitions & recall' },
-        { key: 'partial',    label: 'Medium', color: '#F59E0B', icon: <MinusCircle size={11} />, desc: 'Exam-style problems' },
-        { key: 'mastered',   label: 'Hard', color: '#EF4444', icon: <AlertCircle size={11} />, desc: 'Derivations & edge cases' },
+        { key: 'partial', label: 'Medium', color: '#F59E0B', icon: <MinusCircle size={11} />, desc: 'Exam-style problems' },
+        { key: 'mastered', label: 'Hard', color: '#EF4444', icon: <AlertCircle size={11} />, desc: 'Derivations & edge cases' },
     ];
     const statusColors = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
 
@@ -1471,7 +1471,7 @@ export default function NotebookWorkspace() {
         try {
             const res = await fetch(`${API}/notebooks/${id}/sections`, { headers: authHeaders() });
             if (res.ok) setSections(await res.json());
-        } catch {}
+        } catch { }
     }, [id]);
 
     // Refresh note text after section generation rebuilds the flat note
@@ -1482,7 +1482,7 @@ export default function NotebookWorkspace() {
             const nb = await res.json();
             setNote(nb.note || '');
             setProf(nb.proficiency || 'Practitioner');
-        } catch {}
+        } catch { }
     }, [id]);
 
     useEffect(() => { loadSections(); }, [loadSections]);
@@ -1529,7 +1529,7 @@ export default function NotebookWorkspace() {
                 setSections(prev => [...prev, sec]);
                 setSectionInput('');
             }
-        } catch {}
+        } catch { }
     };
 
     const handleDeleteSection = async (secId) => {
@@ -1538,7 +1538,7 @@ export default function NotebookWorkspace() {
                 method: 'DELETE', headers: authHeaders(),
             });
             if (res.ok) setSections(prev => prev.filter(s => s.id !== secId));
-        } catch {}
+        } catch { }
     };
 
     const handleGenerateSection = async (sec) => {
@@ -1555,7 +1555,7 @@ export default function NotebookWorkspace() {
                 // Reload the note pages so the main viewer reflects the new content
                 loadNotebook();
             }
-        } catch {}
+        } catch { }
         setGeneratingSection(null);
     };
 
@@ -1570,7 +1570,7 @@ export default function NotebookWorkspace() {
                 headers: authHeaders(),
                 body: JSON.stringify({ order: next.map((s, i) => ({ id: s.id, order_idx: i })) }),
             });
-        } catch {}
+        } catch { }
     };
 
     const handleMoveSectionDown = async (idx) => {
@@ -1584,7 +1584,7 @@ export default function NotebookWorkspace() {
                 headers: authHeaders(),
                 body: JSON.stringify({ order: next.map((s, i) => ({ id: s.id, order_idx: i })) }),
             });
-        } catch {}
+        } catch { }
     };
 
     // ── Undo helpers ──────────────────────────────────────────────────────────
@@ -1612,11 +1612,11 @@ export default function NotebookWorkspace() {
 
     const startResizeSidebar = useCallback((e) => {
         e.preventDefault();
-        const startX  = e.clientX;
-        const startW  = sidebarWidth;
-        const handle  = e.currentTarget;
+        const startX = e.clientX;
+        const startW = sidebarWidth;
+        const handle = e.currentTarget;
         handle.classList.add('dragging');
-        document.body.style.cursor     = 'col-resize';
+        document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
         const onMove = (ev) => {
             // dragging left (negative delta) → wider sidebar
@@ -1625,18 +1625,21 @@ export default function NotebookWorkspace() {
         };
         const onUp = () => {
             handle.classList.remove('dragging');
-            document.body.style.cursor     = '';
+            document.body.style.cursor = '';
             document.body.style.userSelect = '';
             window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup',   onUp);
+            window.removeEventListener('mouseup', onUp);
         };
         window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup',   onUp);
+        window.addEventListener('mouseup', onUp);
     }, [sidebarWidth]);
 
     const pages = useMemo(() => {
         if (!note) return [];
-        const byH2 = note.split(/(?=^## )/m).map(s => s.trim()).filter(Boolean);
+        // Strip code fences (```markdown … ```) that LLMs sometimes wrap notes in
+        let clean = note.replace(/^\s*```+\s*(?:markdown|md|latex|text)?\s*\n/gm, '');
+        clean = clean.replace(/\n\s*```+\s*$/g, '');
+        const byH2 = clean.split(/(?=^## )/m).map(s => s.trim()).filter(Boolean);
         if (byH2.length > 0) {
             // Group sections together targeting ~3000 chars per page
             const TARGET = 3000;
@@ -1652,7 +1655,7 @@ export default function NotebookWorkspace() {
             if (buf) merged.push(buf.trim());
             return merged.filter(Boolean);
         }
-        const byH3 = note.split(/(?=^### )/m).map(s => s.trim()).filter(Boolean);
+        const byH3 = clean.split(/(?=^### )/m).map(s => s.trim()).filter(Boolean);
         if (byH3.length > 1) return byH3;
         // Math-aware paragraph split — never cuts inside a $$ block
         const mathAwareSplit = (text) => {
@@ -1668,14 +1671,14 @@ export default function NotebookWorkspace() {
             if (buf.length > 0) { const seg = buf.join('\n').trim(); if (seg.length > 40) segments.push(seg); }
             return segments;
         };
-        const paras = mathAwareSplit(note);
+        const paras = mathAwareSplit(clean);
         const chunks = []; let cur = '';
         for (const p of paras) {
             if (cur.length + p.length > 700 && cur.length > 150) { chunks.push(cur.trim()); cur = p; }
             else { cur += (cur ? '\n\n' : '') + p; }
         }
         if (cur) chunks.push(cur.trim());
-        return chunks.length ? chunks : [note];
+        return chunks.length ? chunks : [clean];
     }, [note]);
 
     // Scroll to top on page change
@@ -1916,7 +1919,7 @@ export default function NotebookWorkspace() {
             });
             if (!res.ok) {
                 let detail = `Server error (${res.status})`;
-                try { const j = await res.json(); detail = j.detail || detail; } catch {}
+                try { const j = await res.json(); detail = j.detail || detail; } catch { }
                 throw new Error(detail);
             }
             const data = await res.json();
@@ -2152,7 +2155,7 @@ export default function NotebookWorkspace() {
                                         </div>
                                         <div style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
                                         <div style={{ flex: 1, padding: '40px 48px 48px 36px', minWidth: 0 }}>
-                                        <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
+                                            <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
                                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     {mutatedPages.has(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EDE9FE', color: '#7C3AED', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
@@ -2163,7 +2166,7 @@ export default function NotebookWorkspace() {
                                                         title="Re-generate this section with fresh AI output"
                                                         className="no-print"
                                                         style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '3px 8px', cursor: regenLoadingPages.has(idx) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#9CA3AF', transition: 'all 0.15s' }}
-                                                        onMouseEnter={e => { if (!regenLoadingPages.has(idx)) { e.currentTarget.style.borderColor = '#7C3AED'; e.currentTarget.style.color = '#7C3AED'; }}}
+                                                        onMouseEnter={e => { if (!regenLoadingPages.has(idx)) { e.currentTarget.style.borderColor = '#7C3AED'; e.currentTarget.style.color = '#7C3AED'; } }}
                                                         onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#9CA3AF'; }}
                                                     >
                                                         {regenLoadingPages.has(idx)
