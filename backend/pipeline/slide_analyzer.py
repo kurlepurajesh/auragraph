@@ -363,8 +363,12 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
                 and not re.search(r'[=+\-*/^sumintegraldsqrt]|\\[a-zA-Z]\{|[alphabetagammadeltaepsilonzetathetalambdamupirhosigmaphipsiomega]', body)):
             continue
 
-        # Try to merge into previous topic if same/no title
-        if topics and (not title or title.lower() == topics[-1].topic.lower()):
+        # Merge into previous topic ONLY when the same non-empty title
+        # appears on consecutive slides (e.g. "Transforms (cont.)").
+        # Never auto-merge pages that simply have no inline title — those
+        # are distinct slides and must each become their own det_topic so
+        # the bipartite safety-union can detect LLM-missed concepts.
+        if topics and title and title.lower() == topics[-1].topic.lower():
             topics[-1].slide_text += "\n\n" + part
             if body:
                 topics[-1].key_points.extend(_extract_bullets(body)[:2])
@@ -505,43 +509,71 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
         all_topics = _deduplicate_topics(all_topics)
 
         # ── Safety union with deterministic parser ───────────────────────────
-        # The LLM may have silently skipped individual slides even after the
-        # earlier fixes (finish_reason check / smaller chunks).  Run the regex
-        # parser on every chunk and add any slide whose content is NOT already
-        # represented by an LLM topic.
+        # Problem solved here: when the LLM folds slides 1+2 into a single
+        # topic, ALL of slide 1's words appear in llm_covered_text — so a simple
+        # "word presence" check falsely concludes slide 1 is covered.
+        #
+        # Fix: 1-to-1 bipartite matching.
+        #   • Score each (det_topic, llm_topic) pair by word overlap.
+        #   • Greedily assign the best-scoring pairs (highest score first).
+        #   • Each LLM topic can "cover" at most ONE det_topic.
+        #   • Any det_topic left without a unique LLM match is genuinely missing
+        #     → add it so every concept gets its own note section.
+        _SKIP = {"slide", "page", "figure", "table", "notes", "lecture",
+                 "course", "university", "professor", "content", "example",
+                 "following"}
+
+        def _sig_words(text: str) -> set[str]:
+            return {w.lower() for w in re.findall(r'[a-zA-Z]{5,}', text)
+                    if w.lower() not in _SKIP}
+
         det_topics: list[SlideTopic] = []
         for chunk in chunks:
             det_topics.extend(_deterministic_parse(chunk))
 
-        # Build a combined blob of all text already covered by LLM topics
-        llm_covered_text = " ".join(t.slide_text.lower() for t in all_topics)
+        if det_topics:
+            # Pre-compute LLM topic word sets once
+            llm_word_sets = [_sig_words(t.slide_text) for t in all_topics]
 
-        added = 0
-        for dt in det_topics:
-            # Take up to 3 distinctive words from the deterministic topic's body
-            sig_words = [
-                w for w in re.findall(r'[a-zA-Z]{5,}', dt.slide_text)
-                if w.lower() not in {"slide", "page", "figure", "table", "notes",
-                                     "lecture", "course", "university", "professor"}
-            ][:6]
-            if not sig_words:
-                continue
-            # If fewer than 2 of those words appear in any LLM topic, this slide
-            # was missed → add the deterministic topic so nothing is lost.
-            matches = sum(1 for w in sig_words if w.lower() in llm_covered_text)
-            if matches < 2:
-                all_topics.append(dt)
-                llm_covered_text += " " + dt.slide_text.lower()
-                added += 1
-                logger.info(
-                    "slide_analyzer: added LLM-missed slide '%s' from deterministic parser",
-                    dt.topic,
-                )
+            # Build all (score, det_idx, llm_idx) triples
+            pairs: list[tuple[int, int, int]] = []
+            for di, dt in enumerate(det_topics):
+                dw = _sig_words(dt.slide_text)
+                if not dw:
+                    continue
+                for li, lw in enumerate(llm_word_sets):
+                    score = len(dw & lw)
+                    if score > 0:
+                        pairs.append((score, di, li))
 
+            # Greedy 1-to-1 matching: highest score first
+            pairs.sort(reverse=True)
+            claimed_det: set[int] = set()
+            claimed_llm: set[int] = set()
+            for score, di, li in pairs:
+                if score < 2:
+                    break          # below noise floor
+                if di not in claimed_det and li not in claimed_llm:
+                    claimed_det.add(di)
+                    claimed_llm.add(li)
+
+            # Any det_topic without a 1:1 LLM match is truly missing
+            added = 0
+            for di, dt in enumerate(det_topics):
+                if di not in claimed_det:
+                    all_topics.append(dt)
+                    added += 1
+                    logger.info(
+                        "slide_analyzer: bipartite-union added missed topic '%s'",
+                        dt.topic,
+                    )
+        else:
+            added = 0
+
+        after_dedup = len(all_topics) - added
         logger.info(
-            "slide_analyzer: %d LLM topics → %d after dedup → +%d from safety union = %d total. Topics: %s",
-            before_dedup, before_dedup - (before_dedup - len(all_topics) + added),
-            added, len(all_topics),
+            "slide_analyzer: %d LLM topics → %d after dedup → +%d from bipartite union = %d total. Topics: %s",
+            before_dedup, after_dedup, added, len(all_topics),
             [t.topic for t in all_topics],
         )
         return all_topics
