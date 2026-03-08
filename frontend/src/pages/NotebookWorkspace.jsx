@@ -1457,9 +1457,7 @@ export default function NotebookWorkspace() {
     const [undoToast, setUndoToast] = useState(null); // { note, prof, label, expiresAt } | null
     const undoTimerRef = useRef(null);
     const noteScrollRef = useRef();
-    const prevViewModeRef = useRef(null);
     const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem('ag_font_size') || '16', 10));
-    const [isPrinting, setIsPrinting] = useState(false);
 
     // ── Sections (TOC) state ──────────────────────────────────────────────────
     const [sections, setSections] = useState([]);
@@ -1488,36 +1486,18 @@ export default function NotebookWorkspace() {
     useEffect(() => { loadSections(); }, [loadSections]);
     useEffect(() => { localStorage.setItem('ag_font_size', String(fontSize)); }, [fontSize]);
 
-    // Print: using isPrinting state so the useEffect fires only AFTER React
-    // has committed the scroll-mode DOM update (all pages rendered), then prints.
-    // A small delay ensures KaTeX finishes rendering math across all pages.
+    // Snap currentPage to an even index when entering two-page mode so the same
+    // page is never shown both as the right half of a spread AND solo on the next.
     useEffect(() => {
-        if (!isPrinting) return;
-        const timer = setTimeout(() => {
-            window.print();
-            setIsPrinting(false);
-            const restore = () => {
-                if (prevViewModeRef.current) {
-                    setViewMode(prevViewModeRef.current);
-                    prevViewModeRef.current = null;
-                }
-                window.removeEventListener('afterprint', restore);
-            };
-            window.addEventListener('afterprint', restore);
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [isPrinting]);
-
-    const handlePrint = useCallback(() => {
-        if (viewMode !== 'scroll') {
-            prevViewModeRef.current = viewMode;
-            setCurrentPage(0); // Reset to first page so scroll mode shows everything
-            setViewMode('scroll');
-            setIsPrinting(true);
-        } else {
-            window.print();
+        if (viewMode === 'two' && currentPage % 2 !== 0) {
+            setCurrentPage(p => Math.max(0, p - 1));
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewMode]);
+
+    // Print is handled by #ag-print-root — a dedicated hidden div that always
+    // contains all note pages. No viewMode switching needed.
+    const handlePrint = useCallback(() => { window.print(); }, []);
 
     const handleAddSection = async (e) => {
         e.preventDefault();
@@ -2072,7 +2052,10 @@ export default function NotebookWorkspace() {
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                 >{currentPage + 1}{viewMode === 'two' && pages[currentPage + 1] ? `–${currentPage + 2}` : ''} / {pages.length}</span>
                             )}
-                            <button data-testid="next-page" onClick={() => setCurrentPage(p => Math.min(pages.length - 1, p + (viewMode === 'two' ? 2 : 1)))} disabled={viewMode === 'two' ? currentPage + 1 >= pages.length - 1 : currentPage >= pages.length - 1} title="Next (→)" style={{ background: 'none', border: 'none', color: (viewMode === 'two' ? currentPage + 1 >= pages.length - 1 : currentPage >= pages.length - 1) ? 'var(--border2)' : 'var(--text2)', cursor: (viewMode === 'two' ? currentPage + 1 >= pages.length - 1 : currentPage >= pages.length - 1) ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronRight size={14} /></button>
+                            <button data-testid="next-page" onClick={() => setCurrentPage(p => {
+                                if (viewMode === 'two') { const maxLeft = Math.floor((pages.length - 1) / 2) * 2; return Math.min(maxLeft, p + 2); }
+                                return Math.min(pages.length - 1, p + 1);
+                            })} disabled={viewMode === 'two' ? currentPage >= Math.floor((pages.length - 1) / 2) * 2 : currentPage >= pages.length - 1} title="Next (→)" style={{ background: 'none', border: 'none', color: (viewMode === 'two' ? currentPage >= Math.floor((pages.length - 1) / 2) * 2 : currentPage >= pages.length - 1) ? 'var(--border2)' : 'var(--text2)', cursor: (viewMode === 'two' ? currentPage >= Math.floor((pages.length - 1) / 2) * 2 : currentPage >= pages.length - 1) ? 'not-allowed' : 'pointer', padding: 0, display: 'flex' }}><ChevronRight size={14} /></button>
                         </div>
                         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
                         {/* View mode toggle */}
@@ -2368,6 +2351,22 @@ export default function NotebookWorkspace() {
                 </div>
             )}
             {undoToast && <UndoToast toast={undoToast} onUndo={handleUndoCommit} onDismiss={dismissUndo} />}
+
+            {/* ── Dedicated print container — hidden on screen, visible in @media print ── */}
+            {pages.length > 0 && (
+                <div id="ag-print-root">
+                    {pages.map((pageContent, idx) => (
+                        <div key={idx} className="ag-print-page">
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{notebook?.name || 'Study Notes'}</span>
+                                <span>Page {idx + 1} of {pages.length} · AuraGraph · {prof}</span>
+                            </div>
+                            <NoteRenderer content={pageContent} fontSize={fontSize} />
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true }; setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; }); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
             {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx) => { setCurrentPage(idx); }} onClose={() => setShowSearch(false)} />}
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}

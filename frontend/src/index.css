@@ -656,114 +656,65 @@ kbd {
 }
 
 /* ─── Print / Export PDF ──────────────────────────────────────────────────── */
+/* ─── Print root (hidden on screen, shown in print) ──────────────────────── */
+/* Using @media screen to hide rather than display:none so it still              */
+/* participates in the print layout when @media print overrides it.              */
+@media screen {
+  #ag-print-root {
+    display: none;
+  }
+}
+
+/* ─── Print / Export PDF ──────────────────────────────────────────────────── */
 @media print {
-
-  /* Hide everything that isn't the notes */
-  header,
-  nav,
-  aside,
-  .sidebar-panel,
-  .sidebar-resize-handle,
-  .no-print,
-  .btn,
-  .page-dot,
-  [data-testid="prev-page"],
-  [data-testid="next-page"],
-  [data-testid="re-upload-btn"],
-  [data-testid="ask-doubt-btn"] {
-    display: none !important;
+  /* Isolate only the print root — hide everything else via visibility so the
+     print root's absolutely-positioned content still lays out correctly.       */
+  * {
+    visibility: hidden !important;
   }
 
-  /* Remove viewport clipping so all pages print */
-  body,
-  #root,
-  html {
-    height: auto !important;
-    overflow: visible !important;
-    background: #fff !important;
+  #ag-print-root,
+  #ag-print-root * {
+    visibility: visible !important;
   }
 
-  /* Force scroll-view — all pages visible */
-  [data-print-body],
-  [data-print-scroll] {
-    overflow: visible !important;
-    height: auto !important;
-    max-height: none !important;
-    flex: none !important;
+  #ag-print-root {
     display: block !important;
-    background: #fff !important;
-    padding: 0 !important;
-  }
-
-  /* Each note card — full content, no clipping */
-  .note-page-card {
-    break-inside: avoid;
-    page-break-inside: avoid;
-    page-break-after: auto;
-    box-shadow: none !important;
-    border: 1px solid #ccc !important;
-    margin-bottom: 24px !important;
-    overflow: visible !important;
-    height: auto !important;
-    max-height: none !important;
-  }
-
-  /* Ensure no container clips content */
-  .note-page-card * {
-    overflow: visible !important;
-    max-height: none !important;
-  }
-
-  /* Hide binder ring holes (the left decoration column) */
-  .note-binder-rings {
-    display: none !important;
-  }
-
-  /* Hide the red margin line */
-  .note-margin-line {
-    display: none !important;
-  }
-
-  /* Reset flex to block for print, expand content to full width */
-  .note-page-card {
-    display: block !important;
-  }
-
-  .note-page-card>div:last-child {
-    padding: 24px 32px !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
     width: 100% !important;
+    background: #fff !important;
   }
 
-  /* Hide regenerate button and note-header-bar action icons */
-  .note-header-bar .no-print {
-    display: none !important;
+  /* Each note page fills its own printed page */
+  .ag-print-page {
+    padding: 14mm 18mm;
+    break-after: page;
   }
 
-  .note-footer-bar {
-    display: none !important;
+  .ag-print-page:last-child {
+    break-after: auto;
   }
 
-  /* Ensure KaTeX renders properly in print */
-  .katex {
+  /* KaTeX colours */
+  #ag-print-root .katex,
+  #ag-print-root .katex span {
     color: #000 !important;
   }
 
-  .katex span {
-    color: #000 !important;
-  }
-
-  .katex-display {
-    background: transparent !important;
+  #ag-print-root .katex-display {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Ensure blockquote/callout backgrounds print */
-  blockquote {
+  /* Callout / blockquote backgrounds */
+  #ag-print-root blockquote {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 }
+
 
 /* ─── Undo Toast animation ────────────────────────────────────────────────── */
 @keyframes slideUpFade {
