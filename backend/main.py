@@ -266,9 +266,9 @@ async def _groq_fuse(slide_content: str, textbook_content: str, proficiency: str
 
 
 async def _groq_doubt(doubt, slide_ctx, textbook_ctx, note_page) -> str:
-    from agents.verifier_agent import VERIFICATION_PROMPT
+    from agents.verifier_agent import DOUBT_ANSWER_PROMPT
     prompt = (
-        VERIFICATION_PROMPT
+        DOUBT_ANSWER_PROMPT
         .replace("{{$doubt}}",            doubt)
         .replace("{{$note_page}}",        note_page)
         .replace("{{$slide_context}}",    slide_ctx)

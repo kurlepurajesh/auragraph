@@ -1411,7 +1411,13 @@ function DoubtsPanel({ doubts, currentPage }) {
                     return (
                         <div key={d.id} id={'doubt-' + d.id}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginBottom: 4 }}>
-                                {d.success ? <span style={{ fontSize: 9, color: '#7C3AED', fontWeight: 700 }}>✨ mutated</span> : d.unresolved ? <span style={{ fontSize: 9, color: '#D97706', fontWeight: 600 }}>⏳ pending</span> : <span style={{ fontSize: 9, color: '#EF4444', fontWeight: 600 }}>⚠ failed</span>}
+                                {d.success
+                    ? d.kind === 'answered'
+                        ? <span style={{ fontSize: 9, color: '#0369A1', fontWeight: 700 }}>💬 answered</span>
+                        : <span style={{ fontSize: 9, color: '#7C3AED', fontWeight: 700 }}>✨ mutated</span>
+                    : d.unresolved
+                        ? <span style={{ fontSize: 9, color: '#D97706', fontWeight: 600 }}>⏳ pending</span>
+                        : <span style={{ fontSize: 9, color: '#EF4444', fontWeight: 600 }}>⚠ failed</span>}
                                 {d.success && d.source && <span style={{ fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 6, background: d.source === 'azure' ? '#EFF6FF' : d.source === 'groq' ? '#ECFDF5' : '#F5F5F5', color: d.source === 'azure' ? '#1D4ED8' : d.source === 'groq' ? '#065F46' : '#52525B', border: `1px solid ${d.source === 'azure' ? '#BFDBFE' : d.source === 'groq' ? '#A7F3D0' : '#D4D4D8'}` }}>{d.source}</span>}
                                 <span style={{ fontSize: 9, color: '#D1D5DB' }}>{d.time}</span>
                             </div>
@@ -1972,7 +1978,7 @@ export default function NotebookWorkspace() {
                 // Prefer data.answer (full explanation), fall back to concept_gap, then generic message.
                 // Never extract a 2-word 💡 snippet — the student needs a real answer.
                 const insight = data.answer || data.concept_gap || 'Your note was rewritten to address this doubt.';
-                const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true };
+                const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true, kind: 'mutated' };
                 setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
                 setRightTab('doubts');
             }
@@ -2450,7 +2456,7 @@ export default function NotebookWorkspace() {
                 </div>
             )}
 
-            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true }; setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; }); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
+            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true, kind: 'answered' }; setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; }); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
             {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx) => { setCurrentPage(idx); }} onClose={() => setShowSearch(false)} />}
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
         </div>

@@ -106,7 +106,7 @@ CONCISENESS:
 
 # DOUBT_ANSWER_PROMPT now delegates to the verification pipeline.
 # Import the prompt string from verifier_agent so there is a single source of truth.
-from agents.verifier_agent import VERIFICATION_PROMPT as DOUBT_ANSWER_PROMPT  # noqa: E402
+from agents.verifier_agent import DOUBT_ANSWER_PROMPT                          # noqa: E402
 from agents.verifier_agent import NOTE_SELF_REVIEW_PROMPT                       # noqa: E402
 
 

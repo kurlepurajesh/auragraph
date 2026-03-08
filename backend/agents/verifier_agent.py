@@ -1,21 +1,10 @@
 """
 agents/verifier_agent.py
 
-Cross-verification pipeline for the doubt answering flow.
-
-When a student asks a question the system:
-  1. Identifies the concept and the relevant note section.
-  2. Cross-checks that note section against slide chunks, textbook chunks,
-     and the model's own knowledge.
-  3. Classifies the note as  correct / partially_correct / incorrect.
-  4. Responds with a direct answer plus an explicit correction if needed.
-  5. Handles slide OCR noise by not over-relying on slide text.
-
-Structured output separators
-─────────────────────────────
-The LLM is instructed to use these exact 4 tokens as separators:
-    |||VERIFY|||   |||CORRECT|||   |||NOTE|||
-Parser : parse_verification_response(text) → VerificationResult
+Two pipelines:
+  1. DOUBT_ANSWER_PROMPT — tutor the student directly (used by /api/doubt).
+  2. VERIFICATION_PROMPT — cross-verify a note page claim (legacy, kept for reference).
+  3. NOTE_SELF_REVIEW_PROMPT — post-generation accuracy sweep (used after /api/fuse).
 """
 
 from __future__ import annotations
@@ -33,13 +22,65 @@ class VerificationResult:
     footnote:            str = ""          # optional short clarification
 
 
-# ── Verification prompt (replaces the old DOUBT_ANSWER_PROMPT) ────────────────
+# ── Primary doubt-answering prompt (tutor mode) ───────────────────────────────
 
+DOUBT_ANSWER_PROMPT = r"""\
+You are AuraGraph, an expert academic tutor for university students.
+A student has a question. Answer it clearly, completely, and accurately.
+
+════════════════════════════════════════════════════════
+STUDENT'S QUESTION:
+{{$doubt}}
+
+════════════════════════════════════════════════════════
+CONTEXT — STUDY NOTES (may be empty if not yet generated):
+{{$note_page}}
+
+════════════════════════════════════════════════════════
+CONTEXT — LECTURE SLIDES:
+{{$slide_context}}
+
+════════════════════════════════════════════════════════
+CONTEXT — TEXTBOOK:
+{{$textbook_context}}
+
+════════════════════════════════════════════════════════
+INSTRUCTIONS:
+1. Answer the student's question directly and fully, regardless of whether
+   context is provided. If context is available, use it to personalise the
+   answer to what they are studying — but NEVER refuse to answer just because
+   a field is empty.
+2. Structure your answer:
+   a. One-sentence direct answer.
+   b. Detailed explanation (2–4 paragraphs). Include key formulas in LaTeX.
+   c. A concrete example or analogy that makes the concept click.
+   d. Optionally one exam tip at the very end:
+      > 📝 **Exam Tip:** …
+3. If the study notes contain an error related to the question, note it
+   briefly at the end: "⚠️ Note correction: …"
+
+FORMATTING:
+- Inline math: $...$
+- Display math (own line): $$\n...\n$$
+- NEVER use \( \) or \[ \]
+- No preamble like "Great question!" — start immediately with the answer.
+
+OUTPUT FORMAT — two sections split by |||VERIFY|||:
+
+<Full answer to the student's question>
+|||VERIFY|||
+correct
+
+Do not include |||CORRECT||| or |||NOTE||| sections unless the notes
+contain a genuine factual error — in that case append:
+|||CORRECT|||
+The notes contain an error. <corrected explanation>
+|||NOTE|||
+NONE
+"""
+
+# ── Legacy verification prompt (kept for parse_verification_response) ─────────
 VERIFICATION_PROMPT = r"""\
-You are AuraGraph's Verification Engine — not a simple Q&A chatbot.
-Your job is to VERIFY the accuracy of AI-generated study notes and then
-answer the student's question with the correct information.
-
 ════════════════════════════════════════════════════════════════════════
 STUDENT'S QUESTION:
 {{$doubt}}
