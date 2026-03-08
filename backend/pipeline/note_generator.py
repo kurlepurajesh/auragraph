@@ -134,32 +134,37 @@ BANNED PHRASES (never write): "delve", "explore", "It is important to note",
 
 _PROFICIENCY_BEGINNER = """PROFICIENCY: BEGINNER
 
-Your goal: produce notes that a student encountering this topic for the first time
-can fully understand without any outside help.
+CRITICAL — TWO-PASS APPROACH (prevents running out of tokens before all concepts are covered):
 
-HOW TO HANDLE EVERY CONCEPT FROM THE SLIDES:
+PASS 1 — COVERAGE (do this mentally before writing anything):
+  List every concept, formula, definition, algorithm, condition, and example
+  in the slides. This is your CONTRACTUAL CHECKLIST. Every item on it MUST
+  appear somewhere in your output, without exception.
+
+PASS 2 — DEPTH (write the notes in this order for each concept):
   1. Start with a plain-English sentence: "Simply put, X means..."
   2. Follow with a real-world analogy in a > blockquote to make it concrete.
-  3. State the formal definition after the analogy -- never before.
+  3. State the formal definition after the analogy — never before.
   4. For EVERY formula:
        a. Write the formula in display LaTeX ($$...$$)
        b. Follow with a symbol table:
           | Symbol | What it means | Typical units/range |
           |--------|---------------|---------------------|
        c. Walk through it in plain English: "This says that X equals Y times Z, where..."
-       d. Work a FULLY SOLVED numerical example -- show every arithmetic step, no skipping.
+       d. Work a FULLY SOLVED numerical example — show every arithmetic step, no skipping.
   5. For every algorithm or process: write it as a numbered step-by-step procedure.
      Each step gets one plain-English sentence of explanation.
   6. For every condition or exception: explain WHY it exists.
      ("This condition is needed because without it, X would fail/blow up/be undefined...")
   7. For every edge case: explain what it means and when it arises.
 
-DEPTH: Go deep. A beginner needs MORE explanation per concept, not less.
-If something could be confusing, add a sentence. Never assume prior knowledge.
-Leave nothing assumed.
+SAFETY RULE — if you are running low on output budget:
+  A concept with ONLY its name, formula, and one-line definition is ALWAYS
+  better than a concept that was silently omitted. Include every concept
+  even if only briefly — never drop a concept to add more depth to another.
 
-LENGTH: Beginner notes are the longest of the three levels. More explanation,
-more examples, more analogies. Never truncate or skip anything to save space.
+DEPTH: Go deep. Leave nothing assumed. Never truncate explanations.
+LENGTH: Beginner notes are the longest of the three levels.
 """
 
 _PROFICIENCY_INTERMEDIATE = """PROFICIENCY: INTERMEDIATE
@@ -825,7 +830,7 @@ async def generate_topic_note(
     # to keep each LLM call within the output token ceiling.
     _p = proficiency.strip().lower()
     if _p in ("beginner", "foundations", "foundation", "basic"):
-        _effective_split = 1_500   # Beginner expands 7×; split early
+        _effective_split = 1_000   # Beginner expands 7×; split aggressively so each sub-chunk is small & fully coverable
     elif _p in ("advanced", "expert"):
         _effective_split = 4_000   # Expert is terse; single call handles more
     else:
@@ -1113,7 +1118,7 @@ async def run_generation_pipeline(
     # Concurrency control: every individual LLM call (sub-chunks + merges) is
     # throttled by this semaphore. This is more precise than wrapping entire topics
     # since a long topic may now make 3-5 LLM calls internally.
-    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "3"))
+    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "5"))
     _api_sem = asyncio.Semaphore(_concurrency)
 
     async def _generate_with_sem(topic: SlideTopic) -> tuple[str, str]:
@@ -1199,7 +1204,7 @@ async def run_generation_pipeline_stream(
 
     yield {"type": "start", "total": len(filtered)}
 
-    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "3"))
+    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "5"))
     api_sem = asyncio.Semaphore(_concurrency)
 
     async def _wrapped(t: SlideTopic, idx: int):

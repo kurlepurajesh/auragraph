@@ -28,7 +28,10 @@ export function useFuse(id, deps = {}) {
         setFusing(true);
         setFuseProgress('Uploading files…');
         setMutatedPages?.(new Set());
-        setNote?.('');
+        // Save the existing note so we can restore it if generation fails
+        // (instead of leaving the user on a blank upload screen)
+        let previousNote = '';
+        setNote?.(prev => { previousNote = prev || ''; return ''; });
         setCurrentPage?.(0);
 
         try {
@@ -40,9 +43,9 @@ export function useFuse(id, deps = {}) {
             if (id) form.append('notebook_id', id);
             setFuseProgress('Running Fusion Agent…');
 
-            // Abort the stream if no data arrives within 5 minutes
+            // Hard abort: 15 minutes — generous enough for 3 slides (30+ topics) at any proficiency
             const abortCtrl = new AbortController();
-            const streamTimeout = setTimeout(() => abortCtrl.abort(), 5 * 60 * 1000);
+            const streamTimeout = setTimeout(() => abortCtrl.abort(), 15 * 60 * 1000);
 
             const res = await apiFetch(`${API}/api/upload-fuse-stream`, {
                 method: 'POST',
@@ -68,11 +71,10 @@ export function useFuse(id, deps = {}) {
             let streamedNote = '';
             let streamSource = 'azure';
             let lastChunkAt = Date.now();
-            // Per-chunk stall detection: 180 s with no data → abort
-            // (keepalive status events are now sent during preprocessing so
-            //  this only fires if a single LLM generation call truly hangs)
+            // Per-chunk stall detection: 300 s (5 min) with no data → abort
+            // A single Beginner-level topic with sub-chunks can legitimately take 2-3 min
             const stallCheck = setInterval(() => {
-                if (Date.now() - lastChunkAt > 180_000) {
+                if (Date.now() - lastChunkAt > 300_000) {
                     abortCtrl.abort();
                     clearInterval(stallCheck);
                 }
@@ -99,6 +101,10 @@ export function useFuse(id, deps = {}) {
                         } else if (event.type === 'section') {
                             streamedNote += (streamedNote ? '\n\n' : '') + event.content;
                             setFuseProgress(`Building: ${event.topic}…`);
+                            // Show partial notes progressively so the user isn’t staring at a blank
+                            // screen the whole time — AND so they see something useful if it
+                            // fails before the final ‘done’ event.
+                            setNote?.(streamedNote);
                         } else if (event.type === 'done') {
                             setVerifyingStep(null);
                             streamedNote = event.note;
@@ -126,6 +132,9 @@ export function useFuse(id, deps = {}) {
             setFuseProgress('Extracting concept map…');
             await extractAndSaveGraph?.(streamedNote);
         } catch (err) {
+            // Restore the previous note if generation failed (don’t leave the
+            // user on a blank upload screen after waiting several minutes)
+            if (previousNote) setNote?.(previousNote);
             const message = err.name === 'AbortError'
                 ? 'Generation timed out — the backend took too long to respond. Try again or use a smaller file.'
                 : (err.message || '');
