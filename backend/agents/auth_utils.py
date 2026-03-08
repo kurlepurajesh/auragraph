@@ -149,4 +149,28 @@ def validate_token(token: str) -> Optional[dict]:
             "token": row["token"], "name": row["name"]}
 
 
+def refresh_token(token: str) -> Optional[dict]:
+    """Issue a fresh UUID token to replace a valid (but possibly aging) one.
+
+    Returns the updated user dict on success, or None if the token is
+    invalid / already expired.  Demo tokens are passed through unchanged.
+    """
+    if _DEMO_ENABLED and token == "demo-token":
+        return dict(_DEMO_USER)
+    with _conn() as con:
+        row = con.execute("SELECT * FROM users WHERE token=?", (token,)).fetchone()
+    if not row:
+        return None
+    if time.time() - row["token_issued_at"] > TOKEN_TTL_SECONDS:
+        return None
+    new_token = str(uuid.uuid4())
+    with _conn() as con:
+        con.execute(
+            "UPDATE users SET token=?, token_issued_at=? WHERE id=?",
+            (new_token, time.time(), row["id"]),
+        )
+    return {"id": row["id"], "email": row["email"],
+            "token": new_token, "name": row["name"]}
+
+
 _init_users()

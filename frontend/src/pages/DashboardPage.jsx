@@ -3,18 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { setUser } from '../store';
 import { ls_getNotebooks, ls_createNotebook, ls_deleteNotebook } from '../localNotebooks';
+import { API, apiFetch } from '../components/utils';
 import {
     BookOpen, Plus, Trash2, ChevronRight, LogOut, Loader2, BookMarked,
     Calendar, Moon, Sun, Target, TrendingUp, Clock, Award, Star,
     ChevronDown, FolderOpen, Folder
 } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-function authHeaders() {
-    const token = localStorage.getItem('ag_token') || 'demo-token';
-    return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-}
 function getUserId() {
     try { return JSON.parse(localStorage.getItem('ag_user'))?.id || 'demo-user'; } catch { return 'demo-user'; }
 }
@@ -281,7 +276,7 @@ export default function DashboardPage() {
 
     const loadNotebooks = async () => {
         try {
-            const res = await fetch(`${API}/notebooks`, { headers: authHeaders() });
+            const res = await apiFetch(`${API}/notebooks`);
             if (res.ok) { setNotebooks(await res.json()); setLoading(false); return; }
         } catch {}
         setNotebooks(ls_getNotebooks(userId));
@@ -293,7 +288,7 @@ export default function DashboardPage() {
     const handleCreate = async (name, course) => {
         let nb;
         try {
-            const res = await fetch(`${API}/notebooks`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name, course }) });
+            const res = await apiFetch(`${API}/notebooks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, course }) });
             if (res.ok) nb = await res.json();
         } catch {}
         if (!nb) {
@@ -310,7 +305,7 @@ export default function DashboardPage() {
     };
 
     const handleDelete = async (id) => {
-        try { await fetch(`${API}/notebooks/${id}`, { method: 'DELETE', headers: authHeaders() }); } catch {}
+        try { await apiFetch(`${API}/notebooks/${id}`, { method: 'DELETE' }); } catch {}
         ls_deleteNotebook(id);
         setNotebooks(prev => prev.filter(nb => nb.id !== id));
     };
@@ -405,9 +400,18 @@ export default function DashboardPage() {
 
                 {/* Notebook grid — grouped by course */}
                 {loading ? (
-                    <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text3)' }}>
-                        <Loader2 className="spin" size={28} style={{ margin: '0 auto 12px' }} />
-                        <p style={{ fontSize: 14 }}>Loading your notebooks…</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} style={{ borderRadius: 14, border: '1px solid var(--border)', background: 'var(--card)', padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                <div style={{ height: 14, width: '60%', borderRadius: 6, background: 'var(--border)', animation: 'skeleton-pulse 1.4s ease-in-out infinite' }} />
+                                <div style={{ height: 11, width: '40%', borderRadius: 6, background: 'var(--border)', animation: 'skeleton-pulse 1.4s ease-in-out 0.2s infinite' }} />
+                                <div style={{ height: 6, borderRadius: 4, background: 'var(--border)', animation: 'skeleton-pulse 1.4s ease-in-out 0.3s infinite' }} />
+                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                    <div style={{ height: 11, width: 60, borderRadius: 6, background: 'var(--border)', animation: 'skeleton-pulse 1.4s ease-in-out 0.4s infinite' }} />
+                                    <div style={{ height: 11, width: 80, borderRadius: 6, background: 'var(--border)', animation: 'skeleton-pulse 1.4s ease-in-out 0.5s infinite' }} />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : notebooks.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '80px 0' }}>

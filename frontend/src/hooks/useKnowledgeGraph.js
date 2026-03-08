@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { API, authHeaders } from '../components/utils';
+import { API, apiFetch } from '../components/utils';
 
 /**
  * Manages the concept knowledge graph (nodes + edges)
@@ -14,9 +14,9 @@ export function useKnowledgeGraph(id) {
     const handleNodeStatusChange = useCallback(async (node, status) => {
         setGraphNodes(prev => prev.map(n => n.id === node.id ? { ...n, status } : n));
         try {
-            await fetch(`${API}/notebooks/${id}/graph/update`, {
+            await apiFetch(`${API}/notebooks/${id}/graph/update`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ concept_name: node.label, status }),
             });
         } catch { }

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '../store';
-import { API, authHeaders } from '../components/utils';
+import { API, apiFetch } from '../components/utils';
 
 /**
  * Manages the FUSE (file upload + note generation) workflow.
@@ -40,9 +40,8 @@ export function useFuse(id, deps = {}) {
             if (id) form.append('notebook_id', id);
             setFuseProgress('Running Fusion Agent…');
 
-            const res = await fetch(`${API}/api/upload-fuse-stream`, {
+            const res = await apiFetch(`${API}/api/upload-fuse-stream`, {
                 method: 'POST',
-                headers: authHeaders(),
                 body: form,
             });
 

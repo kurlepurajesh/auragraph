@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { setUser, addToast } from './store';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import NotebookWorkspace from './pages/NotebookWorkspace';
 import { ToastContainer } from './components/Toast';
+import { API } from './components/utils';
 
 class ErrorBoundary extends React.Component {
     constructor(props) { super(props); this.state = { error: null }; }
@@ -32,6 +34,44 @@ class ErrorBoundary extends React.Component {
 
 const DEMO_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+/** Silently renews the stored token every 6 h (no-op for demo tokens). */
+function TokenRefresher() {
+    const dispatch = useDispatch();
+    useEffect(() => {
+        async function doRefresh() {
+            const token = localStorage.getItem('ag_token');
+            if (!token || token === 'demo-token') return;
+            try {
+                const res = await fetch(`${API}/auth/refresh`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('ag_token', data.token);
+                    localStorage.setItem('ag_user', JSON.stringify(data));
+                    dispatch(setUser(data));
+                } else if (res.status === 401) {
+                    // Token truly expired — force re-login
+                    localStorage.removeItem('ag_token');
+                    localStorage.removeItem('ag_user');
+                    dispatch(setUser(null));
+                    dispatch(addToast({
+                        kind: 'error',
+                        title: 'Session expired',
+                        message: 'Please log in again.',
+                        duration: 8000,
+                    }));
+                }
+            } catch { /* network down — stay logged in, retry next cycle */ }
+        }
+        doRefresh();
+        const id = setInterval(doRefresh, 6 * 60 * 60 * 1000); // every 6 h
+        return () => clearInterval(id);
+    }, [dispatch]);
+    return null;
+}
+
 function PrivateRoute({ children }) {
     const user = useSelector(s => s.graph.user);
     const token = localStorage.getItem('ag_token');
@@ -53,6 +93,7 @@ export default function App() {
     return (
         <BrowserRouter>
             <ErrorBoundary>
+                <TokenRefresher />
                 <Routes>
                     <Route path="/" element={<LoginPage />} />
                     <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />

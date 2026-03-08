@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '../store';
-import { API, authHeaders } from '../components/utils';
+import { API, apiFetch } from '../components/utils';
 
 /**
  * Manages notebook TOC sections — CRUD and reordering.
@@ -19,7 +19,7 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
 
     const loadSections = useCallback(async () => {
         try {
-            const res = await fetch(`${API}/notebooks/${id}/sections`, { headers: authHeaders() });
+            const res = await apiFetch(`${API}/notebooks/${id}/sections`);
             if (res.ok) setSections(await res.json());
         } catch { }
     }, [id]);
@@ -29,9 +29,9 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
         const title = sectionInput.trim();
         if (!title) return;
         try {
-            const res = await fetch(`${API}/notebooks/${id}/sections`, {
+            const res = await apiFetch(`${API}/notebooks/${id}/sections`, {
                 method: 'POST',
-                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title, note_type: sectionInputType }),
             });
             if (res.ok) {
@@ -48,9 +48,8 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
 
     const handleDeleteSection = async (secId) => {
         try {
-            const res = await fetch(`${API}/notebooks/${id}/sections/${secId}`, {
+            const res = await apiFetch(`${API}/notebooks/${id}/sections/${secId}`, {
                 method: 'DELETE',
-                headers: authHeaders(),
             });
             if (res.ok) setSections(prev => prev.filter(s => s.id !== secId));
         } catch { }
@@ -59,9 +58,9 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
     const handleGenerateSection = async (sec) => {
         setGeneratingSection(sec.id);
         try {
-            const res = await fetch(`${API}/notebooks/${id}/sections/${sec.id}/generate`, {
+            const res = await apiFetch(`${API}/notebooks/${id}/sections/${sec.id}/generate`, {
                 method: 'POST',
-                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ proficiency: notebookProficiency }),
             });
             if (res.ok) {
@@ -84,9 +83,9 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
         [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
         setSections(next);
         try {
-            await fetch(`${API}/notebooks/${id}/sections/reorder`, {
+            await apiFetch(`${API}/notebooks/${id}/sections/reorder`, {
                 method: 'PUT',
-                headers: authHeaders(),
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ order: next.map((s, i) => ({ id: s.id, order_idx: i })) }),
             });
         } catch { }
@@ -98,9 +97,9 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
         [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
         setSections(next);
         try {
-            await fetch(`${API}/notebooks/${id}/sections/reorder`, {
+            await apiFetch(`${API}/notebooks/${id}/sections/reorder`, {
                 method: 'PUT',
-                headers: authHeaders(),
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ order: next.map((s, i) => ({ id: s.id, order_idx: i })) }),
             });
         } catch { }

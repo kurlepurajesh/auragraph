@@ -6,7 +6,7 @@ import rehypeKatex from 'rehype-katex';
 import {
     Brain, Loader2, MessageCircle, CheckCircle2, AlertCircle, MinusCircle, Sparkles
 } from 'lucide-react';
-import { API, authHeaders } from './utils';
+import { API, apiFetch } from './utils';
 
 export default function MutateModal({
     page, notebookId, pageIdx, onClose, onMutate, onDoubtAnswered, initialDoubt = ''
@@ -24,9 +24,9 @@ export default function MutateModal({
         if (!doubt.trim()) return;
         setBusy(true); setMode('answering'); setAnswer('');
         try {
-            const res = await fetch(`${API}/api/doubt`, {
+            const res = await apiFetch(`${API}/api/doubt`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ notebook_id: notebookId, doubt, page_idx: pageIdx })
             });
             if (res.ok) {

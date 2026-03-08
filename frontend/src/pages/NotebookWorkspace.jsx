@@ -11,7 +11,7 @@ import {
     Download, PenLine, Columns2, ScrollText, Moon, Sun, Search, Clock,
     Keyboard, Printer, Undo2, Plus, Trash2, Zap, List
 } from 'lucide-react';
-import { API, authHeaders, loadDoubts, saveDoubts } from '../components/utils';
+import { API, authHeaders, apiFetch, loadDoubts, saveDoubts } from '../components/utils';
 import { useDarkMode } from '../hooks/useDarkMode';
 import FuseProgressBar from '../components/FuseProgressBar';
 import FileDrop from '../components/FileDrop';
@@ -96,9 +96,9 @@ export default function NotebookWorkspace() {
         const lid = Date.now();
         try {
             // New API: send notebook_id + page_idx so backend can retrieve full context
-            const res = await fetch(`${API}/api/mutate`, {
+            const res = await apiFetch(`${API}/api/mutate`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     notebook_id: id,
                     doubt,
@@ -162,9 +162,9 @@ export default function NotebookWorkspace() {
     const handleRegenSection = useCallback(async (pageIdx) => {
         setRegenLoadingPages(prev => new Set([...prev, pageIdx]));
         try {
-            const res = await fetch(`${API}/api/regenerate-section`, {
+            const res = await apiFetch(`${API}/api/regenerate-section`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ notebook_id: id, page_idx: pageIdx, proficiency: prof }),
             });
             if (!res.ok) {
@@ -179,7 +179,7 @@ export default function NotebookWorkspace() {
             // Re-fetch it so we display exactly what the backend stored — no client-side
             // string surgery that can misplace headings or leave raw markdown.
             pushUndo(note, prof, `Page ${pageIdx + 1} regenerated`);
-            const nbRes = await fetch(`${API}/notebooks/${id}`, { headers: authHeaders() });
+            const nbRes = await apiFetch(`${API}/notebooks/${id}`);
             if (nbRes.ok) {
                 const nb = await nbRes.json();
                 const freshNote = nb.note || '';

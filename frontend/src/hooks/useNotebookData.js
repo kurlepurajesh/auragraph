@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '../store';
-import { API, authHeaders } from '../components/utils';
+import { API, apiFetch } from '../components/utils';
 import { ls_getNotebook, ls_saveNote } from '../localNotebooks';
 
 /**
@@ -30,9 +30,9 @@ export function useNotebookData(id, deps = {}) {
         if (isErrorNote) return;
         ls_saveNote(id, newNote, newProf);
         try {
-            await fetch(`${API}/notebooks/${id}/note`, {
+            await apiFetch(`${API}/notebooks/${id}/note`, {
                 method: 'PATCH',
-                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ note: newNote, proficiency: newProf }),
             });
         } catch { /* silently ignore network errors */ }
@@ -40,9 +40,9 @@ export function useNotebookData(id, deps = {}) {
 
     const extractAndSaveGraph = useCallback(async (text) => {
         try {
-            const r = await fetch(`${API}/api/extract-concepts`, {
+            const r = await apiFetch(`${API}/api/extract-concepts`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ note: text, notebook_id: id }),
             });
             const g = await r.json();
@@ -63,7 +63,7 @@ export function useNotebookData(id, deps = {}) {
                 n.includes('⚠️ Upload')
             );
 
-        fetch(`${API}/notebooks/${id}`, { headers: authHeaders() })
+        apiFetch(`${API}/notebooks/${id}`)
             .then(r => { if (!r.ok) throw new Error(); return r.json(); })
             .then(nb => {
                 setNotebook(nb);
@@ -108,7 +108,7 @@ export function useNotebookData(id, deps = {}) {
     // Lighter reload used after section generation
     const reloadNote = useCallback(async () => {
         try {
-            const res = await fetch(`${API}/notebooks/${id}`, { headers: authHeaders() });
+            const res = await apiFetch(`${API}/notebooks/${id}`);
             if (!res.ok) return;
             const nb = await res.json();
             setNote(nb.note || '');

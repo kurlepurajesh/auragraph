@@ -76,7 +76,7 @@ from agents.local_mutation import local_mutate
 from agents.local_examiner import local_examine
 from agents.concept_extractor import extract_concepts, llm_extract_concepts
 from agents.latex_utils import fix_latex_delimiters
-from agents.auth_utils import register_user, login_user, validate_token
+from agents.auth_utils import register_user, login_user, validate_token, refresh_token
 from agents.slide_images import extract_images_from_file, save_images, get_image_path
 from agents.image_ocr import describe_slide_image, is_image_file
 from agents.notebook_store import (
@@ -835,6 +835,23 @@ async def auth_login(req: AuthRequest):
     user = login_user(req.identifier, req.password)
     if not user:
         raise HTTPException(401, "Invalid credentials")
+    return user
+
+
+@app.post("/auth/refresh")
+async def auth_refresh(authorization: Optional[str] = Header(None)):
+    """Silently renew a valid token before it expires.
+
+    The client should call this on app startup (if a token is already stored)
+    to extend the session without forcing the user to log in again.  Returns
+    the same shape as /auth/login so the client can just save the new token.
+    """
+    token = (authorization or "").removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(401, "No token provided")
+    user = refresh_token(token)
+    if not user:
+        raise HTTPException(401, "Token expired or invalid — please log in again")
     return user
 
 
