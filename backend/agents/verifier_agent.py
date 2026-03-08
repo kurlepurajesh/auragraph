@@ -201,3 +201,67 @@ def _normalise_status(raw: str) -> str:
     if "partial" in raw:
         return "partially_correct"
     return "correct"
+
+
+# ── Post-generation self-review ───────────────────────────────────────────────
+
+NOTE_SELF_REVIEW_PROMPT = r"""\
+You are AuraGraph's Accuracy Checker. A study note was auto-generated from lecture slides and a textbook.
+Your ONLY job is to catch factual and mathematical errors BEFORE the student sees it.
+
+════════════════════════════════════════════════════════════════
+GENERATED NOTE (review this — may contain errors):
+{{$note}}
+
+════════════════════════════════════════════════════════════════
+LECTURE SLIDES (course source of truth):
+{{$slide_context}}
+
+════════════════════════════════════════════════════════════════
+TEXTBOOK (authoritative reference):
+{{$textbook_context}}
+
+════════════════════════════════════════════════════════════════
+REVIEW CHECKLIST — verify each item against sources and your own knowledge:
+  □ Every formula is mathematically correct (signs, operations, variables, limits).
+  □ Every definition matches standard academic usage.
+  □ No factual statement contradicts the source material.
+  □ LaTeX uses $...$ inline and $$...$$ display — never \( \) or \[ \].
+
+OUTPUT FORMAT — choose exactly one form and output NOTHING else:
+
+If NO errors were found:
+PASS|||<the original note, completely unchanged — copy it verbatim>
+
+If errors were corrected:
+CORRECTED: <one sentence listing what was fixed, e.g. "Fixed sign in DTFT formula; corrected Parseval's theorem statement">|||<the full corrected note — only the erroneous lines changed, everything else identical>
+
+RULES:
+  • Do NOT rewrite correct content. Only fix genuine errors.
+  • Do NOT add, remove, or reorder sections.
+  • Do NOT change headings, bullet points, or callout blocks unless they contain an error.
+  • When uncertain, leave as-is and output PASS.
+"""
+
+
+def parse_self_review_response(text: str) -> tuple[str, bool, str]:
+    """
+    Parse the NOTE_SELF_REVIEW_PROMPT output.
+    Returns (verified_note, was_corrected, correction_summary).
+    """
+    text = text.strip()
+    parts = text.split("|||", 1)
+    if len(parts) < 2:
+        # Malformed — return original text as-is
+        return text, False, ""
+    header = parts[0].strip()
+    note   = parts[1].strip()
+    if not note:
+        return text, False, ""
+    if header.upper().startswith("PASS"):
+        return note, False, ""
+    if header.upper().startswith("CORRECTED"):
+        summary = header[len("CORRECTED"):].lstrip(": ").strip()
+        return note, True, summary
+    # Unknown prefix — treat as pass
+    return note, False, ""

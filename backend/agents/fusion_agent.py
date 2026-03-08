@@ -107,6 +107,7 @@ CONCISENESS:
 # DOUBT_ANSWER_PROMPT now delegates to the verification pipeline.
 # Import the prompt string from verifier_agent so there is a single source of truth.
 from agents.verifier_agent import VERIFICATION_PROMPT as DOUBT_ANSWER_PROMPT  # noqa: E402
+from agents.verifier_agent import NOTE_SELF_REVIEW_PROMPT                       # noqa: E402
 
 
 MUTATION_PROMPT = r"""\
@@ -170,9 +171,10 @@ class FusionAgent:
                 prompt_template_config=config,
             )
 
-        self._fuse_fn   = _make_fn("fuse",   FUSION_PROMPT,       ["slide_content", "textbook_content", "proficiency"])
-        self._doubt_fn  = _make_fn("doubt",  DOUBT_ANSWER_PROMPT, ["doubt", "note_page", "slide_context", "textbook_context"])
-        self._mutate_fn = _make_fn("mutate", MUTATION_PROMPT,     ["note_page", "doubt", "slide_context", "textbook_context"])
+        self._fuse_fn   = _make_fn("fuse",   FUSION_PROMPT,            ["slide_content", "textbook_content", "proficiency"])
+        self._doubt_fn  = _make_fn("doubt",  DOUBT_ANSWER_PROMPT,      ["doubt", "note_page", "slide_context", "textbook_context"])
+        self._mutate_fn = _make_fn("mutate", MUTATION_PROMPT,           ["note_page", "doubt", "slide_context", "textbook_context"])
+        self._review_fn = _make_fn("review", NOTE_SELF_REVIEW_PROMPT,   ["note", "slide_context", "textbook_context"])
 
     async def fuse(
         self,
@@ -226,6 +228,20 @@ class FusionAgent:
             if len(last) < 250 and not last.startswith(("#", "$", "|")):
                 return "\n\n".join(paragraphs[:-1]).strip(), last, ""
         return text, "Student required additional clarification.", ""
+
+    async def self_review(
+        self,
+        note: str,
+        slide_context: str,
+        textbook_context: str,
+    ) -> str:
+        """Run post-generation accuracy check. Returns raw LLM text for parse_self_review_response."""
+        result = await self._kernel.invoke(self._review_fn, KernelArguments(
+            note=note,
+            slide_context=slide_context,
+            textbook_context=textbook_context,
+        ))
+        return str(result).strip()
 
     async def mutate(
         self,

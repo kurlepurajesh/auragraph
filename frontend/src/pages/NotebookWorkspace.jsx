@@ -38,14 +38,16 @@ const FUSE_STEPS = [
     { label: 'Extracting textbook content', icon: '📚' },
     { label: 'Running Fusion Agent', icon: '🧠' },
     { label: 'Calibrating to your level', icon: '🎯' },
+    { label: 'Verifying accuracy', icon: '🔍' },
     { label: 'Building concept map', icon: '🕸️' },
     { label: 'Finalising notes', icon: '✨' },
 ];
 
-function FuseProgressBar({ active }) {
+function FuseProgressBar({ active, forceStep = null }) {
     const [step, setStep] = useState(0);
     const [dots, setDots] = useState('');
     const [overdue, setOverdue] = useState(false); // true after 45 s — warn student
+    const displayStep = forceStep !== null ? forceStep : step;
     useEffect(() => {
         if (!active) { setStep(0); setDots(''); setOverdue(false); return; }
         // Advance through first 5 steps, then hold on step 4 (Fusion Agent) — never bounce back
@@ -62,22 +64,24 @@ function FuseProgressBar({ active }) {
     return (
         <div style={{ marginBottom: 20, background: overdue ? '#FFFBEB' : 'var(--surface)', border: `1px solid ${overdue ? '#FDE68A' : 'var(--border)'}`, borderRadius: 12, padding: '16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <span style={{ fontSize: 22 }}>{FUSE_STEPS[step].icon}</span>
+                <span style={{ fontSize: 22 }}>{FUSE_STEPS[displayStep].icon}</span>
                 <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{FUSE_STEPS[step].label}{dots}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{FUSE_STEPS[displayStep].label}{dots}</div>
                     <div style={{ fontSize: 11, color: overdue ? '#92400E' : 'var(--text3)', marginTop: 2, fontWeight: overdue ? 600 : 400 }}>
                         {overdue
                             ? '⚠️ Large upload detected — AI is still working, please keep this tab open'
-                            : `Step ${step + 1} of ${FUSE_STEPS.length} — processing your materials${step >= 3 ? ' (large books may take a few minutes)' : ''}`}
+                            : displayStep === 5
+                                ? 'Cross-checking formulas and definitions against source material…'
+                                : `Step ${displayStep + 1} of ${FUSE_STEPS.length} — processing your materials${displayStep >= 3 ? ' (large books may take a few minutes)' : ''}`}
                     </div>
                 </div>
             </div>
             <div style={{ height: 4, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 4, background: 'linear-gradient(90deg, #7C3AED, #2563EB)', width: `${((step + 1) / FUSE_STEPS.length) * 100}%`, transition: 'width 0.6s ease' }} />
+                <div style={{ height: '100%', borderRadius: 4, background: 'linear-gradient(90deg, #7C3AED, #2563EB)', width: `${((displayStep + 1) / FUSE_STEPS.length) * 100}%`, transition: 'width 0.6s ease' }} />
             </div>
             <div style={{ display: 'flex', gap: 5, marginTop: 10 }}>
                 {FUSE_STEPS.map((s, i) => (
-                    <div key={i} title={s.label} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= step ? '#7C3AED' : 'var(--border)', transition: 'background 0.4s' }} />
+                    <div key={i} title={s.label} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= displayStep ? '#7C3AED' : 'var(--border)', transition: 'background 0.4s' }} />
                 ))}
             </div>
         </div>
@@ -1508,6 +1512,7 @@ export default function NotebookWorkspace() {
     const [notesFiles, setNotesFiles] = useState([]); // handwritten / photographed notes
     const [fusing, setFusing] = useState(false);
     const [fuseProgress, setFuseProgress] = useState('');
+    const [verifyingStep, setVerifyingStep] = useState(null); // null = auto-timer, 5 = verifying
     const [mutating, setMutating] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
     const [gapText, setGapText] = useState('');
@@ -1870,15 +1875,23 @@ export default function NotebookWorkspace() {
                         const event = JSON.parse(line.slice(6));
                         if (event.type === 'start') {
                             setFuseProgress(`Generating ${event.total} topic sections…`);
+                        } else if (event.type === 'status') {
+                            setFuseProgress(event.message || 'Processing…');
+                            if ((event.message || '').toLowerCase().includes('verif')) setVerifyingStep(5);
                         } else if (event.type === 'section') {
+                            // Accumulate silently — note is shown only after verification
                             streamedNote += (streamedNote ? '\n\n' : '') + event.content;
-                            setNote(streamedNote);
-                            setFuseProgress(`Generated: ${event.topic}`);
+                            setFuseProgress(`Building: ${event.topic}…`);
                         } else if (event.type === 'done') {
-                            // Final merged + refined note (may differ from streaming accumulation)
+                            // Verified note — now safe to show to student
+                            setVerifyingStep(null);
                             streamedNote = event.note;
                             streamSource = event.source || 'azure';
                             setNote(event.note);
+                            if (event.corrections_made > 0) {
+                                setFallbackWarning(`✅ Accuracy check complete — ${event.correction_summary || 'minor corrections applied before showing notes.'}`);
+                                setTimeout(() => setFallbackWarning(''), 8000);
+                            }
                         }
                     } catch { /* ignore malformed events */ }
                 }
@@ -1906,7 +1919,7 @@ export default function NotebookWorkspace() {
             setFallbackWarning(bannerMsg);
             // Keep note empty so the upload panel stays visible — don't persist the error
         }
-        setFusing(false); setFuseProgress('');
+            setFusing(false); setFuseProgress(''); setVerifyingStep(null);
     };
 
     const handleMutate = useCallback(async (page, doubt) => {
@@ -2180,7 +2193,7 @@ export default function NotebookWorkspace() {
                                 <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Generate Fused Notes</h2>
                                 <p style={{ fontSize: 14, color: 'var(--text3)', lineHeight: 1.7 }}>Upload your course materials and AuraGraph will generate a personalised digital study note calibrated to your level.</p>
                             </div>
-                            <FuseProgressBar active={fusing} />
+                            <FuseProgressBar active={fusing} forceStep={verifyingStep} />
                             {!fusing && (<>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 24 }}>
                                     <FileDrop label="Professor's Slides" icon={BookOpen} files={slidesFiles} onFiles={setSlidesFiles} />

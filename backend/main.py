@@ -323,6 +323,53 @@ async def _llm_mutate(
     return None, None, None, "none"
 
 
+async def _verify_note(
+    note: str, slide_ctx: str, textbook_ctx: str
+) -> tuple[str, bool, str]:
+    """
+    Post-generation accuracy check.
+    Returns (verified_note, was_corrected, correction_summary).
+    Falls back to the original note if LLM is unavailable.
+    """
+    from agents.verifier_agent import NOTE_SELF_REVIEW_PROMPT, parse_self_review_response
+
+    raw: str | None = None
+
+    if _is_azure_available():
+        try:
+            raw = await fusion_agent.self_review(
+                note=note, slide_context=slide_ctx, textbook_context=textbook_ctx
+            )
+        except Exception as e:
+            logger.warning("Azure self-review failed: %s", e)
+
+    if raw is None and _is_groq_available():
+        try:
+            prompt = (
+                NOTE_SELF_REVIEW_PROMPT
+                .replace("{{$note}}",             note)
+                .replace("{{$slide_context}}",    slide_ctx)
+                .replace("{{$textbook_context}}", textbook_ctx)
+            )
+            raw = await _groq_chat([{"role": "user", "content": prompt}])
+        except Exception as e:
+            logger.warning("Groq self-review failed: %s", e)
+
+    if raw is None:
+        logger.info("Self-review skipped — no LLM available")
+        return note, False, ""
+
+    verified, was_corrected, summary = parse_self_review_response(raw)
+    if not verified or len(verified.strip()) < 100:
+        # Parser failed or returned garbage — keep original
+        return note, False, ""
+    if was_corrected:
+        logger.info("Self-review: corrections made — %s", summary)
+    else:
+        logger.info("Self-review: PASS — note verified clean")
+    return verified, was_corrected, summary
+
+
 # ── Utility helpers ────────────────────────────────────────────────────────────
 
 def _format_chunks_for_prompt(chunks: list[dict], budget: int) -> str:
@@ -1167,6 +1214,15 @@ async def upload_fuse_multi(
     if fused_note and topic_figures:
         fused_note = _inject_figures_into_sections(fused_note, topic_figures)
 
+    # ── Post-generation accuracy verification ─────────────────────────────────
+    if source != "local":
+        try:
+            slide_ctx_flat    = all_slides_text[:8000]
+            textbook_ctx_flat = all_textbook_text[:8000]
+            fused_note, _, _ = await _verify_note(fused_note, slide_ctx_flat, textbook_ctx_flat)
+        except Exception as ve:
+            logger.warning("Non-stream self-review error: %s", ve)
+
     # ── Store note pages ──────────────────────────────────────────────────────
     if notebook_id:
         try:
@@ -1380,18 +1436,37 @@ async def upload_fuse_stream(
             if event["type"] == "section":
                 event["content"] = fix_latex_delimiters(_fix_tables(event["content"]))
             elif event["type"] == "done":
-                final_note   = fix_latex_delimiters(_fix_tables(event.get("note", "")))
-                final_source = event.get("source", "local")
-                event["note"] = final_note
-                event["source"] = final_source
-                # Persist
-                if notebook_id and final_note:
-                    try:
-                        pages = _note_to_pages(final_note)
-                        store_note_pages(notebook_id, pages)
-                        update_notebook_note(notebook_id, final_note, proficiency)
-                    except Exception as e:
-                        logger.warning("Stream persist failed: %s", e)
+                    final_note   = fix_latex_delimiters(_fix_tables(event.get("note", "")))
+                    final_source = event.get("source", "local")
+
+                    # ── Post-generation accuracy verification ──────────────────
+                    if final_note and final_source != "local":
+                        yield f"data: {_json.dumps({'type':'status','message':'Verifying accuracy against source material…'})}\n\n"
+                        try:
+                            slide_ctx_flat    = all_slides_text[:8000]
+                            textbook_ctx_flat = all_textbook_text[:8000]
+                            final_note, was_corrected, corr_summary = await _verify_note(
+                                final_note, slide_ctx_flat, textbook_ctx_flat
+                            )
+                        except Exception as ve:
+                            logger.warning("Streaming self-review error: %s", ve)
+                            was_corrected, corr_summary = False, ""
+                    else:
+                        was_corrected, corr_summary = False, ""
+
+                    event["note"]             = final_note
+                    event["source"]           = final_source
+                    event["verified"]         = True
+                    event["corrections_made"] = 1 if was_corrected else 0
+                    event["correction_summary"] = corr_summary
+                    # Persist verified note
+                    if notebook_id and final_note:
+                        try:
+                            pages = _note_to_pages(final_note)
+                            store_note_pages(notebook_id, pages)
+                            update_notebook_note(notebook_id, final_note, proficiency)
+                        except Exception as e:
+                            logger.warning("Stream persist failed: %s", e)
             yield f"data: {_json.dumps(event)}\n\n"
 
     return StreamingResponse(
