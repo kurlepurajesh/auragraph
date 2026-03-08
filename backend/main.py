@@ -100,7 +100,9 @@ _PROMPT_TEXTBOOK_BUDGET = 24_000
 # Default 500 MB combined across all slides + textbooks in one request.
 MAX_TOTAL_UPLOAD_BYTES = int(os.environ.get("MAX_TOTAL_UPLOAD_MB", "500")) * 1024 * 1024
 # Per-upload wall-clock timeout in seconds (default 20 min; set higher for very large decks)
-PIPELINE_TIMEOUT_S     = int(os.environ.get("PIPELINE_TIMEOUT_S", "1200"))
+PIPELINE_TIMEOUT_S   = int(os.environ.get("PIPELINE_TIMEOUT_S", "1200"))
+# Per-LLM-call total budget (default 90 s; covers up to 3 attempts + back-off waits)
+_LLM_TOTAL_TIMEOUT_S = int(os.environ.get("LLM_TOTAL_TIMEOUT_S", "90"))
 
 kernel         = None
 fusion_agent   = None
@@ -304,65 +306,80 @@ def _is_groq_available() -> bool:
 
 async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
     """
-    True-async Groq call via httpx — no thread-pool blocking.
-    FIX C1 (main.py): was asyncio.to_thread(OpenAI()) — now httpx, consistent
-    with note_generator.py.  Includes one 429 retry with 6 s back-off.
+    True-async Groq call via httpx.
+    3-attempt retry: 429 honours Retry-After, 5xx uses exponential back-off.
+    Total wall-clock capped by _LLM_TOTAL_TIMEOUT_S (default 90 s).
     """
     import httpx
-    api_key = os.environ.get("GROQ_API_KEY", "")
-    model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-    payload = {
-        "model":       model,
-        "messages":    messages,
-        "max_tokens":  max_tokens,
-        "temperature": 0.3,
-    }
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    for attempt in range(2):
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                json=payload, headers=headers,
-            )
-        if resp.status_code == 429 and attempt == 0:
-            wait = int(resp.headers.get("Retry-After", "6"))
-            logger.warning("Groq 429 — waiting %d s before retry", wait)
-            await asyncio.sleep(wait)
-            continue
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    raise RuntimeError("Groq rate-limited after retry")
+    api_key     = os.environ.get("GROQ_API_KEY", "")
+    model       = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    payload     = {"model": model, "messages": messages,
+                   "max_tokens": max_tokens, "temperature": 0.3}
+    req_headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    async def _do() -> str:
+        for attempt in range(3):
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    json=payload, headers=req_headers,
+                )
+            if resp.status_code == 429 and attempt < 2:
+                wait = int(resp.headers.get("Retry-After", str(3 * (attempt + 1))))
+                logger.warning("Groq 429 — waiting %d s (attempt %d)", wait, attempt + 1)
+                await asyncio.sleep(wait)
+                continue
+            if resp.status_code in (500, 502, 503, 504) and attempt < 2:
+                wait = 2 ** attempt
+                logger.warning("Groq %d — retrying in %d s", resp.status_code, wait)
+                await asyncio.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+        raise RuntimeError("Groq failed after 3 attempts")
+
+    try:
+        return await asyncio.wait_for(_do(), timeout=_LLM_TOTAL_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        raise RuntimeError(f"Groq timed out after {_LLM_TOTAL_TIMEOUT_S}s")
 
 
 async def _azure_chat(messages: list[dict], max_tokens: int = 4000) -> str:
     """
     True-async Azure OpenAI call via httpx.
-    Used for endpoints that need Azure quality (exams, sniper, etc.) with Groq fallback in caller.
+    3-attempt retry for 429 and 5xx; total wall-clock capped by _LLM_TOTAL_TIMEOUT_S.
     """
     import httpx
-    endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
-    api_key    = os.environ.get("AZURE_OPENAI_API_KEY",  "")
-    api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
-    deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-    url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
-    payload = {
-        "messages":    messages,
-        "max_tokens":  max_tokens,
-        "temperature": 0.3,
-    }
-    headers = {"api-key": api_key, "Content-Type": "application/json"}
-    for attempt in range(2):
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-        if resp.status_code == 429 and attempt == 0:
-            wait = int(resp.headers.get("Retry-After", "10"))
-            logger.warning("Azure 429 — waiting %d s before retry", wait)
-            await asyncio.sleep(wait)
-            continue
-        resp.raise_for_status()
-        choice = resp.json()["choices"][0]
-        return choice["message"]["content"].strip()
-    raise RuntimeError("Azure rate-limited after retry")
+    endpoint    = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    api_key     = os.environ.get("AZURE_OPENAI_API_KEY", "")
+    api_ver     = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
+    deployment  = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+    url         = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
+    payload     = {"messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+    req_headers = {"api-key": api_key, "Content-Type": "application/json"}
+
+    async def _do() -> str:
+        for attempt in range(3):
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(url, json=payload, headers=req_headers)
+            if resp.status_code == 429 and attempt < 2:
+                wait = int(resp.headers.get("Retry-After", str(3 * (attempt + 1))))
+                logger.warning("Azure 429 — waiting %d s (attempt %d)", wait, attempt + 1)
+                await asyncio.sleep(wait)
+                continue
+            if resp.status_code in (500, 502, 503, 504) and attempt < 2:
+                wait = 2 ** attempt
+                logger.warning("Azure %d — retrying in %d s", resp.status_code, wait)
+                await asyncio.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+        raise RuntimeError("Azure failed after 3 attempts")
+
+    try:
+        return await asyncio.wait_for(_do(), timeout=_LLM_TOTAL_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        raise RuntimeError(f"Azure timed out after {_LLM_TOTAL_TIMEOUT_S}s")
 
 
 async def _groq_fuse(slide_content: str, textbook_content: str, proficiency: str) -> str:
@@ -1088,9 +1105,10 @@ async def upload_fuse_multi(
       Step 5b  — figure→topic matching
       Steps 6+7+8 — note generation + merge + refinement (FIX C1/C2/C3)
     """
-    get_current_user(authorization)  # FIX: require auth to prevent anonymous LLM abuse
     user = get_current_user(authorization)
     _check_llm_rate_limit(user["id"])
+    if notebook_id:
+        _require_notebook_owner(notebook_id, user)
     from pipeline.chunker import chunk_textbook
     from pipeline.embedder import Embedder
     from pipeline.vector_db import VectorDB
@@ -1476,6 +1494,8 @@ async def upload_fuse_stream(
     """
     user = get_current_user(authorization)
     _check_llm_rate_limit(user["id"])
+    if notebook_id:
+        _require_notebook_owner(notebook_id, user)
     from pipeline.chunker      import chunk_textbook
     from pipeline.embedder     import Embedder
     from pipeline.vector_db    import VectorDB
@@ -1652,6 +1672,7 @@ async def answer_doubt(
     """FIX A3: Bearer token required."""
     user = get_current_user(authorization)
     _check_llm_rate_limit(user["id"])
+    _require_notebook_owner(req.notebook_id, user)
 
     slide_hits    = retrieve_relevant_chunks(req.notebook_id, req.doubt, top_k=6, source_filter="slides")
     textbook_hits = retrieve_relevant_chunks(req.notebook_id, req.doubt, top_k=6, source_filter="textbook")
@@ -1719,6 +1740,7 @@ async def mutate_note(
     """
     user = get_current_user(authorization)  # FIX A4
     _check_llm_rate_limit(user["id"])
+    _require_notebook_owner(req.notebook_id, user)
     _username = user.get("username", "anonymous")
 
     note_page = get_note_page(req.notebook_id, req.page_idx)
@@ -1890,6 +1912,8 @@ async def sniper_exam(
 ):
     """Generates a 70% struggling / 30% partial targeted exam from the user's concept graph."""
     user     = get_current_user(authorization)
+    if req.notebook_id:
+        _require_notebook_owner(req.notebook_id, user)
     username = user.get("username", "anonymous")
 
     db    = get_db(username)
@@ -1984,8 +2008,10 @@ async def examine_concept(
     req: ExaminerRequest,
     authorization: Optional[str] = Header(None),
 ):
-    """FIX A5: Bearer token required to prevent free LLM abuse."""
-    get_current_user(authorization)
+    """FIX A5: Bearer token required; notebook ownership enforced when notebook_id is provided."""
+    user = get_current_user(authorization)
+    if req.notebook_id:
+        _require_notebook_owner(req.notebook_id, user)
 
     ci = (req.custom_instruction or "").strip()
     # Retrieve course-specific context — pull generously from BOTH slides and textbook
@@ -2047,7 +2073,9 @@ async def concept_practice_endpoint(
     authorization: Optional[str] = Header(None),
 ):
     import json as _json
-    get_current_user(authorization)
+    user = get_current_user(authorization)
+    if req.notebook_id:
+        _require_notebook_owner(req.notebook_id, user)
 
     level = req.level.lower().strip()
     if level not in ("struggling", "partial", "mastered"):

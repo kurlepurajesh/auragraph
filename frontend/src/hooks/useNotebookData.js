@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
+import { useDispatch } from 'react-redux';
+import { addToast } from '../store';
 import { API, authHeaders } from '../components/utils';
 import { ls_getNotebook, ls_saveNote } from '../localNotebooks';
 
@@ -11,6 +13,7 @@ import { ls_getNotebook, ls_saveNote } from '../localNotebooks';
  */
 export function useNotebookData(id, deps = {}) {
     const { setGraphNodes, setGraphEdges } = deps;
+    const dispatch = useDispatch();
 
     const [notebook, setNotebook] = useState(null);
     const [note, setNote] = useState('');
@@ -93,6 +96,11 @@ export function useNotebookData(id, deps = {}) {
                     }
                 } else {
                     setNotebook({ id, name: 'Untitled', course: '' });
+                    dispatch(addToast({
+                        kind: 'warning',
+                        title: 'Working offline',
+                        message: 'Could not reach the backend and no local copy was found. Changes will be saved locally.',
+                    }));
                 }
             });
     }, [id, extractAndSaveGraph, setGraphNodes, setGraphEdges]);

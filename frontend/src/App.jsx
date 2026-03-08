@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import NotebookWorkspace from './pages/NotebookWorkspace';
+import { ToastContainer } from './components/Toast';
 
 class ErrorBoundary extends React.Component {
     constructor(props) { super(props); this.state = { error: null }; }
@@ -58,6 +59,7 @@ export default function App() {
                     <Route path="/notebook/:id" element={<PrivateRoute><ErrorBoundary><NotebookWorkspace /></ErrorBoundary></PrivateRoute>} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+                <ToastContainer />
             </ErrorBoundary>
         </BrowserRouter>
     );

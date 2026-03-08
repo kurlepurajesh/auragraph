@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { useDispatch } from 'react-redux';
+import { addToast } from '../store';
 import { API, authHeaders } from '../components/utils';
 
 /**
@@ -13,6 +15,7 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
     const [sectionInput, setSectionInput] = useState('');
     const [sectionInputType, setSectionInputType] = useState('topic');
     const [generatingSection, setGeneratingSection] = useState(null);
+    const dispatch = useDispatch();
 
     const loadSections = useCallback(async () => {
         try {
@@ -28,15 +31,19 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
         try {
             const res = await fetch(`${API}/notebooks/${id}/sections`, {
                 method: 'POST',
-                headers: authHeaders(),
+                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title, note_type: sectionInputType }),
             });
             if (res.ok) {
                 const sec = await res.json();
                 setSections(prev => [...prev, sec]);
                 setSectionInput('');
+            } else {
+                dispatch(addToast({ kind: 'error', title: 'Section not saved', message: `Server returned ${res.status}. Check your connection.` }));
             }
-        } catch { }
+        } catch (err) {
+            dispatch(addToast({ kind: 'error', title: 'Section not saved', message: err?.message || 'Network error.' }));
+        }
     };
 
     const handleDeleteSection = async (secId) => {
@@ -54,15 +61,20 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
         try {
             const res = await fetch(`${API}/notebooks/${id}/sections/${sec.id}/generate`, {
                 method: 'POST',
-                headers: authHeaders(),
+                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({ proficiency: notebookProficiency }),
             });
             if (res.ok) {
                 const updated = await res.json();
                 setSections(prev => prev.map(s => s.id === sec.id ? updated : s));
                 reloadNote?.();
+            } else {
+                const body = await res.json().catch(() => ({}));
+                dispatch(addToast({ kind: 'error', title: 'AI generation failed', message: body.detail || `Server error ${res.status}` }));
             }
-        } catch { }
+        } catch (err) {
+            dispatch(addToast({ kind: 'error', title: 'AI generation failed', message: err?.message || 'Network error — is the backend running?' }));
+        }
         setGeneratingSection(null);
     };
 

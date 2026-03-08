@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { useDispatch } from 'react-redux';
+import { addToast } from '../store';
 import { API, authHeaders } from '../components/utils';
 
 /**
@@ -10,6 +12,7 @@ import { API, authHeaders } from '../components/utils';
  */
 export function useFuse(id, deps = {}) {
     const { prof, setNote, setCurrentPage, setMutatedPages, saveNote, extractAndSaveGraph } = deps;
+    const dispatch = useDispatch();
 
     const [slidesFiles, setSlidesFiles] = useState([]);
     const [textbookFiles, setTextbookFiles] = useState([]);
@@ -107,6 +110,17 @@ export function useFuse(id, deps = {}) {
                         ? '⚠️ Authentication failed — try logging out and back in.'
                         : `⚠️ Generation failed: ${err.message}`;
             setFallbackWarning(bannerMsg);
+            // Also surface as a dismissible toast
+            dispatch(addToast({
+                kind: isAuth ? 'error' : isNetworkError ? 'warning' : 'error',
+                title: isAuth ? 'Authentication error' : isNetworkError ? 'Backend unreachable' : 'Generation failed',
+                message: isNetworkError
+                    ? 'Start the backend server and try again.'
+                    : isAuth
+                        ? 'Log out and log back in.'
+                        : err.message || 'Unknown error',
+                duration: isNetworkError ? 10000 : 7000,
+            }));
         }
         setFusing(false);
         setFuseProgress('');

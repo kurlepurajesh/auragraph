@@ -27,8 +27,28 @@ const graphSlice = createSlice({
     }
 });
 
+// ── Global toast notifications ────────────────────────────────────────────────
+let _nextToastId = 1;
+
+const toastsSlice = createSlice({
+    name: 'toasts',
+    initialState: [],
+    reducers: {
+        addToast(state, action) {
+            state.push({ id: _nextToastId++, duration: 6000, kind: 'error', ...action.payload });
+        },
+        removeToast(state, action) {
+            return state.filter(t => t.id !== action.payload);
+        },
+    },
+});
+
 export const { setGraphData, updateNodeStatus, setUser } = graphSlice.actions;
+export const { addToast, removeToast } = toastsSlice.actions;
 
 export const store = configureStore({
-    reducer: { graph: graphSlice.reducer }
+    reducer: {
+        graph:  graphSlice.reducer,
+        toasts: toastsSlice.reducer,
+    }
 });
