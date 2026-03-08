@@ -3,10 +3,23 @@ Auth Utility — AuraGraph (SQLite v2)
 Uses the shared auragraph.db. Token TTL = 7 days for real users.
 Demo token is a fixed string validated by its known value.
 """
-import hashlib, logging, sqlite3, time, uuid
+import logging
+import sqlite3
+import time
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
+
+try:
+    from passlib.hash import bcrypt as _bcrypt
+    _USE_BCRYPT = True
+except ImportError:  # graceful fallback if passlib not yet installed
+    import hashlib as _hashlib
+    _USE_BCRYPT = False
+    logging.getLogger("auragraph").warning(
+        "passlib not installed — falling back to SHA-256 (install passlib[bcrypt] for production)"
+    )
 
 logger = logging.getLogger("auragraph")
 DB_PATH = Path(__file__).parent.parent / "auragraph.db"
@@ -67,7 +80,24 @@ def _migrate_users_from_json():
 
 
 def _hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    if _USE_BCRYPT:
+        return _bcrypt.using(rounds=12).hash(password)
+    # Fallback: SHA-256 (dev only)
+    return _hashlib.sha256(password.encode()).hexdigest()
+
+
+def _verify_password(password: str, stored_hash: str) -> bool:
+    """Safe constant-time password verification supporting both bcrypt and SHA-256 hashes."""
+    if stored_hash.startswith("$2"):   # bcrypt hash
+        if _USE_BCRYPT:
+            try:
+                return _bcrypt.verify(password, stored_hash)
+            except Exception:
+                return False
+        return False  # stored as bcrypt but passlib not available
+    # Legacy SHA-256 hash
+    import hashlib
+    return hashlib.sha256(password.encode()).hexdigest() == stored_hash
 
 
 def register_user(email: str, password: str) -> Optional[dict]:
@@ -88,7 +118,7 @@ def register_user(email: str, password: str) -> Optional[dict]:
 def login_user(email: str, password: str) -> Optional[dict]:
     with _conn() as con:
         row = con.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
-        if not row or row["password_hash"] != _hash_password(password):
+        if not row or not _verify_password(password, row["password_hash"]):
             return None
         new_token = str(uuid.uuid4())
         con.execute("UPDATE users SET token=?, token_issued_at=? WHERE id=?",

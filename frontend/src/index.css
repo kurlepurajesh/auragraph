@@ -29,6 +29,16 @@
   --purple-light: #EDE9FE;
   --note-bg: #FFFEF7;
   --note-line: #E8E0CC;
+  /* AuraGraph design tokens */
+  --ag-purple: #7C3AED;
+  --ag-purple-soft: #EDE9FE;
+  --ag-cream: #FFFEF7;
+  --ag-surface-note: #FDFCFF;
+  --ag-ring-left: #C4B5FD;
+  --ag-ring-right: #A78BFA;
+  --ag-gold: #F59E0B;
+  --ag-emerald: #10B981;
+  --ag-red: #EF4444;
 }
 
 [data-theme="dark"] {

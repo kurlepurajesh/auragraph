@@ -59,7 +59,7 @@ from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 
 from agents.fusion_agent import FusionAgent
 from agents.examiner_agent import ExaminerAgent
-from agents.mock_cosmos import get_db, update_node_status, increment_mutation_count
+from agents.mastery_store import get_db, update_node_status, increment_mutation_count
 from agents.content_safety import check_content_safety
 from agents.pdf_utils import extract_text_from_file, chunk_text
 from agents.knowledge_store import (
@@ -124,7 +124,8 @@ async def lifespan(app):
     )
     fusion_agent   = FusionAgent(kernel)
     examiner_agent = ExaminerAgent(kernel)
-    logger.info("✅  AuraGraph v5 — all 32 critic fixes applied")
+    _init_usage_table()
+    logger.info("✅  AuraGraph v6 — bcrypt auth, SQLite mastery store, LLM rate limiting")
     yield
     logger.info("⏹  AuraGraph shutting down")
 
@@ -168,7 +169,113 @@ def _require_notebook_owner(nb_id: str, user: dict) -> dict:
     return nb
 
 
-# ── LLM availability ───────────────────────────────────────────────────────────
+# ── LLM rate limiting + cost tracking ─────────────────────────────────────────
+# Limits: configurable via env vars; defaults tuned for a small-team deployment.
+#   LLM_HOURLY_LIMIT    — max heavy LLM calls (fuse / mutate / doubt) per user per hour
+#   LLM_DAILY_LIMIT     — max LLM calls per user per day
+
+_LLM_HOURLY_LIMIT = int(os.environ.get("LLM_HOURLY_LIMIT", "40"))
+_LLM_DAILY_LIMIT  = int(os.environ.get("LLM_DAILY_LIMIT",  "200"))
+
+# Rough cost estimates (USD per 1K tokens) — informational only
+_COST_PER_1K = {"azure": 0.01, "groq": 0.0001, "local": 0.0}
+
+
+def _init_usage_table() -> None:
+    from agents.auth_utils import DB_PATH
+    import sqlite3
+    con = sqlite3.connect(str(DB_PATH), timeout=30, check_same_thread=False)
+    con.execute("PRAGMA journal_mode=WAL")
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS llm_usage (
+            user_id     TEXT    NOT NULL,
+            hour_bucket TEXT    NOT NULL,  -- e.g. '2026-03-08T14'
+            day_bucket  TEXT    NOT NULL,  -- e.g. '2026-03-08'
+            calls       INTEGER NOT NULL DEFAULT 0,
+            est_tokens  INTEGER NOT NULL DEFAULT 0,
+            est_cost_usd REAL   NOT NULL DEFAULT 0.0,
+            PRIMARY KEY (user_id, hour_bucket)
+        );
+        CREATE INDEX IF NOT EXISTS idx_llm_usage_user_day
+            ON llm_usage(user_id, day_bucket);
+    """)
+    con.commit()
+    con.close()
+
+
+def _check_llm_rate_limit(user_id: str) -> None:
+    """
+    Raise HTTP 429 if the user has exceeded their hourly or daily LLM call limits.
+    Called at the start of every heavy LLM endpoint.
+    """
+    from agents.auth_utils import DB_PATH
+    import sqlite3
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    hour_bucket = now.strftime("%Y-%m-%dT%H")
+    day_bucket  = now.strftime("%Y-%m-%d")
+    con = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA journal_mode=WAL")
+    try:
+        # Hourly check
+        row = con.execute(
+            "SELECT calls FROM llm_usage WHERE user_id=? AND hour_bucket=?",
+            (user_id, hour_bucket)
+        ).fetchone()
+        if row and row["calls"] >= _LLM_HOURLY_LIMIT:
+            raise HTTPException(
+                429,
+                f"Rate limit: max {_LLM_HOURLY_LIMIT} AI calls per hour. Try again later."
+            )
+        # Daily check
+        daily = con.execute(
+            "SELECT SUM(calls) as total FROM llm_usage WHERE user_id=? AND day_bucket=?",
+            (user_id, day_bucket)
+        ).fetchone()
+        if daily and (daily["total"] or 0) >= _LLM_DAILY_LIMIT:
+            raise HTTPException(
+                429,
+                f"Daily limit: max {_LLM_DAILY_LIMIT} AI calls per day. Resets at midnight UTC."
+            )
+    finally:
+        con.close()
+
+
+def _record_llm_call(
+    user_id: str,
+    source: str,
+    est_tokens: int = 2000,
+) -> None:
+    """
+    Increment the usage counter for this user's current hour bucket.
+    Non-blocking — swallows all exceptions so a logging failure never breaks a request.
+    """
+    from agents.auth_utils import DB_PATH
+    import sqlite3
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    hour_bucket = now.strftime("%Y-%m-%dT%H")
+    day_bucket  = now.strftime("%Y-%m-%d")
+    cost = (_COST_PER_1K.get(source, 0.0) * est_tokens) / 1000
+    try:
+        con = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute(
+            """
+            INSERT INTO llm_usage (user_id, hour_bucket, day_bucket, calls, est_tokens, est_cost_usd)
+            VALUES (?, ?, ?, 1, ?, ?)
+            ON CONFLICT(user_id, hour_bucket) DO UPDATE SET
+                calls        = calls + 1,
+                est_tokens   = est_tokens + excluded.est_tokens,
+                est_cost_usd = est_cost_usd + excluded.est_cost_usd
+            """,
+            (user_id, hour_bucket, day_bucket, est_tokens, cost)
+        )
+        con.commit()
+        con.close()
+    except Exception as exc:  # never let logging break the request
+        logger.debug("_record_llm_call failed (non-fatal): %s", exc)
 
 def _is_azure_available() -> bool:
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
@@ -614,10 +721,57 @@ class SectionGenerateRequest(BaseModel):
 async def health():
     return {
         "status":           "ok",
-        "service":          "AuraGraph v0.5",
+        "service":          "AuraGraph v0.6",
         "azure_configured": _is_azure_available(),
         "groq_configured":  _is_groq_available(),
         "llm_concurrency":  int(os.environ.get("LLM_CONCURRENCY", "1")),
+        "rate_limits":      {"hourly": _LLM_HOURLY_LIMIT, "daily": _LLM_DAILY_LIMIT},
+    }
+
+
+@app.get("/api/usage")
+async def get_usage(authorization: Optional[str] = Header(None)):
+    """Return the calling user's LLM call counts for the last 7 days."""
+    user = get_current_user(authorization)
+    from agents.auth_utils import DB_PATH
+    import sqlite3
+    from datetime import datetime, timezone, timedelta
+    con = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
+    con.row_factory = sqlite3.Row
+    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    rows = con.execute(
+        """
+        SELECT day_bucket, SUM(calls) as calls, SUM(est_tokens) as tokens, SUM(est_cost_usd) as cost
+        FROM llm_usage
+        WHERE user_id=? AND day_bucket >= ?
+        GROUP BY day_bucket ORDER BY day_bucket DESC
+        """,
+        (user["id"], seven_days_ago)
+    ).fetchall()
+    con.close()
+    now = datetime.now(timezone.utc)
+    today_row = con.execute(
+        "SELECT SUM(calls) as calls FROM llm_usage WHERE user_id=? AND day_bucket=?",
+        (user["id"], now.strftime("%Y-%m-%d"))
+    ).fetchone() if False else None  # already fetched above
+    daily_calls = sum(r["calls"] for r in rows if r["day_bucket"] == now.strftime("%Y-%m-%d"))
+    hour_calls_row = None
+    try:
+        con2 = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
+        con2.row_factory = sqlite3.Row
+        hour_calls_row = con2.execute(
+            "SELECT calls FROM llm_usage WHERE user_id=? AND hour_bucket=?",
+            (user["id"], now.strftime("%Y-%m-%dT%H"))
+        ).fetchone()
+        con2.close()
+    except Exception:
+        pass
+    return {
+        "user_id": user["id"],
+        "limits": {"hourly": _LLM_HOURLY_LIMIT, "daily": _LLM_DAILY_LIMIT},
+        "this_hour_calls": hour_calls_row["calls"] if hour_calls_row else 0,
+        "today_calls": daily_calls,
+        "history": [dict(r) for r in rows],
     }
 
 
@@ -930,6 +1084,8 @@ async def upload_fuse_multi(
       Steps 6+7+8 — note generation + merge + refinement (FIX C1/C2/C3)
     """
     get_current_user(authorization)  # FIX: require auth to prevent anonymous LLM abuse
+    user = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])
     from pipeline.chunker import chunk_textbook
     from pipeline.embedder import Embedder
     from pipeline.vector_db import VectorDB
@@ -1314,6 +1470,7 @@ async def upload_fuse_stream(
     The client can reconstruct the note incrementally by accumulating section.content.
     """
     user = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])
     from pipeline.chunker      import chunk_textbook
     from pipeline.embedder     import Embedder
     from pipeline.vector_db    import VectorDB
@@ -1488,7 +1645,8 @@ async def answer_doubt(
     authorization: Optional[str] = Header(None),
 ):
     """FIX A3: Bearer token required."""
-    get_current_user(authorization)
+    user = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])
 
     slide_hits    = retrieve_relevant_chunks(req.notebook_id, req.doubt, top_k=6, source_filter="slides")
     textbook_hits = retrieve_relevant_chunks(req.notebook_id, req.doubt, top_k=6, source_filter="textbook")
@@ -1523,6 +1681,7 @@ async def answer_doubt(
         _safe, _cat = await check_content_safety(vr.answer)
         if not _safe:
             logger.warning("Content Safety flagged doubt answer: category=%s", _cat)
+        _record_llm_call(user["id"], source, est_tokens=1500)
         return DoubtResponse(
             answer=fix_latex_delimiters(vr.answer),
             source=source,
@@ -1554,6 +1713,7 @@ async def mutate_note(
     FIX L3: Single mutate parser via FusionAgent._parse_mutate_response.
     """
     user = get_current_user(authorization)  # FIX A4
+    _check_llm_rate_limit(user["id"])
     _username = user.get("username", "anonymous")
 
     note_page = get_note_page(req.notebook_id, req.page_idx)
@@ -1603,6 +1763,9 @@ async def mutate_note(
                 increment_mutation_count(top_concept, _username)
         except Exception:
             pass   # non-critical — don't break mutation over graph update failure
+
+    if can_mutate:
+        _record_llm_call(user["id"], llm_source, est_tokens=3000)
 
     return MutationResponse(
         mutated_paragraph=mutated,
