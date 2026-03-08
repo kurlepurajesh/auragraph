@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
-import { MessageCircle, X, GitBranch, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageCircle, X, GitBranch, ChevronDown, ChevronUp, Layers, BookOpen } from 'lucide-react';
 
 const IM = ({ text }) => (
     <ReactMarkdown
@@ -26,23 +26,52 @@ const IM = ({ text }) => (
 
 export default function DoubtsPanel({ doubts, currentPage }) {
     const [expanded, setExpanded] = useState({});
+    const [viewAll, setViewAll] = useState(false);
     const toggle = id => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
     const pageDiagnostics = doubts.filter(d => d.pageIdx === currentPage);
-    const otherPages = [...new Set(doubts.filter(d => d.pageIdx !== currentPage).map(d => d.pageIdx))];
+    const otherPages = [...new Set(doubts.filter(d => d.pageIdx !== currentPage).map(d => d.pageIdx))].sort((a, b) => a - b);
 
-    if (pageDiagnostics.length === 0) return (
+    // Which doubts to render (all vs current-page)
+    const visibleDiagnostics = viewAll ? doubts : pageDiagnostics;
+
+    // ── View-all toggle bar (shown whenever there are doubts on other pages) ──
+    const toggleBar = doubts.length > 0 && (
+        <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, background: 'var(--surface)' }}>
+            <button
+                onClick={() => setViewAll(false)}
+                style={{ flex: 1, padding: '4px 0', fontSize: 10, fontWeight: 700, borderRadius: 6, border: `1px solid ${!viewAll ? 'var(--ag-purple)' : 'var(--border)'}`, background: !viewAll ? 'var(--ag-purple-soft)' : 'transparent', color: !viewAll ? 'var(--ag-purple)' : 'var(--text3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all 0.15s' }}
+            >
+                <BookOpen size={10} /> This page {pageDiagnostics.length > 0 ? `(${pageDiagnostics.length})` : ''}
+            </button>
+            <button
+                onClick={() => setViewAll(true)}
+                style={{ flex: 1, padding: '4px 0', fontSize: 10, fontWeight: 700, borderRadius: 6, border: `1px solid ${viewAll ? 'var(--ag-purple)' : 'var(--border)'}`, background: viewAll ? 'var(--ag-purple-soft)' : 'transparent', color: viewAll ? 'var(--ag-purple)' : 'var(--text3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all 0.15s' }}
+            >
+                <Layers size={10} /> All doubts ({doubts.length})
+            </button>
+        </div>
+    );
+
+    if (visibleDiagnostics.length === 0) return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {toggleBar}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 }}>
                 <MessageCircle size={26} color="#C4B5FD" />
                 <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.7 }}>
-                    No doubts on <b>page {currentPage + 1}</b> yet.<br />
-                    <span style={{ fontSize: 11 }}>Click <b>Ask a Doubt</b> to add one.</span>
+                    {viewAll
+                        ? <><b>No doubts yet.</b><br /><span style={{ fontSize: 11 }}>Click <b>Ask a Doubt</b> to add one.</span></>
+                        : <>No doubts on <b>page {currentPage + 1}</b> yet.<br /><span style={{ fontSize: 11 }}>Click <b>Ask a Doubt</b> to add one.</span></>
+                    }
                 </div>
             </div>
-            {otherPages.length > 0 && (
+            {!viewAll && otherPages.length > 0 && (
                 <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)', lineHeight: 1.6 }}>
-                    Doubts on page{otherPages.length > 1 ? 's' : ''} <span style={{ color: 'var(--ag-purple)', fontWeight: 600 }}>{otherPages.map(p => p + 1).join(', ')}</span>
+                    Doubts on page{otherPages.length > 1 ? 's' : ''}{' '}
+                    <button onClick={() => setViewAll(true)} style={{ color: 'var(--ag-purple)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11, textDecoration: 'underline' }}>
+                        {otherPages.map(p => p + 1).join(', ')}
+                    </button>
+                    {' '}— <button onClick={() => setViewAll(true)} style={{ color: 'var(--ag-purple)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 11 }}>View all</button>
                 </div>
             )}
         </div>
@@ -50,13 +79,16 @@ export default function DoubtsPanel({ doubts, currentPage }) {
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ag-purple)', background: 'var(--ag-purple-soft)', border: '1px solid #C4B5FD', borderRadius: 10, padding: '2px 8px' }}>Page {currentPage + 1}</span>
-                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{pageDiagnostics.length} doubt{pageDiagnostics.length > 1 ? 's' : ''}</span>
-                {otherPages.length > 0 && <span style={{ fontSize: 10, color: '#9CA3AF', marginLeft: 'auto' }}>+{doubts.length - pageDiagnostics.length} on other pages</span>}
-            </div>
+            {toggleBar}
+            {!viewAll && (
+                <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ag-purple)', background: 'var(--ag-purple-soft)', border: '1px solid #C4B5FD', borderRadius: 10, padding: '2px 8px' }}>Page {currentPage + 1}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{pageDiagnostics.length} doubt{pageDiagnostics.length > 1 ? 's' : ''}</span>
+                    {otherPages.length > 0 && <span style={{ fontSize: 10, color: '#9CA3AF', marginLeft: 'auto' }}>+{doubts.length - pageDiagnostics.length} on other pages</span>}
+                </div>
+            )}
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {pageDiagnostics.map(d => {
+                {visibleDiagnostics.map(d => {
                     const isExp = !!expanded[d.id];
                     const pl = 380;
                     const needsExp = d.insight.length > pl;
@@ -64,6 +96,9 @@ export default function DoubtsPanel({ doubts, currentPage }) {
                     return (
                         <div key={d.id} id={'doubt-' + d.id}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginBottom: 4 }}>
+                                {viewAll && d.pageIdx !== currentPage && (
+                                    <span style={{ fontSize: 9, fontWeight: 600, color: '#6B7280', background: '#F3F4F6', borderRadius: 6, padding: '1px 6px', border: '1px solid #E5E7EB' }}>p.{d.pageIdx + 1}</span>
+                                )}
                                 {d.success
                                     ? d.kind === 'answered'
                                         ? <span style={{ fontSize: 9, color: '#0369A1', fontWeight: 700 }}>💬 answered</span>

@@ -9,8 +9,10 @@ import { API, apiFetch } from '../components/utils';
  * @param {string} id - Notebook ID
  * @param {string} notebookProficiency - e.g. 'Practitioner', used when generating content
  * @param {Function} reloadNote - called after section generation to refresh the main note
+ * @param {Function} onSectionGenerated - called with (sectionTitle) after a section is generated so the
+ *   caller can navigate to the newly-created page. Called after reloadNote resolves.
  */
-export function useSections(id, notebookProficiency = 'Intermediate', reloadNote) {
+export function useSections(id, notebookProficiency = 'Intermediate', reloadNote, onSectionGenerated) {
     const [sections, setSections] = useState([]);
     const [sectionInput, setSectionInput] = useState('');
     const [sectionInputType, setSectionInputType] = useState('topic');
@@ -66,7 +68,8 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
             if (res.ok) {
                 const updated = await res.json();
                 setSections(prev => prev.map(s => s.id === sec.id ? updated : s));
-                reloadNote?.();
+                await reloadNote?.();
+                onSectionGenerated?.(sec.title);
             } else {
                 const body = await res.json().catch(() => ({}));
                 dispatch(addToast({ kind: 'error', title: 'AI generation failed', message: body.detail || `Server error ${res.status}` }));

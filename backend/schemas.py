@@ -52,9 +52,10 @@ class MutationResponse(BaseModel):
 
 
 class RegenerateSectionRequest(BaseModel):
-    notebook_id: str
-    page_idx:    int
-    proficiency: str = "Practitioner"
+    notebook_id:   str
+    page_idx:      int
+    proficiency:   str = "Practitioner"
+    custom_prompt: Optional[str] = None  # optional direction from the student
 
 
 class RegenerateSectionResponse(BaseModel):

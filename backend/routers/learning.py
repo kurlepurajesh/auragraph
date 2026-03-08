@@ -202,10 +202,16 @@ async def regenerate_section(
     slide_ctx     = _format_chunks_for_prompt(slide_hits,    10_000)
     textbook_ctx  = _format_chunks_for_prompt(textbook_hits, 10_000)
 
+    custom_direction = (
+        f"\nSTUDENT DIRECTION: {req.custom_prompt.strip()}\n"
+        f"(Honour the student's direction above when writing this section.)\n"
+        if req.custom_prompt and req.custom_prompt.strip() else ""
+    )
     regen_prompt = (
         f"You are AuraGraph's note-generation engine. Re-write the following study note section "
         f"**from scratch**, using only the source material below.\n\n"
-        f"TOPIC: {topic}\nPROFICIENCY LEVEL: {req.proficiency}\n\n"
+        f"TOPIC: {topic}\nPROFICIENCY LEVEL: {req.proficiency}\n"
+        f"{custom_direction}\n"
         f"SOURCE MATERIAL:\n--- SLIDES ---\n{slide_ctx}\n\n--- TEXTBOOK ---\n{textbook_ctx}\n\n"
         f"INSTRUCTIONS:\n"
         f"- Write a single cohesive section starting with \"## {topic}\"\n"

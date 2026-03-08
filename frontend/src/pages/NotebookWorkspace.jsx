@@ -50,6 +50,8 @@ export default function NotebookWorkspace() {
     const [editingPage, setEditingPage] = useState(false);
     const [pageInputVal, setPageInputVal] = useState('');
     const [regenLoadingPages, setRegenLoadingPages] = useState(new Set());
+    const [pendingNavSection, setPendingNavSection] = useState(null); // section title → navigate after note reload
+    const [regenPromptState, setRegenPromptState] = useState({ open: false, pageIdx: null, prompt: '' });
 
     // ── Custom hooks ─────────────────────────────────────────────────────────
     const { graphNodes, setGraphNodes, graphEdges, setGraphEdges, handleNodeStatusChange } = useKnowledgeGraph(id);
@@ -65,7 +67,7 @@ export default function NotebookWorkspace() {
         generatingSection,
         handleAddSection, handleDeleteSection, handleGenerateSection,
         handleMoveSectionUp, handleMoveSectionDown, loadSections,
-    } = useSections(id, notebook?.proficiency || prof, reloadNote);
+    } = useSections(id, notebook?.proficiency || prof, reloadNote, (title) => setPendingNavSection(title));
     const {
         pages, currentPage, setCurrentPage, viewMode, setViewMode,
         fontSize, setFontSize, jumpHighlightSet, noteScrollRef, handleJumpToSection,
@@ -85,6 +87,22 @@ export default function NotebookWorkspace() {
         loadNotebook();
     }, [loadNotebook]);
     useEffect(() => { loadSections(); }, [loadSections]);
+
+    // ── Content fingerprint helpers — keyed by content, not index, so badges survive page shifts ──
+    const getFingerprint = useCallback((content) => (content || '').trim().replace(/\s+/g, ' ').slice(0, 100), []);
+    const isPageMutated  = useCallback((idx) => mutatedPages.has(getFingerprint(pages[idx] || '')), [mutatedPages, pages, getFingerprint]);
+
+    // ── Navigate to a pending section after note reload (from ⚡ generate or regen) ──
+    useEffect(() => {
+        if (!pendingNavSection || !pages.length) return;
+        const heading = `## ${pendingNavSection}`;
+        const idx = pages.findIndex(p => p.trim().startsWith(heading) || p.includes(heading));
+        if (idx !== -1) {
+            setCurrentPage(idx);
+            setMutatedPages(prev => new Set([...prev, getFingerprint(pages[idx])]));
+            setPendingNavSection(null);
+        }
+    }, [pages, pendingNavSection, getFingerprint]);
 
     const handlePrint = useCallback(() => { window.print(); }, []);
 
@@ -134,7 +152,7 @@ export default function NotebookWorkspace() {
                 }
                 pushUndo(note, prof, `Page ${currentPage + 1} mutated`);
                 setNote(newNote); setGapText(data.concept_gap);
-                setMutatedPages(prev => new Set([...prev, currentPage]));
+                setMutatedPages(prev => new Set([...prev, getFingerprint(data.mutated_paragraph || pages[currentPage] || '')]));
                 await saveNote(newNote, prof);
                 extractAndSaveGraph(newNote).catch(() => { });
                 // Use the full answer/explanation from the backend as insight shown in doubts sidebar.
@@ -159,13 +177,18 @@ export default function NotebookWorkspace() {
         }
     }, [note, prof, id, currentPage, pages]);
 
-    const handleRegenSection = useCallback(async (pageIdx) => {
+    const handleRegenSection = useCallback(async (pageIdx, customPrompt = '') => {
         setRegenLoadingPages(prev => new Set([...prev, pageIdx]));
         try {
             const res = await apiFetch(`${API}/api/regenerate-section`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notebook_id: id, page_idx: pageIdx, proficiency: prof }),
+                body: JSON.stringify({
+                    notebook_id: id,
+                    page_idx: pageIdx,
+                    proficiency: prof,
+                    ...(customPrompt.trim() ? { custom_prompt: customPrompt.trim() } : {}),
+                }),
             });
             if (!res.ok) {
                 let detail = `Server error (${res.status})`;
@@ -175,10 +198,9 @@ export default function NotebookWorkspace() {
             const data = await res.json();
             if (!data.new_section?.trim()) throw new Error('Empty response from server');
 
-            // The backend already rebuilt and saved the full note after regenerating.
-            // Re-fetch it so we display exactly what the backend stored — no client-side
-            // string surgery that can misplace headings or leave raw markdown.
+            // Push undo before clobbering the note
             pushUndo(note, prof, `Page ${pageIdx + 1} regenerated`);
+            // Re-fetch the full note — backend already persisted the updated version
             const nbRes = await apiFetch(`${API}/notebooks/${id}`);
             if (nbRes.ok) {
                 const nb = await nbRes.json();
@@ -186,8 +208,10 @@ export default function NotebookWorkspace() {
                 setNote(freshNote);
                 await saveNote(freshNote, prof);
             }
-            setCurrentPage(pageIdx);
-            setMutatedPages(prev => new Set([...prev, pageIdx]));
+            // Navigate to the regenerated page by its heading (not a stale numeric index)
+            // so the badge always lands on the correct page even if earlier ⚡ generates shifted pages.
+            const rawHeading = data.new_section.trim().split('\n')[0].replace(/^#+\s*/, '').trim();
+            setPendingNavSection(rawHeading);
         } catch (err) {
             dispatch(addToast({
                 kind: 'error',
@@ -371,10 +395,10 @@ export default function NotebookWorkspace() {
                                             <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #DDD6FE' }}>
                                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    {mutatedPages.has(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--ag-purple-soft)', color: 'var(--ag-purple)', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
+                                                    {isPageMutated(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--ag-purple-soft)', color: 'var(--ag-purple)', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
                                                     <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>Page {idx + 1} of {pages.length}</span>
                                                     <button
-                                                        onClick={() => handleRegenSection(idx)}
+                                                        onClick={() => setRegenPromptState({ open: true, pageIdx: idx, prompt: '' })}
                                                         disabled={regenLoadingPages.has(idx)}
                                                         title="Re-generate this section with fresh AI output"
                                                         className="no-print"
@@ -416,7 +440,7 @@ export default function NotebookWorkspace() {
                                     {viewMode !== 'scroll' && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                                             {pages.slice(0, Math.min(pages.length, 20)).map((_, i) => (
-                                                <button key={i} className="page-dot" data-label={`Page ${i + 1}`} onClick={() => setCurrentPage(i)} title={`Page ${i + 1}`} style={{ width: i === currentPage ? 20 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === currentPage ? 'var(--ag-purple)' : mutatedPages.has(i) ? 'var(--ag-ring-left)' : 'var(--border2)', transition: 'all 0.2s', padding: 0 }} />
+                                                <button key={i} className="page-dot" data-label={`Page ${i + 1}`} onClick={() => setCurrentPage(i)} title={`Page ${i + 1}`} style={{ width: i === currentPage ? 20 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === currentPage ? 'var(--ag-purple)' : isPageMutated(i) ? 'var(--ag-ring-left)' : 'var(--border2)', transition: 'all 0.2s', padding: 0 }} />
                                             ))}
                                             {pages.length > 20 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>+{pages.length - 20}</span>}
                                         </div>
@@ -586,6 +610,53 @@ export default function NotebookWorkspace() {
                 </div>
             )}
 
+            {regenPromptState.open && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 24 }} onClick={() => setRegenPromptState(s => ({ ...s, open: false }))}>
+                    <div style={{ background: 'var(--bg)', borderRadius: 14, padding: 24, maxWidth: 480, width: '100%', boxShadow: '0 24px 80px rgba(0,0,0,0.3)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                            <RefreshCw size={16} color="var(--ag-purple)" />
+                            <span style={{ fontWeight: 700, fontSize: 15 }}>Regenerate page {regenPromptState.pageIdx != null ? regenPromptState.pageIdx + 1 : ''}</span>
+                            <button onClick={() => setRegenPromptState(s => ({ ...s, open: false }))} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 4 }}><X size={16} /></button>
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12, lineHeight: 1.6 }}>
+                            Optionally guide the AI — leave blank for a standard regeneration.
+                        </p>
+                        <textarea
+                            rows={3}
+                            placeholder="e.g. Focus more on worked examples, avoid heavy notation…"
+                            value={regenPromptState.prompt}
+                            onChange={e => setRegenPromptState(s => ({ ...s, prompt: e.target.value }))}
+                            style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border)', padding: '9px 12px', fontSize: 13, resize: 'vertical', background: 'var(--surface)', color: 'var(--text)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 10 }}
+                            autoFocus
+                            maxLength={400}
+                        />
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                            {['More examples', 'Simpler language', 'More rigour', 'Focus on formulas', 'Add intuition'].map(chip => (
+                                <button key={chip}
+                                    onClick={() => setRegenPromptState(s => ({ ...s, prompt: s.prompt ? s.prompt + ', ' + chip.toLowerCase() : chip }))}
+                                    style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text2)', cursor: 'pointer', transition: 'all 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ag-purple)'; e.currentTarget.style.color = 'var(--ag-purple)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text2)'; }}
+                                >{chip}</button>
+                            ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button onClick={() => setRegenPromptState(s => ({ ...s, open: false }))} className="btn btn-ghost btn-sm">Cancel</button>
+                            <button
+                                onClick={() => {
+                                    const { pageIdx, prompt } = regenPromptState;
+                                    setRegenPromptState({ open: false, pageIdx: null, prompt: '' });
+                                    handleRegenSection(pageIdx, prompt);
+                                }}
+                                className="btn btn-primary btn-sm"
+                                style={{ gap: 5 }}
+                            >
+                                <RefreshCw size={12} /> Regenerate
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true, kind: 'answered' }; setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; }); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
             {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx) => { setCurrentPage(idx); }} onClose={() => setShowSearch(false)} />}
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
