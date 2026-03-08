@@ -239,54 +239,54 @@ _NOTE_USER_TEMPLATE = """Generate study notes for the following lecture topic.
 
 TOPIC: {topic}
 
-KEY POINTS FROM SLIDES (every single one MUST appear in your output):
-{key_points_block}
+═════════════════════════════════════════════════════════════════
+MANDATORY COVERAGE CHECKLIST — YOU MUST ADDRESS EVERY ITEM
+═════════════════════════════════════════════════════════════════
+Before you write a single word, read this checklist. Before you finish,
+verify every item is in your output. A missing item is a hard error.
 
-SLIDE / LECTURE NOTES CONTENT (primary source -- reproduce every item):
+{key_points_block}
+═════════════════════════════════════════════════════════════════
+SLIDE / LECTURE NOTES CONTENT (primary source):
 {slide_text}
 
 {textbook_instruction}
 
 {proficiency_block}
 
-NON-NEGOTIABLE COVERAGE RULES (these apply at ALL proficiency levels, no exceptions)
-=====================================================================================
-Before writing anything, read the SLIDE CONTENT above and list internally:
-  - every formula and equation
-  - every definition
-  - every algorithm, procedure, or process
-  - every theorem, lemma, or property
-  - every condition, constraint, and edge case
-  - every exception and special case
-  - every example worked through in the slides
-
-Every single item on that list MUST appear in your output.
-No exceptions. Not for length. Not for proficiency level.
-A concept present in the slides that does not appear in the output is an error.
+COVERAGE RULES (absolute — apply at ALL proficiency levels)
+===========================================================
+1. Every item in the MANDATORY COVERAGE CHECKLIST above MUST appear.
+2. Every formula, definition, algorithm, theorem, condition, edge case and
+   worked example in the SLIDE CONTENT above MUST appear.
+3. Proficiency controls HOW deeply you explain each item. It never controls
+   WHETHER an item appears. Depth is adjustable. Omission is not.
+4. If you are running low on output budget: give each remaining concept
+   a brief name + formula + one-line definition. Never silently drop an item.
 
 STRUCTURE
 =========
-  - Start with: ## {topic}
+  - Start with: ## {{topic}}
   - Use ### sub-headings whenever the topic has genuinely distinct sub-topics.
   - End the section with:
       > Exam Tip: [the single most-tested fact or most common exam mistake for this topic]
 
 MATHEMATICS
 ===========
-  - ALL math in LaTeX. Never write "integral", "sigma", "omega", "delta" as English words.
+  - ALL math in LaTeX. Never write "integral", "sigma", "omega", "delta" as English.
   - Inline math: $expression$
   - Display math: $$
     formula
     $$
   - NEVER use \\\\( \\\\) or \\\\[ \\\\]. Only $ and $$.
-  - OCR garbled math: reconstruct the correct LaTeX from your knowledge of the topic.
+  - OCR garbled math: reconstruct the correct LaTeX from your knowledge.
 
 TABLES
 ======
   - Pipe-tables only: header row + |---|---| alignment row + data rows.
   - Never use HTML tables.
 
-OUTPUT: Start immediately with ## {topic}. End with the Exam Tip. Nothing before or after.
+OUTPUT: Start immediately with ## {topic}. End with the Exam Tip.
 """
 _REFINEMENT_SYSTEM = """\
 You are an expert academic editor improving engineering study notes.
@@ -563,6 +563,119 @@ async def _call_groq(
     return None
 
 
+# ── Post-generation coverage audit ───────────────────────────────────────────────
+
+_PATCH_SYSTEM = """\
+You are AuraGraph — filling in missing concepts from a slide deck into an existing note section.
+The main note was already written but some slide content was not covered.
+Your ONLY job: write concise, accurate notes for each missing item listed below.
+Follow the same proficiency level as the existing note. Use the same LaTeX conventions.
+Do NOT repeat content already in the note. Do NOT add an ## heading. Do NOT add an Exam Tip.
+Start immediately with ### sub-headings for each missing item. No preamble.
+"""
+
+_PATCH_USER = """\
+TOPIC: {topic}
+PROFICIENCY: {proficiency}
+
+THE FOLLOWING ITEMS FROM THE SLIDES WERE NOT COVERED IN THE GENERATED NOTE:
+{missing_block}
+
+ORIGINAL SLIDE CONTENT (for context — only cover the MISSING items above):
+{slide_snippet}
+
+Write brief but complete notes for each missing item. Use display LaTeX for all formulas.
+"""
+
+
+def _coverage_check(key_points: list[str], generated_text: str) -> list[str]:
+    """
+    Return key_points whose content is not reflected in generated_text.
+
+    Strategy: for each key_point, extract words of length >= 5 as "signal words".
+    If fewer than half the signal words appear in the generated text, the concept
+    is considered missing.
+
+    This is intentionally lenient (50% threshold) to avoid false positives where
+    the LLM paraphrased a concept using synonyms.
+    """
+    gen_lower = generated_text.lower()
+    missing: list[str] = []
+    for kp in key_points:
+        sig = [w for w in re.findall(r'[a-zA-Z]{5,}', kp.lower())
+               if w not in {"which", "where", "there", "their", "these", "those",
+                            "function", "value", "given", "since", "using",
+                            "system", "signal", "defined", "called"}]
+        if not sig:
+            continue
+        found = sum(1 for w in sig if w in gen_lower)
+        if found < max(1, len(sig) // 2):
+            missing.append(kp)
+    return missing
+
+
+async def _patch_missing_coverage(
+    topic_name:       str,
+    slide_text:       str,
+    missing_kps:      list[str],
+    proficiency:      str,
+    provider:         str,
+    api_sem:          asyncio.Semaphore | None = None,
+) -> str | None:
+    """
+    Generate a targeted supplement covering key_points that were missed in the
+    first-pass note. Returns a Markdown fragment (no ## heading) to append.
+    """
+    if not missing_kps:
+        return None
+    missing_block = "\n".join(f"{i+1}. {kp}" for i, kp in enumerate(missing_kps))
+    user = _safe_format(
+        _PATCH_USER,
+        topic=topic_name,
+        proficiency=proficiency,
+        missing_block=missing_block,
+        slide_snippet=slide_text[:3_000],
+    )
+    budget = _budget_for_topic(" " * (len(missing_kps) * 200), provider, proficiency)
+    async def _call():
+        if provider == "azure":
+            return await _call_azure(_PATCH_SYSTEM, user, max_tokens=budget)
+        return await _call_groq(_PATCH_SYSTEM, user, max_tokens=budget)
+    if api_sem:
+        async with api_sem:
+            return await _call()
+    return await _call()
+
+
+async def _ensure_full_coverage(
+    text:       str,
+    provider:   str,
+    topic,                           # SlideTopic
+    proficiency: str,
+    api_sem:    asyncio.Semaphore | None = None,
+) -> tuple[str, str]:
+    """
+    Run coverage audit on *text*.  If any key_points are missing, call
+    _patch_missing_coverage and append the result.
+    Always returns (final_text, provider).
+    """
+    if not topic.key_points:
+        return text, provider
+    missing = _coverage_check(topic.key_points, text)
+    if not missing:
+        return text, provider
+    logger.info(
+        "coverage_check: '%s' — %d/%d key_points missing %s, patching",
+        topic.topic, len(missing), len(topic.key_points), missing,
+    )
+    patch = await _patch_missing_coverage(
+        topic.topic, topic.slide_text, missing, proficiency, provider, api_sem
+    )
+    if patch and len(patch.strip()) > 30:
+        return text.rstrip() + "\n\n" + patch.strip(), provider
+    return text, provider
+
+
 # ── Per-topic generation ───────────────────────────────────────────────────
 
 def _budget_for_topic(slide_text: str, provider: str, proficiency: str = "Practitioner") -> int:
@@ -811,9 +924,11 @@ async def generate_topic_note(
         This guarantees EVERY slide's content appears in the final notes,
         regardless of how dense the topic is.
     """
+    # Numbered checklist format makes the LLM more likely to treat each item
+    # as a discrete obligation it must satisfy before finishing.
     key_points_block = (
-        "\n".join(f"- {kp}" for kp in topic.key_points)
-        if topic.key_points else "(extracted from slide content below)"
+        "\n".join(f"{i+1}. {kp}" for i, kp in enumerate(topic.key_points))
+        if topic.key_points else "(see slide content below — cover every formula, definition, and algorithm)"
     )
 
     # ── Determine provider ────────────────────────────────────────────────────
@@ -859,7 +974,8 @@ async def generate_topic_note(
             result = await _single_call()
         if result:
             result = _post_process_section(result, topic.topic)
-            return fix_latex_delimiters(_fix_tables(result)), provider
+            result = fix_latex_delimiters(_fix_tables(result))
+            return await _ensure_full_coverage(result, provider, topic, proficiency, api_sem)
         return _build_fallback_section(topic, textbook_context, proficiency), "local"
 
     # ── Long topic: split → parallel generate → merge ────────────────────────
@@ -900,19 +1016,22 @@ async def generate_topic_note(
 
     if len(drafts) == 1:
         result = _post_process_section(drafts[0], topic.topic)
-        return fix_latex_delimiters(_fix_tables(result)), provider
+        result = fix_latex_delimiters(_fix_tables(result))
+        return await _ensure_full_coverage(result, provider, topic, proficiency, api_sem)
 
     # Merge all drafts into one polished section
     merged = await _merge_drafts(topic.topic, drafts, textbook_context, proficiency, provider, api_sem=api_sem)
     if merged and len(merged.strip()) > 100:
         merged = _post_process_section(merged, topic.topic)
-        return fix_latex_delimiters(_fix_tables(merged)), provider
+        merged = fix_latex_delimiters(_fix_tables(merged))
+        return await _ensure_full_coverage(merged, provider, topic, proficiency, api_sem)
 
     # Merge failed — concatenate drafts directly and post-process
     logger.warning("generate_topic_note: merge failed for '%s' — concatenating drafts", topic.topic)
     combined = f"## {topic.topic}\n\n" + "\n\n".join(drafts)
     combined = _post_process_section(combined, topic.topic)
-    return fix_latex_delimiters(_fix_tables(combined)), provider
+    combined = fix_latex_delimiters(_fix_tables(combined))
+    return await _ensure_full_coverage(combined, provider, topic, proficiency, api_sem)
 
 
 def _build_fallback_section(

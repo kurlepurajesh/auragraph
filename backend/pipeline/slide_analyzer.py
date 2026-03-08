@@ -503,9 +503,45 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
     if all_topics:
         before_dedup = len(all_topics)
         all_topics = _deduplicate_topics(all_topics)
+
+        # ── Safety union with deterministic parser ───────────────────────────
+        # The LLM may have silently skipped individual slides even after the
+        # earlier fixes (finish_reason check / smaller chunks).  Run the regex
+        # parser on every chunk and add any slide whose content is NOT already
+        # represented by an LLM topic.
+        det_topics: list[SlideTopic] = []
+        for chunk in chunks:
+            det_topics.extend(_deterministic_parse(chunk))
+
+        # Build a combined blob of all text already covered by LLM topics
+        llm_covered_text = " ".join(t.slide_text.lower() for t in all_topics)
+
+        added = 0
+        for dt in det_topics:
+            # Take up to 3 distinctive words from the deterministic topic's body
+            sig_words = [
+                w for w in re.findall(r'[a-zA-Z]{5,}', dt.slide_text)
+                if w.lower() not in {"slide", "page", "figure", "table", "notes",
+                                     "lecture", "course", "university", "professor"}
+            ][:6]
+            if not sig_words:
+                continue
+            # If fewer than 2 of those words appear in any LLM topic, this slide
+            # was missed → add the deterministic topic so nothing is lost.
+            matches = sum(1 for w in sig_words if w.lower() in llm_covered_text)
+            if matches < 2:
+                all_topics.append(dt)
+                llm_covered_text += " " + dt.slide_text.lower()
+                added += 1
+                logger.info(
+                    "slide_analyzer: added LLM-missed slide '%s' from deterministic parser",
+                    dt.topic,
+                )
+
         logger.info(
-            "slide_analyzer: %d topics extracted → %d after deduplication (from %d chunks). Topics: %s",
-            before_dedup, len(all_topics), len(chunks),
+            "slide_analyzer: %d LLM topics → %d after dedup → +%d from safety union = %d total. Topics: %s",
+            before_dedup, before_dedup - (before_dedup - len(all_topics) + added),
+            added, len(all_topics),
             [t.topic for t in all_topics],
         )
         return all_topics
