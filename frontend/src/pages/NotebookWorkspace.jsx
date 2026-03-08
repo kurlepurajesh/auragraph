@@ -1490,18 +1490,22 @@ export default function NotebookWorkspace() {
 
     // Print: using isPrinting state so the useEffect fires only AFTER React
     // has committed the scroll-mode DOM update (all pages rendered), then prints.
+    // A small delay ensures KaTeX finishes rendering math across all pages.
     useEffect(() => {
         if (!isPrinting) return;
-        window.print();
-        setIsPrinting(false);
-        const restore = () => {
-            if (prevViewModeRef.current) {
-                setViewMode(prevViewModeRef.current);
-                prevViewModeRef.current = null;
-            }
-            window.removeEventListener('afterprint', restore);
-        };
-        window.addEventListener('afterprint', restore);
+        const timer = setTimeout(() => {
+            window.print();
+            setIsPrinting(false);
+            const restore = () => {
+                if (prevViewModeRef.current) {
+                    setViewMode(prevViewModeRef.current);
+                    prevViewModeRef.current = null;
+                }
+                window.removeEventListener('afterprint', restore);
+            };
+            window.addEventListener('afterprint', restore);
+        }, 400);
+        return () => clearTimeout(timer);
     }, [isPrinting]);
 
     const handlePrint = useCallback(() => {
@@ -2150,10 +2154,10 @@ export default function NotebookWorkspace() {
                                 const isHighlighted = jumpHighlightSet.has(idx);
                                 return (
                                     <div key={idx} className="note-page-card" style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: isHighlighted ? '0 0 0 3px #7C3AED, 0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: isHighlighted ? '1px solid #7C3AED' : '1px solid #d0d0d0', overflow: 'hidden', flex: 1, minWidth: 0, transition: 'box-shadow 0.4s, border-color 0.4s' }}>
-                                        <div style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
+                                        <div className="note-binder-rings" style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
                                             {[0, 1, 2, 3, 4, 5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />)}
                                         </div>
-                                        <div style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
+                                        <div className="note-margin-line" style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
                                         <div style={{ flex: 1, padding: '40px 48px 48px 36px', minWidth: 0 }}>
                                             <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
                                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
