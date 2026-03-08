@@ -1222,19 +1222,18 @@ function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
         },
         h2({ children }) {
             return (
-                <div style={{ marginTop: 40, marginBottom: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 4, height: 22, borderRadius: 3, background: 'linear-gradient(180deg,#7C3AED,#4F46E5)', flexShrink: 0 }} />
-                        <div style={{ fontSize: 17, fontWeight: 700, color: '#0F0A1E', lineHeight: 1.3, fontFamily: '"Sora",sans-serif', letterSpacing: '-0.01em' }}>{children}</div>
+                <div style={{ marginTop: 44, marginBottom: 18 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'linear-gradient(135deg,#F5F3FF,#EDE9FE)', borderRadius: 10, padding: '11px 16px', border: '1px solid #E4DAFF', boxShadow: '0 1px 6px rgba(124,58,237,0.08)' }}>
+                        <div style={{ width: 4, height: 24, borderRadius: 3, background: 'linear-gradient(180deg,#7C3AED,#4F46E5)', flexShrink: 0 }} />
+                        <div style={{ fontSize: 17, fontWeight: 700, color: '#1E0B3D', lineHeight: 1.3, fontFamily: '"Sora",sans-serif', letterSpacing: '-0.01em' }}>{children}</div>
                     </div>
-                    <div style={{ height: 1, background: 'linear-gradient(90deg,#EDE9FE,transparent)', marginTop: 10 }} />
                 </div>
             );
         },
         h3({ children }) {
             return (
-                <div style={{ marginTop: 24, marginBottom: 10 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, padding: '3px 10px', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"DM Sans",sans-serif' }}>
+                <div style={{ marginTop: 28, marginBottom: 12 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#5B21B6', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, padding: '4px 13px', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"DM Sans",sans-serif', boxShadow: '0 1px 4px rgba(124,58,237,0.10)' }}>
                         <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#7C3AED', flexShrink: 0, display: 'inline-block' }} />
                         {children}
                     </span>
@@ -1289,18 +1288,18 @@ function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
                 </div>
             );
             return (
-                <div style={{ background: '#FAFAFA', border: '1px solid #E4E4E7', borderLeft: '4px solid #A1A1AA', borderRadius: 10, padding: '13px 16px', margin: '14px 0', fontSize: 13.5, color: '#3F3F46', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>
+                <div style={{ background: 'linear-gradient(135deg,#FDFCFF,#F7F4FF)', border: '1px solid #EDE9FE', borderLeft: '4px solid #8B5CF6', borderRadius: 10, padding: '13px 16px', margin: '14px 0', fontSize: 13.5, color: '#2D1B4E', lineHeight: 1.8, fontFamily: '"DM Sans",sans-serif', boxShadow: '0 1px 6px rgba(124,58,237,0.06)' }}>{children}</div>
             );
         },
         strong({ children }) { return <strong style={{ fontWeight: 700, color: '#4C1D95', background: 'rgba(124,58,237,0.06)', borderRadius: 3, padding: '0 2px' }}>{children}</strong>; },
         em({ children }) { return <span style={{ fontStyle: 'italic', color: '#374151' }}>{children}</span>; },
         hr() { return <div style={{ border: 'none', height: 1, background: 'linear-gradient(90deg,transparent,#DDD6FE 30%,#DDD6FE 70%,transparent)', margin: '32px 0' }} />; },
-        p({ children }) { return <p style={{ marginBottom: 14, lineHeight: 1.95, color: '#1C1917', fontFamily: '"Source Serif 4",Georgia,serif', fontSize }}>{children}</p>; },
-        ul({ children }) { return <ul style={{ paddingLeft: 0, margin: '10px 0 16px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#1C1917', listStyle: 'none' }}>{children}</ul>; },
-        ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '10px 0 16px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#1C1917' }}>{children}</ol>; },
+        p({ children }) { return <p style={{ marginBottom: 16, lineHeight: 2.05, color: '#1C1917', fontFamily: '"Source Serif 4",Georgia,serif', fontSize, letterSpacing: '0.005em' }}>{children}</p>; },
+        ul({ children }) { return <ul style={{ paddingLeft: 0, margin: '12px 0 18px', lineHeight: 1.95, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#1C1917', listStyle: 'none' }}>{children}</ul>; },
+        ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '12px 0 18px', lineHeight: 1.95, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#1C1917' }}>{children}</ol>; },
         li({ children }) {
             return (
-                <li style={{ marginBottom: 7, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <li style={{ marginBottom: 9, display: 'flex', gap: 11, alignItems: 'flex-start' }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7C3AED', flexShrink: 0, marginTop: '0.55em', display: 'inline-block' }} />
                     <span style={{ flex: 1 }}>{children}</span>
                 </li>
@@ -2225,20 +2224,20 @@ export default function NotebookWorkspace() {
                         </div>
                     </div>
                 ) : (
-                    <div ref={noteScrollRef} onMouseUp={handleNoteMouseUp} data-print-scroll style={{ flex: 1, overflowY: 'auto', background: '#F0F2F5', padding: viewMode === 'two' ? '28px 16px' : '28px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div ref={noteScrollRef} onMouseUp={handleNoteMouseUp} data-print-scroll style={{ flex: 1, overflowY: 'auto', background: 'linear-gradient(160deg,#EEE8F8 0%,#F0EDF8 40%,#EBE5F5 100%)', padding: viewMode === 'two' ? '28px 16px' : '28px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         {(() => {
                             const onDoubtLink = (doubtId) => { setRightTab('doubts'); setTimeout(() => { document.getElementById(doubtId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150); };
                             const renderPage = (idx) => {
                                 if (idx < 0 || idx >= pages.length) return <div key={`empty-${idx}`} style={{ flex: 1, minWidth: 0 }} />;
                                 const isHighlighted = jumpHighlightSet.has(idx);
                                 return (
-                                    <div key={idx} className="note-page-card" style={{ display: 'flex', background: '#fff', borderRadius: 4, boxShadow: isHighlighted ? '0 0 0 3px #7C3AED, 0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.10)', border: isHighlighted ? '1px solid #7C3AED' : '1px solid #d0d0d0', overflow: 'hidden', flex: 1, minWidth: 0, transition: 'box-shadow 0.4s, border-color 0.4s' }}>
-                                        <div className="note-binder-rings" style={{ width: 38, background: '#F8FAFC', borderRight: '2px solid #E5E7EB', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
-                                            {[0, 1, 2, 3, 4, 5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #CBD5E1', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.15)' }} />)}
+                                    <div key={idx} className="note-page-card" style={{ display: 'flex', background: '#FEFDF9', borderRadius: 6, boxShadow: isHighlighted ? '0 0 0 3px #7C3AED, 0 2px 12px rgba(124,58,237,0.12), 0 16px 48px rgba(0,0,0,0.10)' : '0 2px 8px rgba(0,0,0,0.06), 0 8px 24px rgba(124,58,237,0.06), 0 20px 64px rgba(0,0,0,0.09)', border: isHighlighted ? '1px solid #7C3AED' : '1px solid #E8E0F0', overflow: 'hidden', flex: 1, minWidth: 0, transition: 'box-shadow 0.4s, border-color 0.4s' }}>
+                                        <div className="note-binder-rings" style={{ width: 40, background: 'linear-gradient(180deg,#F5F0FF,#EDE9FE)', borderRight: '2px solid #DDD6FE', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-evenly', padding: '32px 0', alignSelf: 'stretch', minHeight: 560 }}>
+                                            {[0, 1, 2, 3, 4, 5].map(i => <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', border: '2px solid #C4B5FD', boxShadow: 'inset 0 1px 3px rgba(124,58,237,0.18), 0 1px 2px rgba(124,58,237,0.12)' }} />)}
                                         </div>
-                                        <div className="note-margin-line" style={{ width: 1.5, background: '#FCA5A5', flexShrink: 0 }} />
+                                        <div className="note-margin-line" style={{ width: 1.5, background: 'linear-gradient(180deg,#C4B5FD 0%,#A78BFA 50%,#C4B5FD 100%)', flexShrink: 0 }} />
                                         <div style={{ flex: 1, padding: '40px 48px 48px 36px', minWidth: 0 }}>
-                                            <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #E5E7EB' }}>
+                                            <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #DDD6FE' }}>
                                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                     {mutatedPages.has(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EDE9FE', color: '#7C3AED', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
@@ -2259,7 +2258,7 @@ export default function NotebookWorkspace() {
                                                 </div>
                                             </div>
                                             <NoteRenderer content={pages[idx]} onDoubtLink={onDoubtLink} fontSize={fontSize} />
-                                            <div className="note-footer-bar" style={{ marginTop: 32, paddingTop: 10, borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div className="note-footer-bar" style={{ marginTop: 36, paddingTop: 10, borderTop: '1px solid #DDD6FE', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>{notebook?.course || ''}</span>
                                                 <span style={{ fontSize: 10, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>AuraGraph · {prof}</span>
                                             </div>
