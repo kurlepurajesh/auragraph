@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Header, HTTPException, Query
 
 import deps
-from deps import get_current_user, _require_notebook_owner, _is_azure_available, _is_groq_available, _azure_chat, _groq_chat
+from deps import get_current_user, _require_notebook_owner, _is_azure_available, _is_groq_available, _azure_chat, _groq_chat, _check_llm_rate_limit, _record_llm_call
 from schemas import (
     NotebookCreateRequest, NotebookUpdateRequest,
     SectionCreateRequest, SectionUpdateRequest, SectionReorderRequest, SectionGenerateRequest,
@@ -155,6 +155,7 @@ async def generate_section_note(
     from agents.notebook_store import get_section, update_section, rebuild_note_from_sections, update_notebook_note
     from agents.latex_utils import fix_latex_delimiters
     user = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])    # FIX: was missing — LLM call with no throttle
     nb   = _require_notebook_owner(nb_id, user)
     sec  = get_section(section_id)
     if not sec or sec["notebook_id"] != nb_id:
@@ -188,6 +189,7 @@ async def generate_section_note(
 
     from pipeline.note_generator import _fix_tables
     content = fix_latex_delimiters(_fix_tables(content))
+    _record_llm_call(user["id"], "azure" if _is_azure_available() else "groq", est_tokens=2048)
     updated = update_section(section_id, content=content)
     full_note = rebuild_note_from_sections(nb_id)
     update_notebook_note(nb_id, full_note, req.proficiency or nb.get("proficiency"))
@@ -219,3 +221,56 @@ async def update_notebook_graph_node(
             update_notebook_graph(nb_id, graph)
             return {"status": "success", "node": node}
     raise HTTPException(404, "Concept node not found")
+
+
+# ── Doubts sync endpoints ──────────────────────────────────────────────────────
+
+from typing import List as _List
+from pydantic import BaseModel as _BaseModel
+
+class _DoubtEntry(_BaseModel):
+    id:      str
+    pageIdx: int = 0
+    doubt:   str
+    insight: str = ""
+    gap:     str = ""
+    source:  str = "local"
+    success: bool = False
+    time:    str = ""
+
+
+@router.get("/api/notebooks/{nb_id}/doubts")
+async def get_doubts_endpoint(
+    nb_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    from agents.notebook_store import get_doubts
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)
+    return {"doubts": get_doubts(nb_id)}
+
+
+@router.post("/api/notebooks/{nb_id}/doubts")
+async def save_doubt_endpoint(
+    nb_id: str,
+    entry: _DoubtEntry,
+    authorization: Optional[str] = Header(None),
+):
+    from agents.notebook_store import save_doubt
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)
+    ok = save_doubt(nb_id, entry.model_dump())
+    return {"ok": ok}
+
+
+@router.delete("/api/notebooks/{nb_id}/doubts/{doubt_id}")
+async def delete_doubt_endpoint(
+    nb_id: str,
+    doubt_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    from agents.notebook_store import delete_doubt
+    user = get_current_user(authorization)
+    _require_notebook_owner(nb_id, user)
+    ok = delete_doubt(nb_id, doubt_id)
+    return {"ok": ok}

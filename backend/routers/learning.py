@@ -111,7 +111,7 @@ async def mutate_note(
     user = get_current_user(authorization)
     _check_llm_rate_limit(user["id"])
     _require_notebook_owner(req.notebook_id, user)
-    _username = user.get("username", "anonymous")
+    _username = user["id"]
 
     note_page = get_note_page(req.notebook_id, req.page_idx)
     if note_page is None:
@@ -182,6 +182,7 @@ async def regenerate_section(
     from pipeline.note_generator import _fix_tables
 
     user              = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])          # FIX: was missing — allowed unlimited API calls
     nb                = _require_notebook_owner(req.notebook_id, user)
     current_page_text = get_note_page(req.notebook_id, req.page_idx) or ""
 
@@ -238,6 +239,9 @@ async def regenerate_section(
         except Exception as e:
             logger.warning("Groq regenerate failed: %s", e)
 
+    if llm_source in ("azure", "groq"):
+        _record_llm_call(user["id"], llm_source, est_tokens=3000)
+
     if not new_section:
         new_section = current_page_text + "\n\n> *(Regeneration unavailable — AI offline. Original section kept.)*"
         llm_source  = "local"
@@ -265,9 +269,10 @@ async def sniper_exam(
     from agents.examiner_agent import SNIPER_EXAM_PROMPT
 
     user = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])     # FIX: was missing
     if req.notebook_id:
         _require_notebook_owner(req.notebook_id, user)
-    username = user.get("username", "anonymous")
+    username = user["id"]
 
     db         = get_db(username)
     nodes      = db.get("nodes", [])
@@ -354,6 +359,7 @@ async def examine_concept(
     from agents.examiner_agent import EXAMINER_PROMPT
 
     user = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])     # FIX: was missing
     if req.notebook_id:
         _require_notebook_owner(req.notebook_id, user)
 
@@ -401,6 +407,7 @@ async def concept_practice_endpoint(
     from agents.examiner_agent import CONCEPT_PRACTICE_PROMPT
 
     user  = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])     # FIX: was missing
     if req.notebook_id:
         _require_notebook_owner(req.notebook_id, user)
 

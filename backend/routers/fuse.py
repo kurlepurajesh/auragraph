@@ -14,7 +14,7 @@ import deps
 from deps import (
     get_current_user, _require_notebook_owner,
     _is_azure_available, _is_groq_available,
-    _check_llm_rate_limit,
+    _check_llm_rate_limit, _record_llm_call,
     _verify_note, _inject_figures_into_sections, _match_image_to_topic,
     _note_to_pages, _format_chunks_for_prompt,
     MAX_TOTAL_UPLOAD_BYTES, PIPELINE_TIMEOUT_S,
@@ -24,6 +24,23 @@ from schemas import FusionResponse, FusionRequest
 
 logger = logging.getLogger("auragraph")
 router = APIRouter(tags=["fuse"])
+
+# ── File type validation ───────────────────────────────────────────────────────
+_ALLOWED_EXTENSIONS = frozenset({
+    ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp",
+})
+
+def _validate_upload(upload: UploadFile) -> None:
+    """Reject any file whose extension is not in the allow-list."""
+    fname = (upload.filename or "").lower()
+    if not any(fname.endswith(ext) for ext in _ALLOWED_EXTENSIONS):
+        raise HTTPException(
+            415,
+            f"Unsupported file type: '{upload.filename}'. "
+            f"Allowed types: PDF and image files (PNG, JPG, WEBP, TIFF, BMP)."
+        )
+
+
 
 
 @router.post("/api/upload-fuse-multi", response_model=FusionResponse)
@@ -60,6 +77,7 @@ async def upload_fuse_multi(
     _total_bytes = 0
 
     for upload in slides_pdfs:
+        _validate_upload(upload)          # FIX: reject non-PDF/image uploads
         raw = await upload.read()
         fname = upload.filename or "slides.pdf"
         _total_bytes += len(raw)
@@ -173,6 +191,7 @@ async def upload_fuse_multi(
             else:
                 embedder.embed_chunks(textbook_semantic_chunks)
                 vector_db.add_chunks(textbook_semantic_chunks)
+                if notebook_id: vector_db.add_to_azure(notebook_id, textbook_semantic_chunks)
                 if notebook_id:
                     vector_db.save(notebook_id, textbook_hash=textbook_hash)
         except Exception as e:
@@ -190,7 +209,7 @@ async def upload_fuse_multi(
     if topics and vector_db.size > 0:
         try:
             retriever      = TopicRetriever(vector_db, embedder)
-            topic_contexts = retriever.retrieve_all_topics(topics)
+            topic_contexts = retriever.retrieve_all_topics(topics, nb_id=notebook_id or "")
         except Exception as e:
             logger.warning("Topic retrieval failed: %s", e)
 
@@ -332,6 +351,7 @@ async def upload_fuse_stream(
     _total_bytes, extraction_errors = 0, []
 
     for upload in slides_pdfs:
+        _validate_upload(upload)          # FIX: reject non-PDF/image uploads
         raw = await upload.read()
         fname = upload.filename or "slides.pdf"
         _total_bytes += len(raw)
@@ -347,6 +367,7 @@ async def upload_fuse_stream(
             extraction_errors.append(f"{fname}: {e}")
 
     for upload in (textbook_pdfs or []):
+        _validate_upload(upload)          # FIX: was missing in stream endpoint
         raw = await upload.read()
         fname = upload.filename or "textbook.pdf"
         _total_bytes += len(raw)
@@ -389,6 +410,7 @@ async def upload_fuse_stream(
             else:
                 embedder.embed_chunks(textbook_semantic_chunks)
                 vector_db.add_chunks(textbook_semantic_chunks)
+                if notebook_id: vector_db.add_to_azure(notebook_id, textbook_semantic_chunks)
                 if notebook_id:
                     vector_db.save(notebook_id, textbook_hash=textbook_hash)
         except Exception as e:
@@ -404,7 +426,7 @@ async def upload_fuse_stream(
     if topics and vector_db.size > 0:
         try:
             retriever      = TopicRetriever(vector_db, embedder)
-            topic_contexts = retriever.retrieve_all_topics(topics)
+            topic_contexts = retriever.retrieve_all_topics(topics, nb_id=notebook_id or "")
         except Exception:
             pass
 
@@ -473,12 +495,14 @@ async def fuse_knowledge(req: FusionRequest, authorization: Optional[str] = Head
     from pipeline.topic_retriever import TopicRetriever
     from pipeline.note_generator import run_generation_pipeline
 
-    get_current_user(authorization)
+    user = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])    # FIX: legacy endpoint had no rate limit
     slide_content    = req.slide_summary[:_PROMPT_SLIDES_BUDGET]
     textbook_content = req.textbook_paragraph[:_PROMPT_TEXTBOOK_BUDGET]
     nb_id            = req.notebook_id
 
     if nb_id:
+        _require_notebook_owner(nb_id, user)   # FIX: no ownership check before writing chunks
         try:
             tb_hash = hashlib.md5(textbook_content.encode()).hexdigest()[:16]
             store_source_chunks(nb_id=nb_id,
@@ -499,7 +523,7 @@ async def fuse_knowledge(req: FusionRequest, authorization: Optional[str] = Head
                 vector_db.add_chunks(tb_chunks)
             topic_contexts: dict[str, str] = {}
             if vector_db.size > 0:
-                topic_contexts = TopicRetriever(vector_db, embedder).retrieve_all_topics(topics)
+                topic_contexts = TopicRetriever(vector_db, embedder).retrieve_all_topics(topics, nb_id=nb_id or "")
             fused_note, source = await run_generation_pipeline(
                 topics=topics, topic_contexts=topic_contexts,
                 proficiency=req.proficiency, refine=True,

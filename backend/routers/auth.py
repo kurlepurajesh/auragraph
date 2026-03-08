@@ -108,7 +108,13 @@ async def auth_refresh(authorization: Optional[str] = Header(None)):
 
 @router.post("/auth/demo-login")
 async def auth_demo_login():
-    """One-click demo: returns a fixed demo-token and seeds a sample DSP notebook."""
+    """One-click demo: returns a fixed demo-token and seeds a sample DSP notebook.
+    Only works when DEMO_ENABLED=true is set in the environment.
+    """
+    import os
+    if os.environ.get("DEMO_ENABLED", "false").lower() != "true":
+        raise HTTPException(403, "Demo mode is disabled on this server.")
+
     from agents.notebook_store import get_notebooks, create_notebook, get_notebook, update_notebook_note
     from agents.concept_extractor import llm_extract_concepts
     from agents.notebook_store import update_notebook_graph

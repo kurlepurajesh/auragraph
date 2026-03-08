@@ -1,14 +1,12 @@
 """
-pipeline/embedder.py
-────────────────────
+pipeline/embedder.py — Azure OpenAI Embeddings + TF-IDF fallback
+─────────────────────────────────────────────────────────────────
 Generates dense vector embeddings for textbook chunks.
 
 Primary:  Azure OpenAI text-embedding-3-large  (1536-dim)
-Fallback: TF-IDF sparse vectors normalised to unit length (pure numpy, no deps)
-
-The fallback ensures the full pipeline works even without Azure credentials.
-It is weaker than dense embeddings but still far better than keyword Jaccard
-because it captures term frequency weighting across the whole corpus.
+          requires AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY +
+                   AZURE_EMBEDDING_DEPLOYMENT
+Fallback: TF-IDF sparse vectors normalised to unit length (pure numpy)
 """
 from __future__ import annotations
 
@@ -24,9 +22,8 @@ from pipeline.chunker import TextChunk
 
 logger = logging.getLogger(__name__)
 
-# ── Constants ─────────────────────────────────────────────────────────────────
-EMBEDDING_DIM_AZURE = 1536   # text-embedding-3-large output dimension
-EMBEDDING_DIM_TFIDF = 1024   # TF-IDF vocabulary cap (keeps memory reasonable)
+EMBEDDING_DIM_AZURE = 1536
+EMBEDDING_DIM_TFIDF = 1024
 
 _STOP = frozenset(
     "a an the is are was were be been being have has had do does did will would "
@@ -42,52 +39,48 @@ def _tokenise(text: str) -> list[str]:
     return [w for w in re.findall(r'\b[a-zA-Z]{2,}\b', text.lower()) if w not in _STOP]
 
 
-# ── Azure OpenAI Embeddings ───────────────────────────────────────────────────
+# ── Azure OpenAI Embeddings ──────────────────────────────────────────────────
 
-def _get_azure_embedding_client():
-    """Build an openai.AzureOpenAI client for embeddings (lazy import)."""
+def _azure_embedding_configured() -> bool:
+    endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+    api_key    = os.environ.get("AZURE_OPENAI_API_KEY", "")
+    deployment = os.environ.get("AZURE_EMBEDDING_DEPLOYMENT", "").strip()
+    return bool(
+        endpoint and api_key and deployment
+        and "mock"        not in endpoint.lower()
+        and "placeholder" not in endpoint.lower()
+        and "placeholder" not in api_key.lower()
+    )
+
+
+def _get_azure_client():
+    """Build an openai.AzureOpenAI client for embeddings."""
     try:
         import openai
-        endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
-        api_key  = os.environ.get("AZURE_OPENAI_API_KEY",  "")
-        api_ver  = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
-
-        if not endpoint or not api_key or "mock" in endpoint.lower():
-            return None
-
         return openai.AzureOpenAI(
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_ver,
+            azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/"),
+            api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
+            api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
         )
     except Exception as e:
-        logger.warning("openai client init failed: %s", e)
+        logger.warning("Azure embedding client init failed: %s", e)
         return None
 
 
 def _embed_azure(texts: list[str], client) -> Optional[np.ndarray]:
     """
-    Call Azure OpenAI embeddings for a batch of texts.
-    Returns shape (N, 1536) float32 array, or None on failure.
-
-    Requires AZURE_EMBEDDING_DEPLOYMENT to be explicitly set in the environment.
-    If absent we skip the Azure call entirely and let the TF-IDF fallback handle it —
-    this prevents DeploymentNotFound 404 errors when the tenant has no embedding model.
+    Call Azure OpenAI text-embedding-3-large for a batch of texts.
+    Returns (N, 1536) float32 L2-normalised array, or None on failure.
     """
     deployment = os.environ.get("AZURE_EMBEDDING_DEPLOYMENT", "").strip()
     if not deployment:
-        logger.debug("AZURE_EMBEDDING_DEPLOYMENT not set — skipping Azure, using TF-IDF")
         return None
     try:
-        # Azure has a max batch size of 16 for embeddings
         all_vecs = []
-        for i in range(0, len(texts), 16):
-            batch = texts[i:i+16]
-            resp  = client.embeddings.create(model=deployment, input=batch)
-            vecs  = [item.embedding for item in resp.data]
-            all_vecs.extend(vecs)
+        for i in range(0, len(texts), 16):   # Azure max batch = 16
+            resp = client.embeddings.create(model=deployment, input=texts[i:i+16])
+            all_vecs.extend(item.embedding for item in resp.data)
         arr = np.array(all_vecs, dtype=np.float32)
-        # L2-normalise
         norms = np.linalg.norm(arr, axis=1, keepdims=True)
         norms = np.where(norms == 0, 1.0, norms)
         return arr / norms
@@ -96,33 +89,22 @@ def _embed_azure(texts: list[str], client) -> Optional[np.ndarray]:
         return None
 
 
-# ── TF-IDF Fallback ───────────────────────────────────────────────────────────
+# ── TF-IDF fallback ──────────────────────────────────────────────────────────
 
 class _TFIDFVectoriser:
-    """
-    Minimal TF-IDF vectoriser using numpy only.
-    Vocabulary is built from the corpus and capped at EMBEDDING_DIM_TFIDF terms.
-    """
-
     def __init__(self):
-        self.vocab: dict[str, int] = {}   # term → column index
-        self.idf:   np.ndarray     = np.array([])
+        self.vocab: dict[str, int] = {}
+        self.idf: np.ndarray = np.array([])
 
     def fit(self, corpus: list[str]) -> None:
-        """Build vocabulary and IDF weights from corpus."""
-        # Count document frequency
         df: dict[str, int] = {}
         tokenised = [_tokenise(t) for t in corpus]
         N = len(corpus)
         for tokens in tokenised:
             for term in set(tokens):
                 df[term] = df.get(term, 0) + 1
-
-        # Pick top EMBEDDING_DIM_TFIDF terms by document frequency
-        top_terms = sorted(df.items(), key=lambda x: -x[1])[:EMBEDDING_DIM_TFIDF]
-        self.vocab = {term: idx for idx, (term, _) in enumerate(top_terms)}
-
-        # IDF: log((N+1) / (df+1)) + 1  (smooth IDF)
+        top = sorted(df.items(), key=lambda x: -x[1])[:EMBEDDING_DIM_TFIDF]
+        self.vocab = {term: idx for idx, (term, _) in enumerate(top)}
         dim = len(self.vocab)
         idf_arr = np.ones(dim, dtype=np.float32)
         for term, idx in self.vocab.items():
@@ -130,11 +112,9 @@ class _TFIDFVectoriser:
         self.idf = idf_arr
 
     def transform(self, texts: list[str]) -> np.ndarray:
-        """Transform texts into L2-normalised TF-IDF vectors."""
         dim = len(self.vocab)
         if dim == 0:
             return np.zeros((len(texts), 1), dtype=np.float32)
-
         mat = np.zeros((len(texts), dim), dtype=np.float32)
         for row, text in enumerate(texts):
             tokens = _tokenise(text)
@@ -146,8 +126,6 @@ class _TFIDFVectoriser:
                 if term in self.vocab:
                     col = self.vocab[term]
                     mat[row, col] = (count / total) * self.idf[col]
-
-        # L2-normalise each row
         norms = np.linalg.norm(mat, axis=1, keepdims=True)
         norms = np.where(norms == 0, 1.0, norms)
         return mat / norms
@@ -157,31 +135,21 @@ class _TFIDFVectoriser:
 
 class Embedder:
     """
-    Embed a list of TextChunks in-place.
-    Tries Azure first; falls back to TF-IDF if Azure is unavailable.
-
-    Usage:
-        embedder = Embedder()
-        embedder.embed_chunks(chunks)          # fills chunk.embedding
-        vec = embedder.embed_query("Fourier")  # single query vector
+    Embed TextChunks in-place.
+    Azure OpenAI text-embedding-3-large → TF-IDF fallback.
     """
 
     def __init__(self):
-        self._azure_client = _get_azure_embedding_client()
+        self._azure_client = _get_azure_client() if _azure_embedding_configured() else None
         self._tfidf: Optional[_TFIDFVectoriser] = None
         self._dim: int = 0
 
     def embed_chunks(self, chunks: list[TextChunk]) -> str:
-        """
-        Embed all chunks in-place (sets chunk.embedding).
-        Returns 'azure' or 'tfidf' to indicate which backend was used.
-        """
+        """Embed all chunks in-place. Returns 'azure' or 'tfidf'."""
         if not chunks:
             return "none"
-
         texts = [c.text for c in chunks]
 
-        # Try Azure
         if self._azure_client is not None:
             vecs = _embed_azure(texts, self._azure_client)
             if vecs is not None:
@@ -191,12 +159,11 @@ class Embedder:
                 logger.info("Embedded %d chunks via Azure (dim=%d)", len(chunks), self._dim)
                 return "azure"
 
-        # Fallback: TF-IDF
         logger.info("Azure embedding unavailable — using TF-IDF fallback")
-        vectoriser = _TFIDFVectoriser()
-        vectoriser.fit(texts)
-        vecs = vectoriser.transform(texts)
-        self._tfidf = vectoriser
+        v = _TFIDFVectoriser()
+        v.fit(texts)
+        vecs = v.transform(texts)
+        self._tfidf = v
         self._dim   = vecs.shape[1]
         for chunk, vec in zip(chunks, vecs):
             chunk.embedding = vec.tolist()
@@ -204,43 +171,27 @@ class Embedder:
         return "tfidf"
 
     def embed_query(self, query: str) -> Optional[np.ndarray]:
-        """
-        Embed a single query string.
-        Returns a 1-D numpy array, or None if embeddings were never initialised.
-        """
+        """Embed a single query. Returns 1-D numpy array or None."""
         if self._azure_client is not None:
             vecs = _embed_azure([query], self._azure_client)
             if vecs is not None:
                 return vecs[0]
-
         if self._tfidf is not None:
             return self._tfidf.transform([query])[0]
-
         return None
 
-
     def rebuild_from_chunks(self, chunks: list) -> None:
-        """
-        FIX B4: Rebuild the TF-IDF vectoriser from chunks that were loaded
-        from a persisted VectorDB index.  Without this, a fresh Embedder
-        instance has _tfidf=None, so embed_query always returns None and
-        every TopicRetriever query silently fails.
-
-        Only rebuilds TF-IDF (Azure client is always reconstructed from env
-        vars in __init__, so it doesn't need rebuilding).
-        """
+        """Rebuild TF-IDF vectoriser from previously persisted chunks (no Azure needed)."""
         if self._azure_client is not None:
-            # Azure is available — no need to rebuild TF-IDF
-            return
+            return   # Azure always reconstructs from env vars
         if not chunks:
             return
         texts = [c.text for c in chunks if hasattr(c, "text")]
         if not texts:
             return
-        vectoriser = _TFIDFVectoriser()
-        vectoriser.fit(texts)
-        self._tfidf = vectoriser
-        # Don't set embeddings on chunks — they already have them from disk
+        v = _TFIDFVectoriser()
+        v.fit(texts)
+        self._tfidf = v
         logger.info("Embedder.rebuild_from_chunks: TF-IDF refitted on %d chunks", len(texts))
 
     @property

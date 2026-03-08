@@ -1,17 +1,26 @@
 """schemas.py — all Pydantic request/response models for AuraGraph."""
 from __future__ import annotations
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 
 class AuthRequest(BaseModel):
+    """Login / register request.
+
+    Accepts either `email` or `username`; `identifier` is computed automatically.
+    Uses a `model_validator` instead of `@property` so Pydantic v2 sees it properly.
+    """
     email:    Optional[str] = None
     username: Optional[str] = None
-    password: str
+    password: str = Field(..., min_length=8, max_length=128)
 
-    @property
-    def identifier(self) -> str:
-        return (self.email or self.username or "").strip()
+    # Computed — not sent by the client; populated by the validator below.
+    identifier: str = Field(default="", init=False)
+
+    @model_validator(mode="after")
+    def _resolve_identifier(self) -> "AuthRequest":
+        self.identifier = (self.email or self.username or "").strip()
+        return self
 
 
 class FusionResponse(BaseModel):
@@ -23,7 +32,7 @@ class FusionResponse(BaseModel):
 
 class DoubtRequest(BaseModel):
     notebook_id: str
-    doubt:       str
+    doubt:       str = Field(..., min_length=1, max_length=2000)
     page_idx:    int = 0
 
 
@@ -37,9 +46,9 @@ class DoubtResponse(BaseModel):
 
 class MutationRequest(BaseModel):
     notebook_id:        str
-    doubt:              str
+    doubt:              str = Field(..., min_length=1, max_length=2000)
     page_idx:           int = 0
-    original_paragraph: Optional[str] = None
+    original_paragraph: Optional[str] = Field(default=None, max_length=8000)
 
 
 class MutationResponse(BaseModel):
@@ -55,7 +64,7 @@ class RegenerateSectionRequest(BaseModel):
     notebook_id:   str
     page_idx:      int
     proficiency:   str = "Practitioner"
-    custom_prompt: Optional[str] = None  # optional direction from the student
+    custom_prompt: Optional[str] = Field(default=None, max_length=500)
 
 
 class RegenerateSectionResponse(BaseModel):
@@ -105,8 +114,8 @@ class ConceptExtractRequest(BaseModel):
 
 
 class NotebookCreateRequest(BaseModel):
-    name:   str
-    course: str
+    name:   str = Field(..., min_length=1, max_length=120)
+    course: str = Field(default="", max_length=120)
 
 
 class NotebookUpdateRequest(BaseModel):

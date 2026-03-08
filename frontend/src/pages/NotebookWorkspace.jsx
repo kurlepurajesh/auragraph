@@ -138,7 +138,7 @@ export default function NotebookWorkspace() {
                 setNote(newNote);
                 await saveNote(newNote, prof);
                 const entry = { id: lid, pageIdx: currentPage, doubt, insight: 'AI unavailable — doubt saved. Your note has a reminder link. Retry when back online.', gap: data.concept_gap || '', source: 'local', time: ts, success: false, unresolved: true };
-                setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
+                setDoubtsLog(prev => [entry, ...prev]);
                 setRightTab('doubts');
             } else {
                 // LLM succeeded — replace the page with the rewritten version
@@ -160,7 +160,7 @@ export default function NotebookWorkspace() {
                 // Never extract a 2-word 💡 snippet — the student needs a real answer.
                 const insight = data.answer || data.concept_gap || 'Your note was rewritten to address this doubt.';
                 const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true, kind: 'mutated' };
-                setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
+                setDoubtsLog(prev => [entry, ...prev]);
                 setRightTab('doubts');
             }
         } catch (err) {
@@ -172,7 +172,7 @@ export default function NotebookWorkspace() {
                     : err?.message || 'Could not reach the backend.',
             }));
             const entry = { id: lid, pageIdx: currentPage, doubt, insight: 'Could not reach backend. Your doubt has been recorded.', gap: 'Backend unreachable', time: ts, success: false };
-            setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
+            setDoubtsLog(prev => [entry, ...prev]);
             setRightTab('doubts');
         }
     }, [note, prof, id, currentPage, pages]);
@@ -587,7 +587,7 @@ export default function NotebookWorkspace() {
 
             {textSelection && (
                 <div style={{ position: 'fixed', left: textSelection.x, top: textSelection.y - 8, transform: 'translateX(-50%) translateY(-100%)', zIndex: 9999, background: '#1E1B4B', borderRadius: 8, padding: '6px 10px', display: 'flex', gap: 6, boxShadow: '0 4px 24px rgba(0,0,0,0.35)', alignItems: 'center', pointerEvents: 'auto' }}>
-                    <MessageCircle size={11} color="#C4B5FD" />
+                    <MessageCircle size={11} color="var(--ag-purple-ring)" />
                     <span style={{ color: 'var(--ag-ring-left)', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{textSelection.text.length > 45 ? textSelection.text.slice(0, 45) + '…' : textSelection.text}</span>
                     <button onClick={() => { setPendingSelectionText(textSelection.text); setTextSelection(null); setMutating(true); }} style={{ background: 'var(--ag-purple)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Ask about this</button>
                     <button onClick={() => setTextSelection(null)} style={{ background: 'none', border: '1px solid #4C1D95', color: 'var(--ag-ring-right)', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>&#x2715;</button>
@@ -657,7 +657,7 @@ export default function NotebookWorkspace() {
                     </div>
                 </div>
             )}
-            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true, kind: 'answered' }; setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; }); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
+            {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true, kind: 'answered' }; setDoubtsLog(prev => [entry, ...prev]); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
             {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx) => { setCurrentPage(idx); }} onClose={() => setShowSearch(false)} />}
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
         </div>

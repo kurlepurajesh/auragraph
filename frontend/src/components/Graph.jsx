@@ -193,7 +193,7 @@ export function KnowledgeGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
                         <text x={cx} y={cy + 24} textAnchor="middle" fontSize={9} fill="var(--text2)" fontWeight={sel ? 700 : 500} style={{ pointerEvents: 'none', userSelect: 'none' }}>{lbl}</text>
                         {(n.mutation_count || 0) > 0 && (
                             <g>
-                                <circle cx={cx + 9} cy={cy - 9} r={5.5} fill="#7C3AED" />
+                                <circle cx={cx + 9} cy={cy - 9} r={5.5} fill="var(--ag-purple)" />
                                 <text x={cx + 9} y={cy - 9 + 4} textAnchor="middle" fontSize={7} fill="#fff" fontWeight={700} style={{ pointerEvents: 'none', userSelect: 'none' }}>{n.mutation_count}</text>
                             </g>
                         )}

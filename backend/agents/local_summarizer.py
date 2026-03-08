@@ -8,7 +8,7 @@ from agents.local_summarizer_utils import (
     _clean_pdf_text, _parse_slide_sections, _detect_heading_sections,
     _find_best_textbook_paragraph, _extract_enrichment, _extract_math_and_prose,
     _split_sentences, _score_and_pick, _get_analogy, _formula_hint, _exam_tip,
-    _math_block, _raw_to_latex,
+    _math_block, _raw_to_latex, _is_math_line,
 )
 
 __all__ = ["generate_local_note", "_PROF"]

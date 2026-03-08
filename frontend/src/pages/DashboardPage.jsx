@@ -173,7 +173,7 @@ function NotebookCard({ nb, onOpen, onDelete }) {
 
     const profColor = {
         Foundations: { bg: '#ECFDF5', text: '#059669', border: '#A7F3D0' },
-        Practitioner: { bg: '#F5F3FF', text: 'var(--ag-purple)', border: '#DDD6FE' },
+        Practitioner: { bg: 'var(--ag-purple-bg)', text: 'var(--ag-purple)', border: 'var(--ag-purple-border)' },
         Expert: { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
     }[nb.proficiency] || { bg: 'var(--surface2)', text: 'var(--text3)', border: 'var(--border)' };
 
@@ -183,7 +183,7 @@ function NotebookCard({ nb, onOpen, onDelete }) {
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 42, height: 42, borderRadius: 11, background: 'linear-gradient(135deg,#7C3AED22,#7C3AED44)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #7C3AED33' }}>
-                        <BookMarked size={19} color="#7C3AED" />
+                        <BookMarked size={19} color="var(--ag-purple)" />
                     </div>
                     <div>
                         <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', lineHeight: 1.3 }}>{nb.name}</div>
@@ -405,7 +405,7 @@ export default function DashboardPage() {
                 {/* Stats row */}
                 {!loading && (notebooks.length > 0 || masteryStats.total > 0) && (
                     <div style={{ display: 'flex', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
-                        <StatCard icon={<BookOpen />} label="Notebooks" value={notebooks.length} color="#7C3AED" sublabel={notebooksWithNotes > 0 ? `${notebooksWithNotes} with notes` : null} />
+                        <StatCard icon={<BookOpen />} label="Notebooks" value={notebooks.length} color="var(--ag-purple)" sublabel={notebooksWithNotes > 0 ? `${notebooksWithNotes} with notes` : null} />
                         <StatCard icon={<Target />} label="Concepts tracked" value={totalConcepts || '—'} color="#2563EB" sublabel={totalConcepts > 0 ? `${masteryStats.mastered} mastered` : null} />
                         <StatCard icon={<TrendingUp />} label="Study streak" value={streak > 0 ? `${streak}d` : '0d'} color="#FF6B35" sublabel={streak > 0 ? 'Keep it up! 🔥' : 'Start today!'} />
                         {masteryStats.total > 0 && (
@@ -444,7 +444,7 @@ export default function DashboardPage() {
                 ) : notebooks.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '80px 0' }}>
                         <div style={{ width: 72, height: 72, borderRadius: 18, background: 'linear-gradient(135deg,#7C3AED22,#2563EB22)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', border: '1px solid #7C3AED33' }}>
-                            <BookOpen size={30} color="#7C3AED" />
+                            <BookOpen size={30} color="var(--ag-purple)" />
                         </div>
                         <h3 style={{ color: 'var(--text)', marginBottom: 10, fontSize: 18 }}>No notebooks yet</h3>
                         <p style={{ fontSize: 14, color: 'var(--text3)', marginBottom: 28, lineHeight: 1.75, maxWidth: 360, margin: '0 auto 28px' }}>
@@ -470,8 +470,8 @@ export default function DashboardPage() {
                                     >
                                         <div style={{ width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(135deg,#7C3AED22,#2563EB22)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #7C3AED22' }}>
                                             {collapsed
-                                                ? <Folder size={14} color="#7C3AED" />
-                                                : <FolderOpen size={14} color="#7C3AED" />}
+                                                ? <Folder size={14} color="var(--ag-purple)" />
+                                                : <FolderOpen size={14} color="var(--ag-purple)" />}
                                         </div>
                                         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', flexGrow: 1, textAlign: 'left' }}>
                                             {courseKey}

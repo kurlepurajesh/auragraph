@@ -58,10 +58,11 @@ def test_expired_token_rejected(monkeypatch, tmp_path):
     token = reg["token"]
 
     # Backdate the token_issued_at to be older than TOKEN_TTL_SECONDS
+    # NOTE: the DB stores _hash_token(token), so we must query by the hash.
     import sqlite3
     with sqlite3.connect(str(au.DB_PATH)) as con:
         past = time.time() - au.TOKEN_TTL_SECONDS - 1
-        con.execute("UPDATE users SET token_issued_at=? WHERE token=?", (past, token))
+        con.execute("UPDATE users SET token_issued_at=? WHERE token=?", (past, au._hash_token(token)))
         con.commit()
 
     assert validate_token(token) is None

@@ -23,6 +23,20 @@ except ImportError:
         "bcrypt not installed — falling back to SHA-256 (pip install bcrypt for production)"
     )
 
+import hashlib as _hashlib
+import hmac as _hmac
+
+_TOKEN_PEPPER = os.environ.get("TOKEN_PEPPER", "auragraph-default-pepper-change-in-prod")
+
+
+def _hash_token(token: str) -> str:
+    """HMAC-SHA256 of the raw token — what gets stored in DB.
+    The raw token is returned to the client and never stored.
+    If the DB is leaked, stored hashes cannot be used directly as bearer tokens.
+    """
+    return _hmac.new(_TOKEN_PEPPER.encode(), token.encode(), _hashlib.sha256).hexdigest()
+
+
 logger = logging.getLogger("auragraph")
 DB_PATH = Path(__file__).parent.parent / "auragraph.db"
 TOKEN_TTL_SECONDS = 7 * 24 * 3600   # 7 days
@@ -76,9 +90,14 @@ def _hash_password(password: str) -> str:
         return _bcrypt_lib.hashpw(
             password.encode("utf-8"), _bcrypt_lib.gensalt(rounds=12)
         ).decode("utf-8")
-    # Fallback: SHA-256 (dev only)
-    import hashlib
-    return hashlib.sha256(password.encode()).hexdigest()
+    # FIX: Never silently downgrade to SHA-256 for new passwords.
+    # SHA-256 without salting is trivially reversible via rainbow tables.
+    # If bcrypt is unavailable, registration must fail loudly so the operator
+    # installs bcrypt rather than unknowingly storing weak password hashes.
+    raise RuntimeError(
+        "bcrypt is required for password hashing but is not installed. "
+        "Run: pip install bcrypt>=4.0.0"
+    )
 
 
 def _verify_password(password: str, stored_hash: str) -> bool:
@@ -105,7 +124,7 @@ def register_user(email: str, password: str) -> Optional[dict]:
         with _conn() as con:
             con.execute(
                 "INSERT INTO users VALUES (?,?,?,?,?,?)",
-                (uid, email, _hash_password(password), token, time.time(), name)
+                (uid, email, _hash_password(password), _hash_token(token), time.time(), name)
             )
     except sqlite3.IntegrityError:
         return None
@@ -119,7 +138,7 @@ def login_user(email: str, password: str) -> Optional[dict]:
             return None
         new_token = str(uuid.uuid4())
         con.execute("UPDATE users SET token=?, token_issued_at=? WHERE id=?",
-                    (new_token, time.time(), row["id"]))
+                    (_hash_token(new_token), time.time(), row["id"]))
     return {"id": row["id"], "email": row["email"],
             "token": new_token, "name": row["name"]}
 
@@ -133,14 +152,14 @@ _DEMO_USER = {
 
 # Set DEMO_ENABLED=true in the environment to allow the hard-coded dev demo token.
 # Never enable this in production — real users always auth via register/login endpoints.
-_DEMO_ENABLED: bool = os.environ.get("DEMO_ENABLED", "true").lower() == "true"
+_DEMO_ENABLED: bool = os.environ.get("DEMO_ENABLED", "false").lower() == "true"
 
 
 def validate_token(token: str) -> Optional[dict]:
     if _DEMO_ENABLED and token == "demo-token":
         return dict(_DEMO_USER)
     with _conn() as con:
-        row = con.execute("SELECT * FROM users WHERE token=?", (token,)).fetchone()
+        row = con.execute("SELECT * FROM users WHERE token=?", (_hash_token(token),)).fetchone()
     if not row:
         return None
     if time.time() - row["token_issued_at"] > TOKEN_TTL_SECONDS:
@@ -158,7 +177,7 @@ def refresh_token(token: str) -> Optional[dict]:
     if _DEMO_ENABLED and token == "demo-token":
         return dict(_DEMO_USER)
     with _conn() as con:
-        row = con.execute("SELECT * FROM users WHERE token=?", (token,)).fetchone()
+        row = con.execute("SELECT * FROM users WHERE token=?", (_hash_token(token),)).fetchone()
     if not row:
         return None
     if time.time() - row["token_issued_at"] > TOKEN_TTL_SECONDS:

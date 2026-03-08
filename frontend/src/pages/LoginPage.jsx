@@ -127,7 +127,7 @@ export default function LoginPage() {
                         <button
                             type="button"
                             className="btn btn-secondary btn-lg"
-                            style={{ width: '100%', gap: 8, background: 'linear-gradient(135deg, #F5F3FF, #EDE9FE)', border: '1px solid #C4B5FD', color: '#5B21B6' }}
+                            style={{ width: '100%', gap: 8, background: 'linear-gradient(135deg, #F5F3FF, #EDE9FE)', border: '1px solid #C4B5FD', color: 'var(--ag-purple-medium)' }}
                             onClick={tryDemo}
                             disabled={demoLoading}
                         >

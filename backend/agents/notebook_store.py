@@ -52,6 +52,19 @@ def _init_db():
                 updated_at  TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_sec_nb ON sections(notebook_id, order_idx);
+
+            CREATE TABLE IF NOT EXISTS doubts (
+                id          TEXT PRIMARY KEY,
+                notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+                page_idx    INTEGER NOT NULL DEFAULT 0,
+                doubt       TEXT NOT NULL,
+                insight     TEXT NOT NULL DEFAULT '',
+                gap         TEXT NOT NULL DEFAULT '',
+                source      TEXT NOT NULL DEFAULT 'local',
+                success     INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_doubts_nb ON doubts(notebook_id, created_at DESC);
         """)
     _migrate_from_json()
 
@@ -253,3 +266,81 @@ def rebuild_note_from_sections(nb_id: str) -> str:
 
 
 _init_db()
+
+# ── Doubts API ─────────────────────────────────────────────────────────────────
+
+def save_doubt(nb_id: str, doubt_entry: dict) -> bool:
+    """Persist a single doubt entry to the backend DB.
+    Replaces any existing entry with the same id (upsert)."""
+    import time as _time
+    try:
+        with _conn() as con:
+            con.execute(
+                """
+                INSERT INTO doubts (id, notebook_id, page_idx, doubt, insight, gap,
+                                    source, success, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET
+                    insight = excluded.insight,
+                    gap     = excluded.gap,
+                    source  = excluded.source,
+                    success = excluded.success
+                """,
+                (
+                    str(doubt_entry.get("id", "")),
+                    nb_id,
+                    int(doubt_entry.get("pageIdx", 0)),
+                    str(doubt_entry.get("doubt", "")),
+                    str(doubt_entry.get("insight", "")),
+                    str(doubt_entry.get("gap", "")),
+                    str(doubt_entry.get("source", "local")),
+                    1 if doubt_entry.get("success") else 0,
+                    str(doubt_entry.get("time", "")),
+                ),
+            )
+        return True
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger("auragraph").warning("save_doubt failed: %s", exc)
+        return False
+
+
+def get_doubts(nb_id: str) -> list:
+    """Return all doubts for a notebook, newest first."""
+    try:
+        with _conn() as con:
+            rows = con.execute(
+                "SELECT * FROM doubts WHERE notebook_id=? ORDER BY created_at DESC",
+                (nb_id,),
+            ).fetchall()
+        return [
+            {
+                "id":       r["id"],
+                "pageIdx":  r["page_idx"],
+                "doubt":    r["doubt"],
+                "insight":  r["insight"],
+                "gap":      r["gap"],
+                "source":   r["source"],
+                "success":  bool(r["success"]),
+                "time":     r["created_at"],
+            }
+            for r in rows
+        ]
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger("auragraph").warning("get_doubts failed: %s", exc)
+        return []
+
+
+def delete_doubt(nb_id: str, doubt_id: str) -> bool:
+    """Delete a single doubt entry."""
+    try:
+        with _conn() as con:
+            con.execute(
+                "DELETE FROM doubts WHERE id=? AND notebook_id=?",
+                (doubt_id, nb_id),
+            )
+        return True
+    except Exception:
+        return False
+

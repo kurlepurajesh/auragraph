@@ -18,7 +18,7 @@ async def get_graph(authorization: Optional[str] = Header(None)):
     """Returns the calling user's global concept graph (mastery store)."""
     from agents.mastery_store import get_db
     user = get_current_user(authorization)
-    return get_db(user.get("username", "anonymous"))
+    return get_db(user["id"])
 
 
 @router.post("/api/graph/update")
@@ -28,7 +28,7 @@ async def update_graph(
 ):
     from agents.mastery_store import update_node_status
     user    = get_current_user(authorization)
-    updated = update_node_status(req.concept_name, req.status, user.get("username", "anonymous"))
+    updated = update_node_status(req.concept_name, req.status, user["id"])
     if not updated:
         raise HTTPException(404, "Node not found")
     return {"status": "success", "node": updated}

@@ -26,6 +26,7 @@ Retrieval uses Jaccard keyword overlap (fast, deterministic, no embeddings).
 """
 
 import json
+import os
 import re
 import threading
 import uuid
@@ -94,6 +95,27 @@ def _save_store(nb_id: str, store: dict):
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
+# ── Storage hygiene ────────────────────────────────────────────────────────────
+# Limit per-notebook knowledge store to 20 MB (raw source text).
+# Beyond this the Jaccard retrieval gets slow and LLM context windows overflow anyway.
+_MAX_STORE_BYTES = int(os.environ.get("MAX_KS_MB", "20")) * 1024 * 1024
+
+
+def cleanup_orphaned_stores(active_nb_ids: set) -> int:
+    """Delete knowledge store JSON files that belong to deleted notebooks.
+    Call this periodically (e.g. from a background task or on notebook delete).
+    Returns the count of files removed."""
+    removed = 0
+    for p in STORE_DIR.glob("*.json"):
+        if p.stem not in active_nb_ids:
+            try:
+                p.unlink()
+                removed += 1
+            except OSError:
+                pass
+    return removed
+
 
 class Chunk:
     """A single stored piece of source material."""
@@ -174,6 +196,24 @@ def store_source_chunks(
             heading=heading,
             text=text.strip(),
         ).to_dict())
+
+    # Enforce per-notebook size cap to prevent unbounded disk growth
+    total_chars = sum(len(c["text"]) for c in all_chunks)
+    if total_chars > _MAX_STORE_BYTES:
+        import logging as _log
+        _log.getLogger("auragraph").warning(
+            "Knowledge store for %s exceeds %d MB limit (%d chars) — "
+            "truncating to first %d chunks.",
+            nb_id, _MAX_STORE_BYTES // 1024 // 1024, total_chars, len(all_chunks)
+        )
+        # Keep as many chunks as fit within the budget
+        kept, budget = [], _MAX_STORE_BYTES
+        for chunk in all_chunks:
+            if budget - len(chunk["text"]) < 0:
+                break
+            kept.append(chunk)
+            budget -= len(chunk["text"])
+        all_chunks = kept
 
     with _get_store_lock(nb_id):
         store = _load_store(nb_id)

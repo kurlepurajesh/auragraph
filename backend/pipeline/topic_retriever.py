@@ -1,153 +1,70 @@
 """
-pipeline/topic_retriever.py
-────────────────────────────
-Step 5 — Topic-Based Retrieval.
-
-For each lecture topic, builds a rich retrieval query from:
-  - topic name
-  - key points from slides
-
-Then searches the vector DB to find the 5-7 most relevant textbook chunks.
-
-This ensures each note generation call gets exactly the textbook context
-it needs — not a generic dump of the whole book.
-
-Design principles:
-  - Query construction is deterministic (no LLM)
-  - Retrieval is semantic (vector similarity)
-  - Results are deduplicated across topics (same chunk can serve multiple topics)
-  - Fallback: if vector DB is empty, returns empty list (caller handles gracefully)
+pipeline/topic_retriever.py — RAG topic retrieval
+───────────────────────────────────────────────────
+For each slide topic, retrieves the most relevant textbook chunks using:
+  1. Azure AI Search (hybrid vector + BM25) — when configured
+  2. Numpy cosine similarity on in-memory VectorDB — always available
 """
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
-
-from pipeline.chunker import TextChunk
-from pipeline.embedder import Embedder
-from pipeline.slide_analyzer import SlideTopic
-from pipeline.vector_db import VectorDB
+if TYPE_CHECKING:
+    from pipeline.embedder import Embedder
+    from pipeline.vector_db import VectorDB
+    from pipeline.slide_analyzer import SlideTopic
 
 logger = logging.getLogger(__name__)
 
-# How many textbook chunks to retrieve per topic
-TOP_K_PER_TOPIC = 10
-
-# Max chars of textbook context to pass into note generation per topic
-MAX_CONTEXT_CHARS = 14_000
+_TEXTBOOK_BUDGET = 2000   # chars per topic in context window
 
 
-def _build_retrieval_query(topic: SlideTopic) -> str:
-    """
-    Build a rich retrieval query string for a topic.
-
-    Concatenates topic name + key points into a single string so the
-    embedding captures both the concept name and its specific facets.
-    """
-    parts = [topic.topic]
-    for kp in topic.key_points[:4]:
-        if kp.strip():
-            parts.append(kp.strip())
-    return " ".join(parts)
-
-
-def _format_chunks_as_context(chunks: list[tuple[TextChunk, float]]) -> str:
-    """
-    Format retrieved textbook chunks into a compact context string for the LLM.
-    Budget-capped at MAX_CONTEXT_CHARS.
-    Includes source metadata so the LLM knows where content came from.
-    """
-    parts = []
-    used  = 0
-    for chunk, score in chunks:
-        meta = ""
-        if chunk.chapter:
-            meta = f"[Chapter: {chunk.chapter}"
-            if chunk.section:
-                meta += f" | Section: {chunk.section}"
-            meta += "]"
-        else:
-            meta = "[Textbook]"
-
-        block = f"{meta}\n{chunk.text}\n"
-        if used + len(block) > MAX_CONTEXT_CHARS:
-            remaining = MAX_CONTEXT_CHARS - used - len(meta) - 10
-            if remaining > 200:
-                block = f"{meta}\n{chunk.text[:remaining].rsplit(' ', 1)[0]} …\n"
-            else:
-                break
+def _chunks_to_context(chunks) -> str:
+    parts, used = [], 0
+    for c in chunks:
+        text    = c.text if hasattr(c, "text") else str(c)
+        heading = getattr(c, "heading", "")
+        header  = f"[{heading}]\n" if heading else ""
+        block   = header + text + "\n"
+        if used + len(block) > _TEXTBOOK_BUDGET:
+            break
         parts.append(block)
         used += len(block)
-
     return "\n---\n".join(parts) if parts else ""
 
 
 class TopicRetriever:
-    """
-    Retrieves relevant textbook chunks for each lecture topic.
-
-    Usage:
-        retriever = TopicRetriever(vector_db, embedder)
-        context = retriever.retrieve_for_topic(topic)
-        # context is a formatted string ready to inject into the note prompt
-    """
-
-    def __init__(self, vector_db: VectorDB, embedder: Embedder):
+    def __init__(self, vector_db: "VectorDB", embedder: "Embedder"):
         self._db      = vector_db
         self._embedder = embedder
 
-    def retrieve_for_topic(
-        self,
-        topic: SlideTopic,
-        top_k: int = TOP_K_PER_TOPIC,
-    ) -> str:
+    def retrieve_for_topic(self, topic: "SlideTopic",
+                           nb_id: str = "", top_k: int = 4) -> str:
         """
-        Retrieve and format textbook context for a single topic.
-
-        Returns a formatted string of relevant textbook passages,
-        or empty string if nothing relevant is found.
+        Retrieve relevant textbook context for one slide topic.
+        Returns a plain-text string ready to paste into the LLM prompt.
         """
-        if self._db.size == 0:
-            return ""
+        query = f"{topic.topic} {' '.join(topic.key_points[:5])}"
 
-        query     = _build_retrieval_query(topic)
+        # 1. Azure AI Search (hybrid, persistent)
+        if self._db.has_azure() and nb_id:
+            query_vec = self._embedder.embed_query(query)
+            chunks    = self._db.search_azure(nb_id, query_vec, query, top_k)
+            if chunks:
+                return _chunks_to_context(chunks)
+
+        # 2. Numpy in-memory cosine similarity
         query_vec = self._embedder.embed_query(query)
-
-        if query_vec is None:
-            logger.warning("TopicRetriever: could not embed query for '%s'", topic.topic)
+        if query_vec is None or self._db.size == 0:
             return ""
-
         results = self._db.search(query_vec, top_k=top_k)
+        return _chunks_to_context([c for _, c in results])
 
-        if not results:
-            return ""
-
-        # Filter out low-similarity chunks; keep only reasonably relevant ones
-        results = [(c, s) for c, s in results if s >= 0.03]
-
-        if not results:
-            logger.debug("TopicRetriever: no relevant chunks for '%s' (all below threshold)", topic.topic)
-            return ""
-
-        logger.debug(
-            "TopicRetriever: '%s' → %d chunks (top score=%.3f)",
-            topic.topic, len(results), results[0][1]
-        )
-        return _format_chunks_as_context(results)
-
-    def retrieve_all_topics(
-        self,
-        topics: list[SlideTopic],
-        top_k: int = TOP_K_PER_TOPIC,
-    ) -> dict[str, str]:
-        """
-        Retrieve textbook context for all topics at once.
-
-        Returns a dict mapping topic name → formatted context string.
-        """
+    def retrieve_all_topics(self, topics: list["SlideTopic"],
+                            nb_id: str = "") -> dict[str, str]:
+        """Retrieve context for every topic. Returns {topic_name: context_str}."""
         return {
-            topic.topic: self.retrieve_for_topic(topic, top_k=top_k)
-            for topic in topics
+            t.topic: self.retrieve_for_topic(t, nb_id=nb_id)
+            for t in topics
         }

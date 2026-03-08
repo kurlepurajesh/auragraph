@@ -29,7 +29,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
         h3({ children }) {
             return (
                 <div style={{ marginTop: 28, marginBottom: 12 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#5B21B6', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, padding: '4px 13px', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"DM Sans",sans-serif', boxShadow: '0 1px 4px rgba(124,58,237,0.10)' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: 'var(--ag-purple-medium)', background: 'var(--ag-purple-bg)', border: '1px solid #DDD6FE', borderRadius: 20, padding: '4px 13px', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"DM Sans",sans-serif', boxShadow: '0 1px 4px rgba(124,58,237,0.10)' }}>
                         <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--ag-purple)', flexShrink: 0, display: 'inline-block' }} />
                         {children}
                     </span>
@@ -37,7 +37,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
             );
         },
         code({ className, children }) {
-            if (!className) return <code style={{ background: '#F5F3FF', color: '#5B21B6', borderRadius: 5, padding: '2px 7px', fontSize: 13, fontFamily: '"JetBrains Mono","Courier New",monospace', fontWeight: 600, border: '1px solid #DDD6FE' }}>{children}</code>;
+            if (!className) return <code style={{ background: 'var(--ag-purple-bg)', color: 'var(--ag-purple-medium)', borderRadius: 5, padding: '2px 7px', fontSize: 13, fontFamily: '"JetBrains Mono","Courier New",monospace', fontWeight: 600, border: '1px solid #DDD6FE' }}>{children}</code>;
             return (
                 <pre style={{ background: '#1E1B4B', border: '1px solid #312E81', borderRadius: 10, padding: '16px 20px', margin: '16px 0', fontFamily: '"JetBrains Mono","Courier New",monospace', fontSize: 13, lineHeight: 1.8, color: '#E0E7FF', overflowX: 'auto', whiteSpace: 'pre-wrap', boxShadow: '0 4px 16px rgba(79,70,229,0.12)' }}>
                     <code style={{ color: '#E0E7FF' }}>{children}</code>
@@ -67,7 +67,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
             );
             if (isIntuition) return (
                 <div style={{ background: 'linear-gradient(135deg,#F5F3FF,#EDE9FE)', border: '1px solid #C4B5FD', borderLeft: '4px solid #7C3AED', borderRadius: 10, padding: '14px 18px', margin: '16px 0', boxShadow: '0 2px 8px rgba(124,58,237,0.08)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}><span style={{ fontSize: 15 }}>💡</span><span style={{ fontSize: 10, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: '"DM Sans",sans-serif' }}>Intuition</span></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}><span style={{ fontSize: 15 }}>💡</span><span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ag-purple-vivid)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: '"DM Sans",sans-serif' }}>Intuition</span></div>
                     <div style={{ fontSize: 13.5, color: '#3B0764', lineHeight: 1.8, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>
                 </div>
             );
@@ -87,7 +87,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
                 <div style={{ background: 'linear-gradient(135deg,#FDFCFF,#F7F4FF)', border: '1px solid #EDE9FE', borderLeft: '4px solid #8B5CF6', borderRadius: 10, padding: '13px 16px', margin: '14px 0', fontSize: 13.5, color: '#2D1B4E', lineHeight: 1.8, fontFamily: '"DM Sans",sans-serif', boxShadow: '0 1px 6px rgba(124,58,237,0.06)' }}>{children}</div>
             );
         },
-        strong({ children }) { return <strong style={{ fontWeight: 700, color: '#4C1D95', background: 'rgba(124,58,237,0.06)', borderRadius: 3, padding: '0 2px' }}>{children}</strong>; },
+        strong({ children }) { return <strong style={{ fontWeight: 700, color: 'var(--ag-purple-deep)', background: 'rgba(124,58,237,0.06)', borderRadius: 3, padding: '0 2px' }}>{children}</strong>; },
         em({ children })     { return <span style={{ fontStyle: 'italic', color: '#374151' }}>{children}</span>; },
         hr()                 { return <div style={{ border: 'none', height: 1, background: 'linear-gradient(90deg,transparent,#DDD6FE 30%,#DDD6FE 70%,transparent)', margin: '32px 0' }} />; },
         p({ children })      { return <p style={{ marginBottom: 16, lineHeight: 2.05, color: '#1C1917', fontFamily: '"Source Serif 4",Georgia,serif', fontSize, letterSpacing: '0.005em' }}>{children}</p>; },
@@ -150,7 +150,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
             const idx = node?.position?.start?.line ?? 0;
             return <tr style={{ borderBottom: '1px solid #EDE9FE', background: idx % 2 === 0 ? '#FAFAFA' : '#FFFFFF' }}>{children}</tr>;
         },
-        th({ children }) { return <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 700, color: '#4C1D95', borderBottom: '2px solid #C4B5FD', whiteSpace: 'nowrap', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{children}</th>; },
+        th({ children }) { return <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 700, color: 'var(--ag-purple-deep)', borderBottom: '2px solid #C4B5FD', whiteSpace: 'nowrap', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{children}</th>; },
         td({ children }) { return <td style={{ padding: '9px 16px', color: '#374151', verticalAlign: 'top', lineHeight: 1.6 }}>{children}</td>; },
     };
 

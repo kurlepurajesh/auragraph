@@ -36,6 +36,15 @@
   --ag-surface-note: #FDFCFF;
   --ag-ring-left: #C4B5FD;
   --ag-ring-right: #A78BFA;
+  /* Extended purple palette — replaces all hardcoded hex in components */
+  --ag-purple-deep:    #4C1D95;
+  --ag-purple-medium:  #5B21B6;
+  --ag-purple-vivid:   #6D28D9;
+  --ag-purple-border:  #DDD6FE;
+  --ag-purple-bg:      #F5F3FF;
+  --ag-purple-bg2:     #EDE9FE;
+  --ag-purple-ring:    #C4B5FD;
+
   --ag-gold: #F59E0B;
   --ag-emerald: #10B981;
   --ag-red: #EF4444;

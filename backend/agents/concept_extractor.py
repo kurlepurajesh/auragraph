@@ -291,58 +291,86 @@ NOTES:
 
 
 async def llm_extract_concepts(note_text: str) -> dict:
-    """LLM-powered concept extractor — works for any subject, not just STEM.
-    Requires GROQ_API_KEY env var; falls back to regex extract_concepts() on any failure."""
-    import httpx  # lazy import — not needed for the sync path
+    """
+    LLM-powered concept extractor — works for any subject, not just STEM.
 
-    groq_key = os.environ.get("GROQ_API_KEY", "")
-    if not groq_key:
-        return extract_concepts(note_text)
+    Priority:
+      1. Azure OpenAI GPT-4o  (AZURE_OPENAI_ENDPOINT + KEY + DEPLOYMENT)
+      2. Groq llama-3.3-70b   (GROQ_API_KEY)
+      3. Regex fallback        (always available)
+    """
+    import httpx
 
-    # Truncate to avoid token overflow; keep the most informative beginning
     snippet = note_text[:6000]
     n_nodes = 10 if len(note_text) < 2000 else 14
     prompt  = _LLM_EXTRACT_PROMPT.format(note_text=snippet, n_nodes=n_nodes)
+    messages = [{"role": "user", "content": prompt}]
 
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {groq_key}",
-                         "Content-Type": "application/json"},
-                json={
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 1500,
-                    "temperature": 0.2,
-                },
-            )
-        raw = resp.json()["choices"][0]["message"]["content"].strip()
-
-        # Strip markdown fences if the model wrapped the JSON anyway
-        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+    def _parse_raw(raw: str) -> dict:
+        raw = re.sub(r"^```[a-z]*\n?", "", raw.strip())
         raw = re.sub(r"\n?```$", "", raw.strip())
-
         graph = json.loads(raw)
         if not isinstance(graph.get("nodes"), list) or not graph["nodes"]:
             raise ValueError("Empty nodes array")
-
-        # Normalise: ensure required fields exist
         for n in graph["nodes"]:
             n.setdefault("status", "partial")
             n.setdefault("x", 50)
             n.setdefault("y", 50)
             n.setdefault("mutation_count", 0)
-            # Store full label for jump-to-section matching.
-            # Display label is capped at 30 chars for the graph bubble,
-            # but full_label is the complete heading name used for navigation.
             full = str(n.get("label", "Concept")).strip()
             n["full_label"] = full
             n["label"] = full[:30] if len(full) > 30 else full
         if not isinstance(graph.get("edges"), list):
             graph["edges"] = []
-
         return graph
 
-    except Exception:
-        return extract_concepts(note_text)
+    # ── 1. Azure OpenAI (preferred) ──────────────────────────────────────────
+    endpoint   = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    api_key    = os.environ.get("AZURE_OPENAI_API_KEY", "")
+    deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+    api_ver    = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
+
+    azure_ok = (
+        bool(endpoint and api_key and deployment)
+        and "placeholder" not in endpoint.lower()
+        and "placeholder" not in api_key.lower()
+        and "mock" not in endpoint.lower()
+    )
+
+    if azure_ok:
+        url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_ver}"
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    url,
+                    headers={"api-key": api_key, "Content-Type": "application/json"},
+                    json={"messages": messages, "max_tokens": 1500, "temperature": 0.2,
+                          "response_format": {"type": "json_object"}},
+                )
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            return _parse_raw(raw)
+        except Exception as e:
+            import logging as _log
+            _log.getLogger(__name__).warning("llm_extract_concepts Azure failed: %s", e)
+
+    # ── 2. Groq fallback ─────────────────────────────────────────────────────
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    if groq_key and not groq_key.startswith("your-"):
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {groq_key}",
+                             "Content-Type": "application/json"},
+                    json={"model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                          "messages": messages, "max_tokens": 1500, "temperature": 0.2},
+                )
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            return _parse_raw(raw)
+        except Exception:
+            pass
+
+    # ── 3. Regex fallback ────────────────────────────────────────────────────
+    return extract_concepts(note_text)

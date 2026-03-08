@@ -100,7 +100,8 @@ def test_login_wrong_password(client):
 
 
 def test_login_unknown_email(client):
-    r = client.post("/auth/login", json={"email": "nobody@example.com", "password": "x"})
+    # password must satisfy min_length=8 (schema constraint); unknown email → 401
+    r = client.post("/auth/login", json={"email": "nobody@example.com", "password": "x" * 8})
     assert r.status_code == 401
 
 

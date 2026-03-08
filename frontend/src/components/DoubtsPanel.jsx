@@ -11,12 +11,12 @@ const IM = ({ text }) => (
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]}
         components={{
             p:     ({ children }) => <span style={{ display: 'block', marginBottom: 4 }}>{children}</span>,
-            strong:({ children }) => <strong style={{ color: '#5B21B6', fontWeight: 700 }}>{children}</strong>,
-            em:    ({ children }) => <em style={{ color: '#6D28D9' }}>{children}</em>,
-            code:  ({ children }) => <code style={{ background: 'var(--ag-purple-soft)', color: '#5B21B6', borderRadius: 3, padding: '1px 4px', fontSize: 11, fontFamily: 'monospace' }}>{children}</code>,
+            strong:({ children }) => <strong style={{ color: 'var(--ag-purple-medium)', fontWeight: 700 }}>{children}</strong>,
+            em:    ({ children }) => <em style={{ color: 'var(--ag-purple-vivid)' }}>{children}</em>,
+            code:  ({ children }) => <code style={{ background: 'var(--ag-purple-soft)', color: 'var(--ag-purple-medium)', borderRadius: 3, padding: '1px 4px', fontSize: 11, fontFamily: 'monospace' }}>{children}</code>,
             a:     ({ children }) => <span>{children}</span>,
             table: ({ children }) => <table style={{ borderCollapse: 'collapse', fontSize: 12, margin: '6px 0' }}>{children}</table>,
-            th:    ({ children }) => <th style={{ padding: '4px 10px', borderBottom: '1px solid #C4B5FD', textAlign: 'left', fontWeight: 700, color: '#5B21B6' }}>{children}</th>,
+            th:    ({ children }) => <th style={{ padding: '4px 10px', borderBottom: '1px solid #C4B5FD', textAlign: 'left', fontWeight: 700, color: 'var(--ag-purple-medium)' }}>{children}</th>,
             td:    ({ children }) => <td style={{ padding: '4px 10px', borderBottom: '1px solid #EDE9FE', color: '#3F3F46' }}>{children}</td>,
         }}
     >
@@ -57,7 +57,7 @@ export default function DoubtsPanel({ doubts, currentPage }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {toggleBar}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 }}>
-                <MessageCircle size={26} color="#C4B5FD" />
+                <MessageCircle size={26} color="var(--ag-purple-ring)" />
                 <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.7 }}>
                     {viewAll
                         ? <><b>No doubts yet.</b><br /><span style={{ fontSize: 11 }}>Click <b>Ask a Doubt</b> to add one.</span></>
@@ -116,9 +116,9 @@ export default function DoubtsPanel({ doubts, currentPage }) {
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                                 {d.success ? (
-                                    <div style={{ maxWidth: '90%', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '3px 14px 14px 14px', padding: '9px 13px', fontSize: 12, lineHeight: 1.7, color: '#3B0764' }}>
+                                    <div style={{ maxWidth: '90%', background: 'var(--ag-purple-bg)', border: '1px solid #DDD6FE', borderRadius: '3px 14px 14px 14px', padding: '9px 13px', fontSize: 12, lineHeight: 1.7, color: '#3B0764' }}>
                                         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ag-purple)', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}><GitBranch size={10} /> AuraGraph</div>
-                                        <div style={{ color: '#4C1D95' }}><IM text={preview} /></div>
+                                        <div style={{ color: 'var(--ag-purple-deep)' }}><IM text={preview} /></div>
                                         {d.gap && isExp && <div style={{ marginTop: 7, paddingTop: 7, borderTop: '1px solid #DDD6FE', fontSize: 11, color: 'var(--ag-purple)', fontStyle: 'italic' }}>🔍 {d.gap}</div>}
                                         {needsExp && (
                                             <button onClick={() => toggle(d.id)} style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--ag-purple)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}>

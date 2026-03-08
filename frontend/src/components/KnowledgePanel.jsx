@@ -192,7 +192,7 @@ export function ConceptDetailPanel({ node, notebookId, onClose, onStatusChange, 
                         : <QuestionCards questions={questions} level={activeLevel} onAllAssessed={handleAllAssessed} />
                 )}
                 {!loadingQ && promotion && (
-                    <div style={{ margin: '10px 0 4px', padding: '9px 12px', borderRadius: 8, background: promotion === 'top' ? '#DCFCE7' : 'var(--ag-purple-soft)', border: `1px solid ${promotion === 'top' ? '#86EFAC' : 'var(--ag-ring-left)'}`, fontSize: 11, fontWeight: 600, color: promotion === 'top' ? '#065F46' : '#5B21B6', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ margin: '10px 0 4px', padding: '9px 12px', borderRadius: 8, background: promotion === 'top' ? '#DCFCE7' : 'var(--ag-purple-soft)', border: `1px solid ${promotion === 'top' ? '#86EFAC' : 'var(--ag-ring-left)'}`, fontSize: 11, fontWeight: 600, color: promotion === 'top' ? '#065F46' : 'var(--ag-purple-medium)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <CheckCircle2 size={12} /> {promotion === 'top' ? '🏆 Already at peak mastery — well done!' : `⬆️ Level upgraded to ${promotion}! Graph updated.`}
                     </div>
                 )}

@@ -1,9 +1,17 @@
 """
-AuraGraph — FastAPI Backend  v6
+AuraGraph — FastAPI Backend  v7
 Team: Wowffulls | IIT Roorkee | Challenge: AI Study Buddy
 
-main.py is intentionally thin: app wiring + middleware + lifespan + health/usage.
+main.py is intentionally thin: app wiring + middleware + lifespan + health.
 All business logic lives in routers/ and deps.py.
+
+Azure services used (all optional — each falls back gracefully):
+  • Azure OpenAI GPT-4o          → note generation, mutation, doubt answering
+  • Azure OpenAI Embeddings      → textbook chunk embeddings for RAG
+  • Azure AI Vision              → slide image OCR + figure captioning
+  • Azure AI Content Safety      → screens all LLM output
+  • Azure AI Search              → vector RAG (textbook chunks)
+  • Azure Cosmos DB              → persistent concept knowledge graph
 """
 import asyncio
 import logging
@@ -24,7 +32,7 @@ logger = logging.getLogger("auragraph")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
 
-# ── Lifespan: boot global agents + write-lock ──────────────────────────────────
+# ── Lifespan ───────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app):
@@ -44,7 +52,7 @@ async def lifespan(app):
             deployment_name=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
             endpoint=endpoint,
             api_key=api_key,
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
         )
     )
 
@@ -54,7 +62,23 @@ async def lifespan(app):
     deps._db_write_lock = asyncio.Lock()
 
     deps._init_usage_table()
-    logger.info("✅  AuraGraph v6 — bcrypt auth, SQLite mastery store, LLM rate limiting")
+
+    # Log active backends
+    azure_on   = deps._is_azure_available()
+    groq_on    = deps._is_groq_available()
+    vision_on  = bool(os.environ.get("AZURE_VISION_ENDPOINT") and os.environ.get("AZURE_VISION_KEY"))
+    safety_on  = bool(os.environ.get("AZURE_CONTENT_SAFETY_ENDPOINT") and os.environ.get("AZURE_CONTENT_SAFETY_KEY"))
+    search_on  = bool(os.environ.get("AZURE_SEARCH_ENDPOINT") and os.environ.get("AZURE_SEARCH_KEY"))
+    cosmos_on  = bool(os.environ.get("COSMOS_DB_URL") and os.environ.get("COSMOS_DB_KEY"))
+
+    logger.info("✅  AuraGraph v7 ready")
+    logger.info("   Azure OpenAI:        %s", "✓ active" if azure_on  else "✗ not configured (Groq fallback)")
+    logger.info("   Groq:                %s", "✓ active" if groq_on   else "✗ not configured")
+    logger.info("   Azure AI Vision:     %s", "✓ active" if vision_on else "✗ not configured (Groq vision fallback)")
+    logger.info("   Azure Content Safety:%s", "✓ active" if safety_on else "✗ not configured (pass-through)")
+    logger.info("   Azure AI Search:     %s", "✓ active" if search_on else "✗ not configured (numpy fallback)")
+    logger.info("   Azure Cosmos DB:     %s", "✓ active" if cosmos_on else "✗ not configured (SQLite fallback)")
+
     yield
     logger.info("⏹  AuraGraph shutting down")
 
@@ -63,8 +87,8 @@ async def lifespan(app):
 
 app = FastAPI(
     title="AuraGraph API",
-    version="0.6.0",
-    description="Digital Knowledge Twin — modular v6",
+    version="0.7.0",
+    description="AuraGraph — AI Study Buddy | Team Wowffulls | IIT Roorkee",
     lifespan=lifespan,
 )
 
@@ -113,20 +137,34 @@ app.include_router(learning_router)
 app.include_router(graph_router)
 
 
-# ── Health + usage (trivial; fine here) ───────────────────────────────────────
+# ── Health endpoint ────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
     import deps
+    vision_on  = bool(os.environ.get("AZURE_VISION_ENDPOINT") and os.environ.get("AZURE_VISION_KEY"))
+    safety_on  = bool(os.environ.get("AZURE_CONTENT_SAFETY_ENDPOINT") and os.environ.get("AZURE_CONTENT_SAFETY_KEY"))
+    search_on  = bool(os.environ.get("AZURE_SEARCH_ENDPOINT") and os.environ.get("AZURE_SEARCH_KEY"))
+    cosmos_on  = bool(os.environ.get("COSMOS_DB_URL") and os.environ.get("COSMOS_DB_KEY"))
+
     return {
-        "status":           "ok",
-        "service":          "AuraGraph v0.6",
-        "azure_configured": deps._is_azure_available(),
+        "status":  "ok",
+        "version": "0.7.0",
+        "team":    "Wowffulls / IIT Roorkee",
+        "azure_services": {
+            "openai":          deps._is_azure_available(),
+            "vision":          vision_on,
+            "content_safety":  safety_on,
+            "ai_search":       search_on,
+            "cosmos_db":       cosmos_on,
+        },
         "groq_configured":  deps._is_groq_available(),
         "llm_concurrency":  int(os.environ.get("LLM_CONCURRENCY", "1")),
         "rate_limits":      {"hourly": deps._LLM_HOURLY_LIMIT, "daily": deps._LLM_DAILY_LIMIT},
     }
 
+
+# ── Usage endpoint ─────────────────────────────────────────────────────────────
 
 @app.get("/api/usage")
 async def get_usage(authorization: Optional[str] = Header(None)):
