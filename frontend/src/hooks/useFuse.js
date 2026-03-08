@@ -68,9 +68,11 @@ export function useFuse(id, deps = {}) {
             let streamedNote = '';
             let streamSource = 'azure';
             let lastChunkAt = Date.now();
-            // Per-chunk stall detection: 90 s with no data → abort
+            // Per-chunk stall detection: 180 s with no data → abort
+            // (keepalive status events are now sent during preprocessing so
+            //  this only fires if a single LLM generation call truly hangs)
             const stallCheck = setInterval(() => {
-                if (Date.now() - lastChunkAt > 90_000) {
+                if (Date.now() - lastChunkAt > 180_000) {
                     abortCtrl.abort();
                     clearInterval(stallCheck);
                 }
