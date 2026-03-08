@@ -13,6 +13,7 @@ export default function MutateModal({
 }) {
     const [doubt, setDoubt] = useState(initialDoubt);
     const [busy, setBusy] = useState(false);
+    const [doubtError, setDoubtError] = useState('');
     const [answer, setAnswer] = useState('');
     const [answerSource, setAnswerSource] = useState('');
     const [answerVerification, setAnswerVerification] = useState('correct');
@@ -20,8 +21,17 @@ export default function MutateModal({
     const [answerFootnote, setAnswerFootnote] = useState('');
     const [mode, setMode] = useState('idle'); // 'idle' | 'answering' | 'answered' | 'mutating'
 
+    const validateDoubt = (v) => {
+        if (!v.trim()) return 'Please describe your doubt.';
+        if (v.trim().length < 5) return 'Doubt must be at least 5 characters.';
+        if (v.length > 500) return 'Doubt must be 500 characters or less.';
+        return '';
+    };
+
     const askDoubt = async () => {
-        if (!doubt.trim()) return;
+        const err = validateDoubt(doubt);
+        if (err) { setDoubtError(err); return; }
+        setDoubtError('');
         setBusy(true); setMode('answering'); setAnswer('');
         try {
             const res = await apiFetch(`${API}/api/doubt`, {
@@ -51,7 +61,9 @@ export default function MutateModal({
     };
 
     const doMutate = async () => {
-        if (!doubt.trim()) return;
+        const err = validateDoubt(doubt);
+        if (err) { setDoubtError(err); return; }
+        setDoubtError('');
         setBusy(true); setMode('mutating');
         await onMutate(page, doubt);
         setBusy(false);
@@ -69,14 +81,23 @@ export default function MutateModal({
                     {page ? (page.length > 200 ? page.slice(0, page.lastIndexOf(' ', 200)) + '…' : page) : ''}
                 </div>
                 <textarea
-                    className="input" rows={3} autoFocus value={doubt}
-                    onChange={e => setDoubt(e.target.value)}
+                    className={`input${doubtError ? ' input-error' : ''}`} rows={3} autoFocus value={doubt}
+                    onChange={e => { setDoubt(e.target.value); if (doubtError) setDoubtError(validateDoubt(e.target.value)); }}
                     onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') askDoubt(); if (e.key === 'Escape') onClose(); }}
                     placeholder="e.g. Why does convolution become multiplication in the frequency domain?"
-                    style={{ resize: 'vertical', fontFamily: 'inherit', marginBottom: 8 }}
+                    maxLength={500}
+                    style={{ resize: 'vertical', fontFamily: 'inherit', marginBottom: 4 }}
                 />
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>
-                    <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 5px', fontSize: 10 }}>Ctrl+Enter</kbd> to ask
+                {doubtError
+                    ? <p style={{ fontSize: 11, color: 'var(--ag-red)', marginBottom: 4 }}>{doubtError}</p>
+                    : null}
+                <div style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span style={{ color: 'var(--text3)' }}>
+                        <kbd style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 5px', fontSize: 10 }}>Ctrl+Enter</kbd> to ask
+                    </span>
+                    <span style={{ color: doubt.length > 450 ? (doubt.length > 500 ? 'var(--ag-red)' : '#f59e0b') : 'var(--text3)' }}>
+                        {doubt.length}/500
+                    </span>
                 </div>
 
                 {(mode === 'answering' || mode === 'answered') && (

@@ -40,12 +40,18 @@ export function useFuse(id, deps = {}) {
             if (id) form.append('notebook_id', id);
             setFuseProgress('Running Fusion Agent…');
 
+            // Abort the stream if no data arrives within 5 minutes
+            const abortCtrl = new AbortController();
+            const streamTimeout = setTimeout(() => abortCtrl.abort(), 5 * 60 * 1000);
+
             const res = await apiFetch(`${API}/api/upload-fuse-stream`, {
                 method: 'POST',
                 body: form,
+                signal: abortCtrl.signal,
             });
 
             if (!res.ok) {
+                clearTimeout(streamTimeout);
                 let detail = `Server error (${res.status})`;
                 try { const j = await res.json(); detail = j.detail || detail; } catch { }
                 throw new Error(detail);
@@ -56,10 +62,20 @@ export function useFuse(id, deps = {}) {
             let buffer = '';
             let streamedNote = '';
             let streamSource = 'azure';
+            let lastChunkAt = Date.now();
+            // Per-chunk stall detection: 90 s with no data → abort
+            const stallCheck = setInterval(() => {
+                if (Date.now() - lastChunkAt > 90_000) {
+                    abortCtrl.abort();
+                    clearInterval(stallCheck);
+                }
+            }, 5_000);
 
+            try {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
+                lastChunkAt = Date.now();
                 buffer += decoder.decode(value, { stream: true });
                 const parts = buffer.split('\n\n');
                 buffer = parts.pop();
@@ -90,6 +106,11 @@ export function useFuse(id, deps = {}) {
                 }
             }
 
+            } finally {
+                clearTimeout(streamTimeout);
+                clearInterval(stallCheck);
+            }
+
             setNoteSource(streamSource);
             setFallbackWarning(streamSource === 'local'
                 ? '⚠️ Azure OpenAI was unavailable — notes were generated using the offline summariser.'
@@ -98,26 +119,34 @@ export function useFuse(id, deps = {}) {
             setFuseProgress('Extracting concept map…');
             await extractAndSaveGraph?.(streamedNote);
         } catch (err) {
-            const isNetworkError = !err.message || err.message === 'Failed to fetch' || err.message.includes('NetworkError');
-            const isFileTooLarge = err.message?.toLowerCase().includes('too large') || err.message?.toLowerCase().includes('exceeds') || err.message?.includes('413');
-            const isAuth = err.message?.includes('401') || err.message?.includes('403') || err.message?.toLowerCase().includes('unauthorized');
-            const bannerMsg = isNetworkError
+            const message = err.name === 'AbortError'
+                ? 'Generation timed out — the backend took too long to respond. Try again or use a smaller file.'
+                : (err.message || '');
+            const isNetworkError = !message || message === 'Failed to fetch' || message.includes('NetworkError');
+            const isFileTooLarge = message.toLowerCase().includes('too large') || message.toLowerCase().includes('exceeds') || message.includes('413');
+            const isAuth = message.includes('401') || message.includes('403') || message.toLowerCase().includes('unauthorized');
+            const isTimeout = err.name === 'AbortError';
+            const bannerMsg = isTimeout
+                ? `⚠️ ${message}`
+                : isNetworkError
                 ? '⚠️ Backend unreachable — start the server: cd backend && source venv/bin/activate && uvicorn main:app --reload --port 8000'
                 : isFileTooLarge
-                    ? `⚠️ Upload too large — ${err.message}. Try splitting files across two notebooks or compressing large PDFs.`
+                    ? `⚠️ Upload too large — ${message}. Try splitting files across two notebooks or compressing large PDFs.`
                     : isAuth
                         ? '⚠️ Authentication failed — try logging out and back in.'
-                        : `⚠️ Generation failed: ${err.message}`;
+                        : `⚠️ Generation failed: ${message}`;
             setFallbackWarning(bannerMsg);
             // Also surface as a dismissible toast
             dispatch(addToast({
                 kind: isAuth ? 'error' : isNetworkError ? 'warning' : 'error',
-                title: isAuth ? 'Authentication error' : isNetworkError ? 'Backend unreachable' : 'Generation failed',
-                message: isNetworkError
-                    ? 'Start the backend server and try again.'
-                    : isAuth
-                        ? 'Log out and log back in.'
-                        : err.message || 'Unknown error',
+                title: isTimeout ? 'Request timed out' : isAuth ? 'Authentication error' : isNetworkError ? 'Backend unreachable' : 'Generation failed',
+                message: isTimeout
+                    ? message
+                    : isNetworkError
+                        ? 'Start the backend server and try again.'
+                        : isAuth
+                            ? 'Log out and log back in.'
+                            : message || 'Unknown error',
                 duration: isNetworkError ? 10000 : 7000,
             }));
         }

@@ -10,8 +10,8 @@ import {
     ChevronDown, FolderOpen, Folder
 } from 'lucide-react';
 
-function getUserId() {
-    try { return JSON.parse(localStorage.getItem('ag_user'))?.id || 'demo-user'; } catch { return 'demo-user'; }
+function getUserId(user) {
+    return user?.id || localStorage.getItem('ag_user') && JSON.parse(localStorage.getItem('ag_user') || 'null')?.id || 'demo-user';
 }
 
 // ─── Streak helpers ────────────────────────────────────────────────────────────
@@ -95,12 +95,29 @@ function CreateNotebookModal({ onClose, onCreate }) {
     const [name, setName] = useState('');
     const [course, setCourse] = useState('');
     const [loading, setLoading] = useState(false);
+    const [nameError, setNameError] = useState('');
+    const [courseError, setCourseError] = useState('');
+
+    const validateName = (v) => {
+        if (!v.trim()) return 'Title is required.';
+        if (v.trim().length < 2) return 'Title must be at least 2 characters.';
+        if (v.length > 120) return 'Title must be 120 characters or less.';
+        return '';
+    };
+    const validateCourse = (v) => {
+        if (!v.trim()) return 'Course / subject is required.';
+        if (v.length > 80) return 'Course code must be 80 characters or less.';
+        return '';
+    };
 
     const submit = async (e) => {
         e.preventDefault();
-        if (!name || !course) return;
+        const ne = validateName(name);
+        const ce = validateCourse(course);
+        setNameError(ne); setCourseError(ce);
+        if (ne || ce) return;
         setLoading(true);
-        await onCreate(name, course);
+        await onCreate(name.trim(), course.trim());
         setLoading(false);
         onClose();
     };
@@ -120,15 +137,21 @@ function CreateNotebookModal({ onClose, onCreate }) {
                 <form onSubmit={submit}>
                     <div style={{ marginBottom: 14 }}>
                         <label>Notebook Title</label>
-                        <input className="input" placeholder="e.g. Digital Signal Processing" value={name} onChange={e => setName(e.target.value)} autoFocus />
+                        <input className={`input${nameError ? ' input-error' : ''}`} placeholder="e.g. Digital Signal Processing" value={name}
+                            onChange={e => { setName(e.target.value); if (nameError) setNameError(validateName(e.target.value)); }}
+                            maxLength={120} autoFocus />
+                        {nameError && <p style={{ fontSize: 11, color: 'var(--ag-red)', marginTop: 4 }}>{nameError}</p>}
                     </div>
                     <div style={{ marginBottom: 24 }}>
                         <label>Course Code / Subject</label>
-                        <input className="input" placeholder="e.g. EC301 — DSP" value={course} onChange={e => setCourse(e.target.value)} />
+                        <input className={`input${courseError ? ' input-error' : ''}`} placeholder="e.g. EC301 — DSP" value={course}
+                            onChange={e => { setCourse(e.target.value); if (courseError) setCourseError(validateCourse(e.target.value)); }}
+                            maxLength={80} />
+                        {courseError && <p style={{ fontSize: 11, color: 'var(--ag-red)', marginTop: 4 }}>{courseError}</p>}
                     </div>
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" disabled={loading || !name || !course}>
+                        <button type="submit" className="btn btn-primary" disabled={loading}>
                             {loading ? <Loader2 className="spin" size={14} /> : <><Plus size={14} /> Create Notebook</>}
                         </button>
                     </div>
@@ -264,7 +287,7 @@ export default function DashboardPage() {
         });
     };
 
-    const userId = getUserId();
+    const userId = getUserId(user);
 
     // Apply dark mode
     useEffect(() => {
