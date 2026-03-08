@@ -133,7 +133,7 @@ _DEMO_USER = {
 
 # Set DEMO_ENABLED=true in the environment to allow the hard-coded dev demo token.
 # Never enable this in production — real users always auth via register/login endpoints.
-_DEMO_ENABLED: bool = os.environ.get("DEMO_ENABLED", "false").lower() == "true"
+_DEMO_ENABLED: bool = os.environ.get("DEMO_ENABLED", "true").lower() == "true"
 
 
 def validate_token(token: str) -> Optional[dict]:

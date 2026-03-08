@@ -11,6 +11,7 @@ from deps import get_current_user, _require_notebook_owner, _is_azure_available,
 from schemas import (
     NotebookCreateRequest, NotebookUpdateRequest,
     SectionCreateRequest, SectionUpdateRequest, SectionReorderRequest, SectionGenerateRequest,
+    NodeUpdateRequest,
 )
 
 logger = logging.getLogger("auragraph")
@@ -205,10 +206,9 @@ async def get_notebook_graph(nb_id: str, authorization: Optional[str] = Header(N
 @router.post("/notebooks/{nb_id}/graph/update")
 async def update_notebook_graph_node(
     nb_id: str,
-    req: "NodeUpdateRequest",
+    req: NodeUpdateRequest,
     authorization: Optional[str] = Header(None),
 ):
-    from schemas import NodeUpdateRequest  # local import avoids circular at module level
     from agents.notebook_store import update_notebook_graph
     user  = get_current_user(authorization)
     nb    = _require_notebook_owner(nb_id, user)

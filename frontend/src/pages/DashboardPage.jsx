@@ -33,7 +33,7 @@ function touchStreak() {
         if (data.lastDate === today) return;
         const count = data.lastDate === yesterday ? (data.count || 0) + 1 : 1;
         localStorage.setItem('ag_streak', JSON.stringify({ lastDate: today, count }));
-    } catch {}
+    } catch { }
 }
 
 // ─── Mastery summary across notebooks ─────────────────────────────────────────
@@ -60,7 +60,7 @@ function MiniDonut({ mastered, partial, struggling, total }) {
     const R = 26, C = 2 * Math.PI * R;
     const segments = [
         { val: mastered, color: 'var(--ag-emerald)' },
-        { val: partial,  color: 'var(--ag-gold)' },
+        { val: partial, color: 'var(--ag-gold)' },
         { val: struggling, color: 'var(--ag-red)' },
     ];
     let offset = 0;
@@ -300,8 +300,13 @@ export default function DashboardPage() {
     const loadNotebooks = async () => {
         try {
             const res = await apiFetch(`${API}/notebooks`);
-            if (res.ok) { setNotebooks(await res.json()); setLoading(false); return; }
-        } catch {}
+            if (res.ok) {
+                const data = await res.json();
+                setNotebooks(data.notebooks || data || []);
+                setLoading(false);
+                return;
+            }
+        } catch { }
         setNotebooks(ls_getNotebooks(userId));
         setLoading(false);
     };
@@ -313,7 +318,7 @@ export default function DashboardPage() {
         try {
             const res = await apiFetch(`${API}/notebooks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, course }) });
             if (res.ok) nb = await res.json();
-        } catch {}
+        } catch { }
         if (!nb) {
             nb = ls_createNotebook(userId, name, course);
         } else {
@@ -328,7 +333,7 @@ export default function DashboardPage() {
     };
 
     const handleDelete = async (id) => {
-        try { await apiFetch(`${API}/notebooks/${id}`, { method: 'DELETE' }); } catch {}
+        try { await apiFetch(`${API}/notebooks/${id}`, { method: 'DELETE' }); } catch { }
         ls_deleteNotebook(id);
         setNotebooks(prev => prev.filter(nb => nb.id !== id));
     };
@@ -408,7 +413,7 @@ export default function DashboardPage() {
                                 <MiniDonut {...masteryStats} />
                                 <div>
                                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Overall Mastery</div>
-                                    {[['mastered','var(--ag-emerald)'], ['partial','var(--ag-gold)'], ['struggling','var(--ag-red)']].map(([k,c]) => (
+                                    {[['mastered', 'var(--ag-emerald)'], ['partial', 'var(--ag-gold)'], ['struggling', 'var(--ag-red)']].map(([k, c]) => (
                                         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                                             <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
                                             <span style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'capitalize' }}>{k}</span>
@@ -458,8 +463,10 @@ export default function DashboardPage() {
                                     {/* Course header */}
                                     <button
                                         onClick={() => toggleCourse(courseKey)}
-                                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: collapsed ? 0 : 12,
-                                            background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%' }}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 8, marginBottom: collapsed ? 0 : 12,
+                                            background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%'
+                                        }}
                                     >
                                         <div style={{ width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(135deg,#7C3AED22,#2563EB22)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #7C3AED22' }}>
                                             {collapsed
