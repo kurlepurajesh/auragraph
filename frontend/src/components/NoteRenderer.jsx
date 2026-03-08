@@ -11,7 +11,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
         h1({ children }) {
             return (
                 <div style={{ marginBottom: 32, paddingBottom: 20, borderBottom: '2px solid #EDE9FE' }}>
-                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#7C3AED', marginBottom: 8, fontFamily: '"DM Sans",sans-serif', fontWeight: 700 }}>AuraGraph · Study Notes</div>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--ag-purple)', marginBottom: 8, fontFamily: '"DM Sans",sans-serif', fontWeight: 700 }}>AuraGraph · Study Notes</div>
                     <div style={{ fontSize: 24, fontWeight: 800, color: '#0F0A1E', lineHeight: 1.2, fontFamily: '"Sora",sans-serif', letterSpacing: '-0.01em' }}>{children}</div>
                 </div>
             );
@@ -30,7 +30,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
             return (
                 <div style={{ marginTop: 28, marginBottom: 12 }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#5B21B6', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, padding: '4px 13px', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"DM Sans",sans-serif', boxShadow: '0 1px 4px rgba(124,58,237,0.10)' }}>
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#7C3AED', flexShrink: 0, display: 'inline-block' }} />
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--ag-purple)', flexShrink: 0, display: 'inline-block' }} />
                         {children}
                     </span>
                 </div>
@@ -96,7 +96,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
         li({ children }) {
             return (
                 <li style={{ marginBottom: 9, display: 'flex', gap: 11, alignItems: 'flex-start' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7C3AED', flexShrink: 0, marginTop: '0.55em', display: 'inline-block' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ag-purple)', flexShrink: 0, marginTop: '0.55em', display: 'inline-block' }} />
                     <span style={{ flex: 1 }}>{children}</span>
                 </li>
             );
@@ -130,7 +130,7 @@ export default function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
             if (href?.startsWith('#doubt-')) {
                 return (
                     <span onClick={() => onDoubtLink?.(href.slice(1))}
-                        style={{ color: '#7C3AED', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        style={{ color: 'var(--ag-purple)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                         {children}
                     </span>
                 );

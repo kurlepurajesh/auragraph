@@ -101,7 +101,7 @@ export default function SniperExamModal({ nodes, notebookId, onClose }) {
                         <div style={{ marginBottom: 14 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)', marginBottom: 5, fontWeight: 600 }}>
                                 <span>Question {qIdx + 1} of {total}</span>
-                                <span style={{ color: '#10B981' }}>Score: {score}</span>
+                                <span style={{ color: 'var(--ag-emerald)' }}>Score: {score}</span>
                             </div>
                             <div className="progress-bar-track">
                                 <div className="progress-bar-fill" style={{ width: `${((qIdx) / total) * 100}%`, background: 'linear-gradient(90deg,#7C3AED,#2563EB)' }} />

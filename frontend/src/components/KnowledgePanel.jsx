@@ -14,7 +14,7 @@ export function QuestionCards({ questions, level, onAllAssessed }) {
     const [revealed, setRevealed] = useState(new Set());
     const [assessments, setAssessments] = useState({});
     const LC = {
-        mastered:  { bg: '#DCFCE7', border: '#BBF7D0', accent: '#10B981', text: '#065F46' },
+        mastered:  { bg: '#DCFCE7', border: '#BBF7D0', accent: 'var(--ag-emerald)', text: '#065F46' },
         partial:   { bg: '#FEF9C3', border: '#FDE68A', accent: '#D97706', text: '#78350F' },
         struggling:{ bg: '#FEF2F2', border: '#FECACA', accent: '#DC2626', text: '#7F1D1D' },
     };
@@ -37,7 +37,7 @@ export function QuestionCards({ questions, level, onAllAssessed }) {
                 return (
                     <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
                         <div style={{ padding: '10px 12px', fontSize: 12.5, lineHeight: 1.65, color: 'var(--text)' }}>
-                            <span style={{ fontWeight: 700, color: '#7C3AED', marginRight: 5 }}>{i + 1})</span>
+                            <span style={{ fontWeight: 700, color: 'var(--ag-purple)', marginRight: 5 }}>{i + 1})</span>
                             <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} components={{ p: ({ children }) => <span>{children}</span> }}>{q.question || ''}</ReactMarkdown>
                         </div>
                         <div style={{ padding: '4px 12px 8px', display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid var(--border)' }}>
@@ -56,7 +56,7 @@ export function QuestionCards({ questions, level, onAllAssessed }) {
                         </div>
                         <div style={{ borderTop: '1px solid var(--border)' }}>
                             {!isRev ? (
-                                <button onClick={() => setRevealed(p => new Set([...p, i]))} style={{ width: '100%', padding: '8px 12px', background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                                <button onClick={() => setRevealed(p => new Set([...p, i]))} style={{ width: '100%', padding: '8px 12px', background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'var(--ag-purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                                     <CheckCircle2 size={12} /> Show Answer
                                 </button>
                             ) : (
@@ -102,11 +102,11 @@ export function ConceptDetailPanel({ node, notebookId, onClose, onStatusChange, 
     const [customInstruction, setCustomInstruction] = useState('');
 
     const LEVELS = [
-        { key: 'struggling', label: 'Easy',   color: '#10B981', icon: <CheckCircle2 size={11} />, desc: 'Definitions & recall' },
-        { key: 'partial',   label: 'Medium',  color: '#F59E0B', icon: <MinusCircle size={11} />,  desc: 'Exam-style problems' },
-        { key: 'mastered',  label: 'Hard',    color: '#EF4444', icon: <AlertCircle size={11} />,  desc: 'Derivations & edge cases' },
+        { key: 'struggling', label: 'Easy',   color: 'var(--ag-emerald)', icon: <CheckCircle2 size={11} />, desc: 'Definitions & recall' },
+        { key: 'partial',   label: 'Medium',  color: 'var(--ag-gold)', icon: <MinusCircle size={11} />,  desc: 'Exam-style problems' },
+        { key: 'mastered',  label: 'Hard',    color: 'var(--ag-red)', icon: <AlertCircle size={11} />,  desc: 'Derivations & edge cases' },
     ];
-    const statusColors = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
+    const statusColors = { mastered: 'var(--ag-emerald)', partial: 'var(--ag-gold)', struggling: 'var(--ag-red)' };
 
     const fetchLevel = async (lk) => {
         if (activeLevel === lk && !customInstruction) { setActiveLevel(null); setQuestions(null); setPromotion(null); return; }
@@ -192,7 +192,7 @@ export function ConceptDetailPanel({ node, notebookId, onClose, onStatusChange, 
                         : <QuestionCards questions={questions} level={activeLevel} onAllAssessed={handleAllAssessed} />
                 )}
                 {!loadingQ && promotion && (
-                    <div style={{ margin: '10px 0 4px', padding: '9px 12px', borderRadius: 8, background: promotion === 'top' ? '#DCFCE7' : '#EDE9FE', border: `1px solid ${promotion === 'top' ? '#86EFAC' : '#C4B5FD'}`, fontSize: 11, fontWeight: 600, color: promotion === 'top' ? '#065F46' : '#5B21B6', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ margin: '10px 0 4px', padding: '9px 12px', borderRadius: 8, background: promotion === 'top' ? '#DCFCE7' : 'var(--ag-purple-soft)', border: `1px solid ${promotion === 'top' ? '#86EFAC' : 'var(--ag-ring-left)'}`, fontSize: 11, fontWeight: 600, color: promotion === 'top' ? '#065F46' : '#5B21B6', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <CheckCircle2 size={12} /> {promotion === 'top' ? '🏆 Already at peak mastery — well done!' : `⬆️ Level upgraded to ${promotion}! Graph updated.`}
                     </div>
                 )}
@@ -242,7 +242,7 @@ export default function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusC
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Cognitive Knowledge Map</div>
                 {nodes.length > 0 && (
                     <div style={{ display: 'flex', gap: 6 }}>
-                        {[['mastered', '#10B981', mc], ['partial', '#F59E0B', pc], ['struggling', '#EF4444', sc]].map(([k, c, count]) => (
+                        {[['mastered', 'var(--ag-emerald)', mc], ['partial', 'var(--ag-gold)', pc], ['struggling', 'var(--ag-red)', sc]].map(([k, c, count]) => (
                             <div key={k} style={{ flex: 1, textAlign: 'center', background: c + '15', borderRadius: 6, padding: 4, border: `1px solid ${c}33` }}>
                                 <div style={{ fontSize: 16, fontWeight: 800, color: c }}>{count}</div>
                                 <div style={{ fontSize: 9, color: c, textTransform: 'uppercase', fontWeight: 600 }}>{k}</div>
@@ -284,12 +284,12 @@ export default function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusC
             </div>
             <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', gap: 14, marginBottom: sc > 0 || pc > 0 ? 8 : 0 }}>
-                    {[['mastered', '#10B981'], ['partial', '#F59E0B'], ['struggling', '#EF4444']].map(([k, c]) => (
+                    {[['mastered', 'var(--ag-emerald)'], ['partial', 'var(--ag-gold)'], ['struggling', 'var(--ag-red)']].map(([k, c]) => (
                         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text3)' }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: c }} /> {k}</div>
                     ))}
                 </div>
                 {(sc > 0 || pc > 0) && (
-                    <button onClick={() => setSniperOpen(true)} style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none', background: sc > 0 ? 'linear-gradient(90deg,#EF4444,#F59E0B)' : '#F59E0B', color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 8px rgba(239,68,68,0.25)', letterSpacing: 0.2 }}>
+                    <button onClick={() => setSniperOpen(true)} style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none', background: sc > 0 ? 'linear-gradient(90deg,#EF4444,#F59E0B)' : 'var(--ag-gold)', color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 8px rgba(239,68,68,0.25)', letterSpacing: 0.2 }}>
                         🎯 Sniper Test — {sc} red zone{sc !== 1 ? 's' : ''} targeted
                     </button>
                 )}

@@ -44,7 +44,7 @@ export function StudyTimer() {
     if (!open) return (
         <button onClick={() => setOpen(true)} className="btn btn-ghost btn-sm" title="Pomodoro timer" style={{ padding: '5px 8px', position: 'relative' }}>
             <Clock size={14} />
-            {sessions > 0 && <span style={{ position: 'absolute', top: -2, right: -2, background: '#7C3AED', color: '#fff', fontSize: 8, fontWeight: 700, width: 14, height: 14, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sessions}</span>}
+            {sessions > 0 && <span style={{ position: 'absolute', top: -2, right: -2, background: 'var(--ag-purple)', color: '#fff', fontSize: 8, fontWeight: 700, width: 14, height: 14, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sessions}</span>}
         </button>
     );
 
@@ -64,14 +64,14 @@ export function StudyTimer() {
                     <svg width={80} height={80} viewBox="0 0 50 50">
                         <circle cx={25} cy={25} r={R} fill="none" stroke="var(--border)" strokeWidth={4} />
                         <circle cx={25} cy={25} r={R} fill="none"
-                            stroke={isAlmostDone ? '#EF4444' : mode === 'focus' ? '#7C3AED' : '#10B981'}
+                            stroke={isAlmostDone ? 'var(--ag-red)' : mode === 'focus' ? 'var(--ag-purple)' : 'var(--ag-emerald)'}
                             strokeWidth={4}
                             strokeDasharray={`${pct * C} ${C}`}
                             strokeDashoffset={C * 0.25}
                             strokeLinecap="round"
                             style={{ transition: 'stroke-dasharray 0.5s ease, stroke 0.5s ease', transform: 'rotate(-90deg)', transformOrigin: '25px 25px' }}
                         />
-                        <text x={25} y={28} textAnchor="middle" fontSize={9} fontWeight={700} fill={isAlmostDone ? '#EF4444' : 'var(--text)'} fontFamily="Space Grotesk, monospace">{mm}:{ss}</text>
+                        <text x={25} y={28} textAnchor="middle" fontSize={9} fontWeight={700} fill={isAlmostDone ? 'var(--ag-red)' : 'var(--text)'} fontFamily="Space Grotesk, monospace">{mm}:{ss}</text>
                     </svg>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>

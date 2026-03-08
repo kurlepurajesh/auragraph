@@ -43,4 +43,8 @@ def test_mutation_template_contains_rewrite():
 def test_doubt_answer_template_vars():
     spec = registry["doubt_answer"]
     for var in spec.required_vars:
-        assert "{" + var + "}" in spec.template, f"Required var {var!r} not in template"
+        placeholder = "{{$" + var + "}}"
+        assert placeholder in spec.template, (
+            f"Required var {var!r} not found as '{placeholder}' in template. "
+            f"Template snippet: {spec.template[:200]!r}"
+        )

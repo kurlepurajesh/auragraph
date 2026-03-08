@@ -29,7 +29,7 @@ export function PracticeQuestions({ text }) {
                         {hasAnswer && (
                             <div style={{ borderTop: '1px solid var(--border)' }}>
                                 {!isRevealed ? (
-                                    <button onClick={() => setRevealed(prev => new Set([...prev, i]))} style={{ width: '100%', padding: '9px 16px', background: 'var(--surface)', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                    <button onClick={() => setRevealed(prev => new Set([...prev, i]))} style={{ width: '100%', padding: '9px 16px', background: 'var(--surface)', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--ag-purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                                         <CheckCircle2 size={13} /> Show Answer
                                     </button>
                                 ) : (

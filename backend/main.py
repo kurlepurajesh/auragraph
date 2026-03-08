@@ -88,6 +88,10 @@ load_dotenv()
 logger = logging.getLogger("auragraph")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
+# Serialize all notebook writes so SQLite WAL doesn't get hammered with concurrent
+# mutations on the same notebook (e.g. rapid re-upload or race between mutate + regen).
+_db_write_lock: asyncio.Lock = asyncio.Lock()
+
 _PROMPT_SLIDES_BUDGET   = 24_000
 _PROMPT_TEXTBOOK_BUDGET = 24_000
 
@@ -933,7 +937,8 @@ async def save_notebook_note(
 ):
     user = get_current_user(authorization)
     _require_notebook_owner(nb_id, user)
-    return update_notebook_note(nb_id, req.note, req.proficiency)
+    async with _db_write_lock:
+        return update_notebook_note(nb_id, req.note, req.proficiency)
 
 
 @app.delete("/notebooks/{nb_id}")

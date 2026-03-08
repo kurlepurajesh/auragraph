@@ -38,7 +38,7 @@ export default function FileDrop({ label, icon, files, onFiles, imageOnly = fals
             onDragOver={e => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={e => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
-            style={{ border: `2px dashed ${drag ? 'var(--text)' : hasFiles ? '#10B981' : 'var(--border2)'}`, borderRadius: 12, padding: 16, background: drag ? 'var(--surface2)' : hasFiles ? 'var(--zone-files-bg)' : 'var(--surface)', transition: 'all 0.15s', minHeight: 140 }}
+            style={{ border: `2px dashed ${drag ? 'var(--text)' : hasFiles ? 'var(--ag-emerald)' : 'var(--border2)'}`, borderRadius: 12, padding: 16, background: drag ? 'var(--surface2)' : hasFiles ? 'var(--zone-files-bg)' : 'var(--surface)', transition: 'all 0.15s', minHeight: 140 }}
         >
             <input
                 ref={ref}
@@ -62,7 +62,7 @@ export default function FileDrop({ label, icon, files, onFiles, imageOnly = fals
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#10B981' }}>{files.length} file{files.length > 1 ? 's' : ''} · {totalMB} MB</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ag-emerald)' }}>{files.length} file{files.length > 1 ? 's' : ''} · {totalMB} MB</span>
                         <button onClick={() => ref.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text3)', textDecoration: 'underline', padding: 0 }}>+ Add more</button>
                     </div>
                     {files.map((f, i) => (

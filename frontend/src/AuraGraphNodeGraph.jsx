@@ -6,9 +6,9 @@ import React, { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 
 const STATUS = {
-    mastered:   { fill: '#10B981', ring: '#6EE7B7', label: '#064E3B' },
-    partial:    { fill: '#F59E0B', ring: '#FCD34D', label: '#78350F' },
-    struggling: { fill: '#EF4444', ring: '#FCA5A5', label: '#7F1D1D' },
+    mastered:   { fill: 'var(--ag-emerald)', ring: '#6EE7B7', label: '#064E3B' },
+    partial:    { fill: 'var(--ag-gold)', ring: '#FCD34D', label: '#78350F' },
+    struggling: { fill: 'var(--ag-red)', ring: '#FCA5A5', label: '#7F1D1D' },
 };
 
 export default function EnhancedGraph() {

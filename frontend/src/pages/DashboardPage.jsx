@@ -64,9 +64,9 @@ function MiniDonut({ mastered, partial, struggling, total }) {
     );
     const R = 26, C = 2 * Math.PI * R;
     const segments = [
-        { val: mastered, color: '#10B981' },
-        { val: partial,  color: '#F59E0B' },
-        { val: struggling, color: '#EF4444' },
+        { val: mastered, color: 'var(--ag-emerald)' },
+        { val: partial,  color: 'var(--ag-gold)' },
+        { val: struggling, color: 'var(--ag-red)' },
     ];
     let offset = 0;
     const arcs = segments.map(s => {
@@ -155,7 +155,7 @@ function NotebookCard({ nb, onOpen, onDelete }) {
 
     const profColor = {
         Foundations: { bg: '#ECFDF5', text: '#059669', border: '#A7F3D0' },
-        Practitioner: { bg: '#F5F3FF', text: '#7C3AED', border: '#DDD6FE' },
+        Practitioner: { bg: '#F5F3FF', text: 'var(--ag-purple)', border: '#DDD6FE' },
         Expert: { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
     }[nb.proficiency] || { bg: 'var(--surface2)', text: 'var(--text3)', border: 'var(--border)' };
 
@@ -187,7 +187,7 @@ function NotebookCard({ nb, onOpen, onDelete }) {
                 <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                         <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>Mastery</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444' }}>{pct}%</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: pct >= 70 ? 'var(--ag-emerald)' : pct >= 40 ? 'var(--ag-gold)' : 'var(--ag-red)' }}>{pct}%</span>
                     </div>
                     <div className="progress-bar-track">
                         <div className="progress-bar-fill" style={{ width: `${pct}%`, background: pct >= 70 ? 'linear-gradient(90deg,#10B981,#34D399)' : pct >= 40 ? 'linear-gradient(90deg,#F59E0B,#FCD34D)' : 'linear-gradient(90deg,#EF4444,#FCA5A5)' }} />
@@ -390,7 +390,7 @@ export default function DashboardPage() {
                                 <MiniDonut {...masteryStats} />
                                 <div>
                                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Overall Mastery</div>
-                                    {[['mastered','#10B981'], ['partial','#F59E0B'], ['struggling','#EF4444']].map(([k,c]) => (
+                                    {[['mastered','var(--ag-emerald)'], ['partial','var(--ag-gold)'], ['struggling','var(--ag-red)']].map(([k,c]) => (
                                         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                                             <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
                                             <span style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'capitalize' }}>{k}</span>

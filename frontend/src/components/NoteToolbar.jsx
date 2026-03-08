@@ -56,7 +56,7 @@ export function UndoToast({ toast, onUndo, onDismiss }) {
     const mins = Math.floor(remaining / 60000);
     const secs = Math.floor((remaining % 60000) / 1000);
     const timeStr = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`;
-    const barColor = pct > 50 ? '#10B981' : pct > 20 ? '#F59E0B' : '#EF4444';
+    const barColor = pct > 50 ? 'var(--ag-emerald)' : pct > 20 ? 'var(--ag-gold)' : 'var(--ag-red)';
 
     return (
         <div className="no-print" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 10000, background: '#1E1B4B', borderRadius: 12, padding: '12px 16px', boxShadow: '0 8px 32px rgba(0,0,0,0.45)', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 270, animation: 'slideUpFade 0.25s ease' }}>
@@ -69,7 +69,7 @@ export function UndoToast({ toast, onUndo, onDismiss }) {
                     <button onClick={onUndo} style={{ background: '#4F46E5', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Undo2 size={11} /> Undo
                     </button>
-                    <button onClick={onDismiss} style={{ background: 'none', border: '1px solid #4C1D95', color: '#A78BFA', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>✕</button>
+                    <button onClick={onDismiss} style={{ background: 'none', border: '1px solid #4C1D95', color: 'var(--ag-ring-right)', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>✕</button>
                 </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

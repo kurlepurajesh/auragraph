@@ -1,9 +1,10 @@
 """
 Auth Utility — AuraGraph (SQLite v2)
 Uses the shared auragraph.db. Token TTL = 7 days for real users.
-Demo token is a fixed string validated by its known value.
+Demo token is only accepted when DEMO_ENABLED=true environment variable is set.
 """
 import logging
+import os
 import sqlite3
 import time
 import uuid
@@ -12,13 +13,13 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from passlib.hash import bcrypt as _bcrypt
+    import bcrypt as _bcrypt_lib
     _USE_BCRYPT = True
-except ImportError:  # graceful fallback if passlib not yet installed
-    import hashlib as _hashlib
+except ImportError:
+    _bcrypt_lib = None  # type: ignore
     _USE_BCRYPT = False
     logging.getLogger("auragraph").warning(
-        "passlib not installed — falling back to SHA-256 (install passlib[bcrypt] for production)"
+        "bcrypt not installed — falling back to SHA-256 (pip install bcrypt for production)"
     )
 
 logger = logging.getLogger("auragraph")
@@ -81,9 +82,12 @@ def _migrate_users_from_json():
 
 def _hash_password(password: str) -> str:
     if _USE_BCRYPT:
-        return _bcrypt.using(rounds=12).hash(password)
+        return _bcrypt_lib.hashpw(
+            password.encode("utf-8"), _bcrypt_lib.gensalt(rounds=12)
+        ).decode("utf-8")
     # Fallback: SHA-256 (dev only)
-    return _hashlib.sha256(password.encode()).hexdigest()
+    import hashlib
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
 def _verify_password(password: str, stored_hash: str) -> bool:
@@ -91,10 +95,12 @@ def _verify_password(password: str, stored_hash: str) -> bool:
     if stored_hash.startswith("$2"):   # bcrypt hash
         if _USE_BCRYPT:
             try:
-                return _bcrypt.verify(password, stored_hash)
+                return _bcrypt_lib.checkpw(
+                    password.encode("utf-8"), stored_hash.encode("utf-8")
+                )
             except Exception:
                 return False
-        return False  # stored as bcrypt but passlib not available
+        return False  # stored as bcrypt but library not available
     # Legacy SHA-256 hash
     import hashlib
     return hashlib.sha256(password.encode()).hexdigest() == stored_hash
@@ -134,9 +140,13 @@ _DEMO_USER = {
     "token": "demo-token",
 }
 
+# Set DEMO_ENABLED=true in the environment to allow the hard-coded dev demo token.
+# Never enable this in production — real users always auth via register/login endpoints.
+_DEMO_ENABLED: bool = os.environ.get("DEMO_ENABLED", "false").lower() == "true"
+
 
 def validate_token(token: str) -> Optional[dict]:
-    if token == "demo-token":
+    if _DEMO_ENABLED and token == "demo-token":
         return dict(_DEMO_USER)
     with _conn() as con:
         row = con.execute("SELECT * FROM users WHERE token=?", (token,)).fetchone()

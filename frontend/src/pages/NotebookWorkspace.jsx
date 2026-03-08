@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ls_getNotebook, ls_saveNote } from '../localNotebooks';
 import {
@@ -22,428 +22,71 @@ import KnowledgePanel from '../components/KnowledgePanel';
 import NoteRenderer from '../components/NoteRenderer';
 import DoubtsPanel from '../components/DoubtsPanel';
 import { CopyNoteButton, DownloadNoteButton, PrintNoteButton, UndoToast } from '../components/NoteToolbar';
+import { useNotebookData } from '../hooks/useNotebookData';
+import { useSections } from '../hooks/useSections';
+import { useDoubtsLog } from '../hooks/useDoubtsLog';
+import { useKnowledgeGraph } from '../hooks/useKnowledgeGraph';
+import { usePagination } from '../hooks/usePagination';
+import { useUndoStack } from '../hooks/useUndoStack';
+import { useFuse } from '../hooks/useFuse';
+import { useSidebar } from '../hooks/useSidebar';
 
 export default function NotebookWorkspace() {
     const { id } = useParams();
     const navigate = useNavigate();
 
-    const [notebook, setNotebook] = useState(null);
-    const [note, setNote] = useState('');
-    const [prof, setProf] = useState('Practitioner');
-    const [slidesFiles, setSlidesFiles] = useState([]);
-    const [textbookFiles, setTextbookFiles] = useState([]);
-    const [notesFiles, setNotesFiles] = useState([]); // handwritten / photographed notes
-    const [fusing, setFusing] = useState(false);
-    const [fuseProgress, setFuseProgress] = useState('');
-    const [verifyingStep, setVerifyingStep] = useState(null); // null = auto-timer, 5 = verifying
+    // ── UI state (not owned by any single hook) ─────────────────────────────
+    const [darkMode, setDarkMode] = useDarkMode();
     const [mutating, setMutating] = useState(false);
-    const [currentPage, setCurrentPage] = useState(0);
     const [gapText, setGapText] = useState('');
     const [mutatedPages, setMutatedPages] = useState(new Set());
-    const [doubtsLog, setDoubtsLog] = useState([]);
     const [rightTab, setRightTab] = useState('map');
-    const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [sidebarWidth, setSidebarWidth] = useState(310);
-    const [graphNodes, setGraphNodes] = useState([]);
-    const [graphEdges, setGraphEdges] = useState([]);
-    const [noteSource, setNoteSource] = useState('azure');      // 'azure' | 'local'
-    const [fallbackWarning, setFallbackWarning] = useState(''); // non-empty = show banner
-    const [viewMode, setViewMode] = useState('single');         // 'single' | 'two' | 'scroll'
-    const [jumpHighlightSet, setJumpHighlightSet] = useState(new Set()); // page indices to pulse
-    const [textSelection, setTextSelection] = useState(null);       // { text, x, y } | null
-    const [pendingSelectionText, setPendingSelectionText] = useState(''); // pre-fills MutateModal
-    const [showSearch, setShowSearch] = useState(false);       // note search overlay
-    const [showShortcuts, setShowShortcuts] = useState(false); // keyboard shortcuts modal
-    const [darkMode, setDarkMode] = useDarkMode();             // dark mode toggle
-    const [editingPage, setEditingPage] = useState(false);     // page-jump input active
-    const [pageInputVal, setPageInputVal] = useState('');      // page-jump input value
-    const [regenLoadingPages, setRegenLoadingPages] = useState(new Set()); // pages being re-generated
-    const [undoToast, setUndoToast] = useState(null); // { note, prof, label, expiresAt } | null
-    const undoTimerRef = useRef(null);
-    const noteScrollRef = useRef();
-    const [fontSize, setFontSize] = useState(() => parseInt(localStorage.getItem('ag_font_size') || '16', 10));
+    const [textSelection, setTextSelection] = useState(null);
+    const [pendingSelectionText, setPendingSelectionText] = useState('');
+    const [showSearch, setShowSearch] = useState(false);
+    const [showShortcuts, setShowShortcuts] = useState(false);
+    const [editingPage, setEditingPage] = useState(false);
+    const [pageInputVal, setPageInputVal] = useState('');
+    const [regenLoadingPages, setRegenLoadingPages] = useState(new Set());
 
-    // ── Sections (TOC) state ──────────────────────────────────────────────────
-    const [sections, setSections] = useState([]);
-    const [sectionInput, setSectionInput] = useState('');
-    const [sectionInputType, setSectionInputType] = useState('topic'); // topic | chapter
-    const [generatingSection, setGeneratingSection] = useState(null); // section id | null
+    // ── Custom hooks ─────────────────────────────────────────────────────────
+    const { graphNodes, setGraphNodes, graphEdges, setGraphEdges, handleNodeStatusChange } = useKnowledgeGraph(id);
+    const {
+        notebook, setNotebook, note, setNote, prof, setProf,
+        saveNote, extractAndSaveGraph, loadNotebook, reloadNote, autoExtractRef,
+    } = useNotebookData(id, { setGraphNodes, setGraphEdges });
+    const { doubtsLog, setDoubtsLog } = useDoubtsLog(id);
+    const {
+        sections, setSections,
+        sectionInput, setSectionInput,
+        sectionInputType, setSectionInputType,
+        generatingSection,
+        handleAddSection, handleDeleteSection, handleGenerateSection,
+        handleMoveSectionUp, handleMoveSectionDown, loadSections,
+    } = useSections(id, notebook?.proficiency || prof, reloadNote);
+    const {
+        pages, currentPage, setCurrentPage, viewMode, setViewMode,
+        fontSize, setFontSize, jumpHighlightSet, noteScrollRef, handleJumpToSection,
+    } = usePagination(note, { mutating, setMutating, setShowSearch, setShowShortcuts });
+    const { undoToast, pushUndo, handleUndoCommit, dismissUndo } = useUndoStack({ saveNote, setNote, setProf });
+    const {
+        slidesFiles, setSlidesFiles, textbookFiles, setTextbookFiles,
+        notesFiles, setNotesFiles, fusing, fuseProgress, verifyingStep,
+        noteSource, fallbackWarning, setFallbackWarning, handleFuse,
+    } = useFuse(id, { prof, setNote, setCurrentPage, setMutatedPages, saveNote, extractAndSaveGraph });
+    const { sidebarOpen, setSidebarOpen, sidebarWidth, startResizeSidebar } = useSidebar();
 
-    const loadSections = useCallback(async () => {
-        try {
-            const res = await fetch(`${API}/notebooks/${id}/sections`, { headers: authHeaders() });
-            if (res.ok) setSections(await res.json());
-        } catch { }
-    }, [id]);
-
-    // Refresh note text after section generation rebuilds the flat note
-    const loadNotebook = useCallback(async () => {
-        try {
-            const res = await fetch(`${API}/notebooks/${id}`, { headers: authHeaders() });
-            if (!res.ok) return;
-            const nb = await res.json();
-            setNote(nb.note || '');
-            setProf(nb.proficiency || 'Practitioner');
-        } catch { }
-    }, [id]);
-
-    useEffect(() => { loadSections(); }, [loadSections]);
-    useEffect(() => { localStorage.setItem('ag_font_size', String(fontSize)); }, [fontSize]);
-
-    // Snap currentPage to an even index when entering two-page mode so the same
-    // page is never shown both as the right half of a spread AND solo on the next.
-    useEffect(() => {
-        if (viewMode === 'two' && currentPage % 2 !== 0) {
-            setCurrentPage(p => Math.max(0, p - 1));
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [viewMode]);
-
-    // Print is handled by #ag-print-root — a dedicated hidden div that always
-    // contains all note pages. No viewMode switching needed.
-    const handlePrint = useCallback(() => { window.print(); }, []);
-
-    const handleAddSection = async (e) => {
-        e.preventDefault();
-        const title = sectionInput.trim();
-        if (!title) return;
-        try {
-            const res = await fetch(`${API}/notebooks/${id}/sections`, {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify({ title, note_type: sectionInputType }),
-            });
-            if (res.ok) {
-                const sec = await res.json();
-                setSections(prev => [...prev, sec]);
-                setSectionInput('');
-            }
-        } catch { }
-    };
-
-    const handleDeleteSection = async (secId) => {
-        try {
-            const res = await fetch(`${API}/notebooks/${id}/sections/${secId}`, {
-                method: 'DELETE', headers: authHeaders(),
-            });
-            if (res.ok) setSections(prev => prev.filter(s => s.id !== secId));
-        } catch { }
-    };
-
-    const handleGenerateSection = async (sec) => {
-        setGeneratingSection(sec.id);
-        try {
-            const res = await fetch(`${API}/notebooks/${id}/sections/${sec.id}/generate`, {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify({ proficiency: notebook?.proficiency || 'Intermediate' }),
-            });
-            if (res.ok) {
-                const updated = await res.json();
-                setSections(prev => prev.map(s => s.id === sec.id ? updated : s));
-                // Reload the note pages so the main viewer reflects the new content
-                loadNotebook();
-            }
-        } catch { }
-        setGeneratingSection(null);
-    };
-
-    const handleMoveSectionUp = async (idx) => {
-        if (idx === 0) return;
-        const next = [...sections];
-        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-        setSections(next);
-        try {
-            await fetch(`${API}/notebooks/${id}/sections/reorder`, {
-                method: 'PUT',
-                headers: authHeaders(),
-                body: JSON.stringify({ order: next.map((s, i) => ({ id: s.id, order_idx: i })) }),
-            });
-        } catch { }
-    };
-
-    const handleMoveSectionDown = async (idx) => {
-        if (idx === sections.length - 1) return;
-        const next = [...sections];
-        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-        setSections(next);
-        try {
-            await fetch(`${API}/notebooks/${id}/sections/reorder`, {
-                method: 'PUT',
-                headers: authHeaders(),
-                body: JSON.stringify({ order: next.map((s, i) => ({ id: s.id, order_idx: i })) }),
-            });
-        } catch { }
-    };
-
-    // ── Undo helpers ──────────────────────────────────────────────────────────
-    const pushUndo = useCallback((prevNote, prevProf, label) => {
-        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-        const expiresAt = Date.now() + UNDO_TTL_MS;
-        setUndoToast({ note: prevNote, prof: prevProf, label, expiresAt });
-        undoTimerRef.current = setTimeout(() => setUndoToast(null), UNDO_TTL_MS);
-    }, []);
-
-    const handleUndoCommit = useCallback(async () => {
-        if (!undoToast) return;
-        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-        const { note: prevNote, prof: prevProf } = undoToast;
-        setUndoToast(null);
-        setNote(prevNote);
-        setProf(prevProf);
-        await saveNote(prevNote, prevProf);
-    }, [undoToast]);
-
-    const dismissUndo = useCallback(() => {
-        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-        setUndoToast(null);
-    }, []);
-
-    const startResizeSidebar = useCallback((e) => {
-        e.preventDefault();
-        const startX = e.clientX;
-        const startW = sidebarWidth;
-        const handle = e.currentTarget;
-        handle.classList.add('dragging');
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-        const onMove = (ev) => {
-            // dragging left (negative delta) → wider sidebar
-            const delta = startX - ev.clientX;
-            setSidebarWidth(Math.max(220, Math.min(640, startW + delta)));
-        };
-        const onUp = () => {
-            handle.classList.remove('dragging');
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-        };
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-    }, [sidebarWidth]);
-
-    const pages = useMemo(() => {
-        if (!note) return [];
-        // Strip code fences (```markdown … ```) that LLMs sometimes wrap notes in
-        let clean = note.replace(/^\s*```+\s*(?:markdown|md|latex|text)?\s*\n/gm, '');
-        clean = clean.replace(/\n\s*```+\s*$/g, '');
-        const byH2 = clean.split(/(?=^## )/m).map(s => s.trim()).filter(Boolean);
-        if (byH2.length > 0) {
-            // Group sections together targeting ~3000 chars per page
-            const TARGET = 3000;
-            const merged = []; let buf = '';
-            for (const s of byH2) {
-                if (buf && buf.length + s.length + 2 > TARGET && buf.length > 200) {
-                    merged.push(buf.trim());
-                    buf = s;
-                } else {
-                    buf = buf ? buf + '\n\n' + s : s;
-                }
-            }
-            if (buf) merged.push(buf.trim());
-            return merged.filter(Boolean);
-        }
-        const byH3 = clean.split(/(?=^### )/m).map(s => s.trim()).filter(Boolean);
-        if (byH3.length > 1) return byH3;
-        // Math-aware paragraph split — never cuts inside a $$ block
-        const mathAwareSplit = (text) => {
-            const segments = []; let inMath = false; let buf = [];
-            for (const line of text.split('\n')) {
-                if (line.trim() === '$$') inMath = !inMath;
-                if (!inMath && line === '' && buf.length > 0) {
-                    const seg = buf.join('\n').trim();
-                    if (seg.length > 40) segments.push(seg);
-                    buf = [];
-                } else { buf.push(line); }
-            }
-            if (buf.length > 0) { const seg = buf.join('\n').trim(); if (seg.length > 40) segments.push(seg); }
-            return segments;
-        };
-        const paras = mathAwareSplit(clean);
-        const chunks = []; let cur = '';
-        for (const p of paras) {
-            if (cur.length + p.length > 700 && cur.length > 150) { chunks.push(cur.trim()); cur = p; }
-            else { cur += (cur ? '\n\n' : '') + p; }
-        }
-        if (cur) chunks.push(cur.trim());
-        return chunks.length ? chunks : [clean];
-    }, [note]);
-
-    // Scroll to top on page change
-    useEffect(() => {
-        noteScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [currentPage]);
-
-    // Keyboard navigation
-    useEffect(() => {
-        const h = (e) => {
-            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-            if (mutating) return;
-            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); setCurrentPage(p => Math.min(pages.length - 1, p + 1)); }
-            else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); setCurrentPage(p => Math.max(0, p - 1)); }
-            else if (e.key === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setMutating(true); }
-            else if (e.key === 'f' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setShowSearch(true); }
-            else if (e.key === '?' || (e.key === '/' && e.shiftKey)) { setShowShortcuts(true); }
-        };
-        window.addEventListener('keydown', h);
-        return () => window.removeEventListener('keydown', h);
-    }, [pages.length, mutating]);
-
-    const autoExtractRef = useRef(false); // prevent duplicate auto-extract attempts
-
-    // Load notebook + restore doubts
+    // ── On mount ─────────────────────────────────────────────────────────────
     useEffect(() => {
         autoExtractRef.current = false;
-        setDoubtsLog(loadDoubts(id));
-        const isErrorNote = (n) => typeof n === 'string' && (
-            n.includes('Backend Not Running') ||
-            n.includes('Failed to fetch') ||
-            n.includes('⚠️ Generation Failed') ||
-            n.includes('⚠️ Backend') ||
-            n.includes('⚠️ Upload')
-        );
-        fetch(`${API}/notebooks/${id}`, { headers: authHeaders() })
-            .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-            .then(nb => {
-                setNotebook(nb);
-                const loadedNote = nb.note || '';
-                const cleanNote = isErrorNote(loadedNote) ? '' : loadedNote;
-                setNote(cleanNote);
-                setProf(nb.proficiency || 'Practitioner');
-                if (nb.graph?.nodes?.length) {
-                    setGraphNodes(nb.graph.nodes); setGraphEdges(nb.graph.edges || []);
-                } else if (cleanNote && !autoExtractRef.current) {
-                    // Auto-seed concept graph — notebook has notes but graph was never extracted
-                    autoExtractRef.current = true;
-                    setTimeout(() => extractAndSaveGraph(cleanNote), 800);
-                }
-            })
-            .catch(() => {
-                const l = ls_getNotebook(id);
-                if (l) {
-                    setNotebook(l);
-                    const loadedNote = l.note || '';
-                    const cleanNote = isErrorNote(loadedNote) ? '' : loadedNote;
-                    setNote(cleanNote);
-                    setProf(l.proficiency || 'Practitioner');
-                    if (l.graph?.nodes?.length) {
-                        setGraphNodes(l.graph.nodes); setGraphEdges(l.graph.edges || []);
-                    } else if (cleanNote && !autoExtractRef.current) {
-                        autoExtractRef.current = true;
-                        setTimeout(() => extractAndSaveGraph(cleanNote), 800);
-                    }
-                } else {
-                    setNotebook({ id, name: 'Untitled', course: '' });
-                }
-            });
-    }, [id]);
+        loadNotebook();
+    }, [loadNotebook]);
+    useEffect(() => { loadSections(); }, [loadSections]);
 
-    const saveNote = async (newNote, newProf) => {
-        // Never persist stale error messages
-        const isErrorNote = typeof newNote === 'string' && (
-            newNote.includes('Backend Not Running') ||
-            newNote.includes('Failed to fetch')
-        );
-        if (isErrorNote) return;
-        ls_saveNote(id, newNote, newProf);
-        try { await fetch(`${API}/notebooks/${id}/note`, { method: 'PATCH', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ note: newNote, proficiency: newProf }) }); } catch { }
-    };
+    const handlePrint = useCallback(() => { window.print(); }, []);
 
-    const extractAndSaveGraph = async (text) => {
-        // FIX: include authHeaders so the request is authenticated (backend requires Bearer token)
-        try { const r = await fetch(`${API}/api/extract-concepts`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ note: text, notebook_id: id }) }); const g = await r.json(); if (g.nodes?.length) { setGraphNodes(g.nodes); setGraphEdges(g.edges || []); } } catch { }
-    };
 
-    const handleFuse = async () => {
-        if (!slidesFiles.length && !notesFiles.length) return;
-        setFusing(true); setFuseProgress('Uploading files…');
-        setMutatedPages(new Set()); setGraphNodes([]); setGraphEdges([]);
-        setNote(''); setCurrentPage(0);
-        try {
-            const form = new FormData();
-            slidesFiles.forEach(f => form.append('slides_pdfs', f));
-            notesFiles.forEach(f => form.append('slides_pdfs', f));
-            textbookFiles.forEach(f => form.append('textbook_pdfs', f));
-            form.append('proficiency', prof);
-            if (id) form.append('notebook_id', id);
-            setFuseProgress('Running Fusion Agent…');
 
-            const res = await fetch(`${API}/api/upload-fuse-stream`, { method: 'POST', headers: authHeaders(), body: form });
-
-            if (!res.ok) {
-                let detail = `Server error (${res.status})`;
-                try { const j = await res.json(); detail = j.detail || detail; } catch { }
-                throw new Error(detail);
-            }
-
-            // Stream SSE events
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let streamedNote = '';
-            let streamSource = 'azure';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                // Split on double newline (SSE event boundary)
-                const parts = buffer.split('\n\n');
-                buffer = parts.pop(); // last part may be incomplete
-                for (const part of parts) {
-                    const line = part.trim();
-                    if (!line.startsWith('data: ')) continue;
-                    try {
-                        const event = JSON.parse(line.slice(6));
-                        if (event.type === 'start') {
-                            setFuseProgress(`Generating ${event.total} topic sections…`);
-                        } else if (event.type === 'status') {
-                            setFuseProgress(event.message || 'Processing…');
-                            if ((event.message || '').toLowerCase().includes('verif')) setVerifyingStep(5);
-                        } else if (event.type === 'section') {
-                            // Accumulate silently — note is shown only after verification
-                            streamedNote += (streamedNote ? '\n\n' : '') + event.content;
-                            setFuseProgress(`Building: ${event.topic}…`);
-                        } else if (event.type === 'done') {
-                            // Verified note — now safe to show to student
-                            setVerifyingStep(null);
-                            streamedNote = event.note;
-                            streamSource = event.source || 'azure';
-                            setNote(event.note);
-                            if (event.corrections_made > 0) {
-                                setFallbackWarning(`✅ Accuracy check complete — ${event.correction_summary || 'minor corrections applied before showing notes.'}`);
-                                setTimeout(() => setFallbackWarning(''), 8000);
-                            }
-                        }
-                    } catch { /* ignore malformed events */ }
-                }
-            }
-
-            setNoteSource(streamSource);
-            setFallbackWarning(streamSource === 'local'
-                ? '⚠️ Azure OpenAI was unavailable — notes were generated using the offline summariser.'
-                : ''
-            );
-            await saveNote(streamedNote, prof);
-            setFuseProgress('Extracting concept map…');
-            await extractAndSaveGraph(streamedNote);
-        } catch (err) {
-            const isNetworkError = !err.message || err.message === 'Failed to fetch' || err.message.includes('NetworkError');
-            const isFileTooLarge = err.message?.toLowerCase().includes('too large') || err.message?.toLowerCase().includes('exceeds') || err.message?.includes('413');
-            const isAuth = err.message?.includes('401') || err.message?.includes('403') || err.message?.toLowerCase().includes('unauthorized');
-            const bannerMsg = isNetworkError
-                ? '⚠️ Backend unreachable — start the server: cd backend && source venv/bin/activate && uvicorn main:app --reload --port 8000'
-                : isFileTooLarge
-                    ? `⚠️ Upload too large — ${err.message}. Try splitting files across two notebooks or compressing large PDFs.`
-                    : isAuth
-                        ? '⚠️ Authentication failed — try logging out and back in.'
-                        : `⚠️ Generation failed: ${err.message}`;
-            setFallbackWarning(bannerMsg);
-            // Keep note empty so the upload panel stays visible — don't persist the error
-        }
-            setFusing(false); setFuseProgress(''); setVerifyingStep(null);
-    };
 
     const handleMutate = useCallback(async (page, doubt) => {
         const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -540,51 +183,6 @@ export default function NotebookWorkspace() {
         }
         setRegenLoadingPages(prev => { const s = new Set(prev); s.delete(pageIdx); return s; });
     }, [note, prof, id]);
-
-    const handleNodeStatusChange = async (node, status) => {
-        setGraphNodes(prev => prev.map(n => n.id === node.id ? { ...n, status } : n));
-        try { await fetch(`${API}/notebooks/${id}/graph/update`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ concept_name: node.label, status }) }); } catch { }
-    };
-
-    const handleJumpToSection = useCallback((label) => {
-        if (!label || !pages.length) return;
-
-        const normalise = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-        const searchWords = normalise(label).split(' ').filter(w => w.length > 2);
-        const ll = normalise(label);
-
-        // 1. Exact substring match
-        let idx = pages.findIndex(p => normalise(p).includes(ll));
-
-        // 2. Strip ## prefix if present
-        if (idx === -1 && ll.startsWith('##')) {
-            idx = pages.findIndex(p => normalise(p).includes(ll.replace(/^#+\s*/, '')));
-        }
-
-        // 3. Word-overlap on heading area (first 200 chars)
-        if (idx === -1 && searchWords.length > 0) {
-            let bestScore = 0;
-            pages.forEach((p, i) => {
-                const headingArea = normalise(p.slice(0, 200));
-                const score = searchWords.filter(w => headingArea.includes(w)).length;
-                const fraction = score / searchWords.length;
-                if (fraction > 0.5 && score > bestScore) { bestScore = score; idx = i; }
-            });
-        }
-
-        // 4. Any significant word (>4 chars) in heading area
-        if (idx === -1 && searchWords.length > 0) {
-            const significant = searchWords.filter(w => w.length > 4);
-            if (significant.length > 0)
-                idx = pages.findIndex(p => significant.some(w => normalise(p.slice(0, 300)).includes(w)));
-        }
-
-        if (idx !== -1) {
-            setCurrentPage(idx);
-            setJumpHighlightSet(new Set([idx]));
-            setTimeout(() => setJumpHighlightSet(new Set()), 1800);
-        }
-    }, [pages]);
 
     const handleNoteMouseUp = useCallback(() => {
         const sel = window.getSelection();
@@ -758,7 +356,7 @@ export default function NotebookWorkspace() {
                                             <div className="note-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, paddingBottom: 10, borderBottom: '1px solid #DDD6FE' }}>
                                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter,sans-serif' }}>{notebook?.name || 'Study Notes'}</span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    {mutatedPages.has(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#EDE9FE', color: '#7C3AED', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
+                                                    {mutatedPages.has(idx) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--ag-purple-soft)', color: 'var(--ag-purple)', border: '1px solid #C4B5FD', letterSpacing: '0.05em' }}>✨ Mutated</span>}
                                                     <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Inter,sans-serif' }}>Page {idx + 1} of {pages.length}</span>
                                                     <button
                                                         onClick={() => handleRegenSection(idx)}
@@ -766,7 +364,7 @@ export default function NotebookWorkspace() {
                                                         title="Re-generate this section with fresh AI output"
                                                         className="no-print"
                                                         style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '3px 8px', cursor: regenLoadingPages.has(idx) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: '#9CA3AF', transition: 'all 0.15s' }}
-                                                        onMouseEnter={e => { if (!regenLoadingPages.has(idx)) { e.currentTarget.style.borderColor = '#7C3AED'; e.currentTarget.style.color = '#7C3AED'; } }}
+                                                        onMouseEnter={e => { if (!regenLoadingPages.has(idx)) { e.currentTarget.style.borderColor = 'var(--ag-purple)'; e.currentTarget.style.color = 'var(--ag-purple)'; } }}
                                                         onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#9CA3AF'; }}
                                                     >
                                                         {regenLoadingPages.has(idx)
@@ -803,7 +401,7 @@ export default function NotebookWorkspace() {
                                     {viewMode !== 'scroll' && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                                             {pages.slice(0, Math.min(pages.length, 20)).map((_, i) => (
-                                                <button key={i} className="page-dot" data-label={`Page ${i + 1}`} onClick={() => setCurrentPage(i)} title={`Page ${i + 1}`} style={{ width: i === currentPage ? 20 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === currentPage ? '#7C3AED' : mutatedPages.has(i) ? '#C4B5FD' : 'var(--border2)', transition: 'all 0.2s', padding: 0 }} />
+                                                <button key={i} className="page-dot" data-label={`Page ${i + 1}`} onClick={() => setCurrentPage(i)} title={`Page ${i + 1}`} style={{ width: i === currentPage ? 20 : 6, height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', background: i === currentPage ? 'var(--ag-purple)' : mutatedPages.has(i) ? 'var(--ag-ring-left)' : 'var(--border2)', transition: 'all 0.2s', padding: 0 }} />
                                             ))}
                                             {pages.length > 20 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>+{pages.length - 20}</span>}
                                         </div>
@@ -862,7 +460,7 @@ export default function NotebookWorkspace() {
                             { key: 'doubts', label: (() => { const onPage = doubtsLog.filter(d => d.pageIdx === currentPage).length; const total = doubtsLog.length; if (!total) return 'Doubts'; if (onPage) return `Doubts (${onPage}/${total})`; return `Doubts (${total})`; })(), icon: <MessageCircle size={12} /> },
                             { key: 'contents', label: `Contents${sections.length ? ` (${sections.length})` : ''}`, icon: <List size={12} /> },
                         ].map(tab => (
-                            <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? '#7C3AED' : 'var(--text3)' }}>
+                            <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? 'var(--ag-purple)' : 'var(--text3)' }}>
                                 {tab.icon} {tab.label}
                             </button>
                         ))}
@@ -924,7 +522,7 @@ export default function NotebookWorkspace() {
                                                 onClick={() => handleGenerateSection(sec)}
                                                 disabled={generatingSection === sec.id}
                                                 title="Generate note for this section"
-                                                style={{ background: 'none', border: '1px solid #7C3AED33', borderRadius: 5, cursor: 'pointer', padding: '3px 6px', color: '#7C3AED', opacity: generatingSection === sec.id ? 0.5 : 1 }}
+                                                style={{ background: 'none', border: '1px solid #7C3AED33', borderRadius: 5, cursor: 'pointer', padding: '3px 6px', color: 'var(--ag-purple)', opacity: generatingSection === sec.id ? 0.5 : 1 }}
                                             >
                                                 {generatingSection === sec.id
                                                     ? <Loader2 className="spin" size={11} />
@@ -933,7 +531,7 @@ export default function NotebookWorkspace() {
                                             <button
                                                 onClick={() => handleDeleteSection(sec.id)}
                                                 title="Delete section"
-                                                style={{ background: 'none', border: '1px solid #EF444433', borderRadius: 5, cursor: 'pointer', padding: '3px 6px', color: '#EF4444' }}
+                                                style={{ background: 'none', border: '1px solid #EF444433', borderRadius: 5, cursor: 'pointer', padding: '3px 6px', color: 'var(--ag-red)' }}
                                             >
                                                 <Trash2 size={11} />
                                             </button>
@@ -951,9 +549,9 @@ export default function NotebookWorkspace() {
             {textSelection && (
                 <div style={{ position: 'fixed', left: textSelection.x, top: textSelection.y - 8, transform: 'translateX(-50%) translateY(-100%)', zIndex: 9999, background: '#1E1B4B', borderRadius: 8, padding: '6px 10px', display: 'flex', gap: 6, boxShadow: '0 4px 24px rgba(0,0,0,0.35)', alignItems: 'center', pointerEvents: 'auto' }}>
                     <MessageCircle size={11} color="#C4B5FD" />
-                    <span style={{ color: '#C4B5FD', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{textSelection.text.length > 45 ? textSelection.text.slice(0, 45) + '…' : textSelection.text}</span>
-                    <button onClick={() => { setPendingSelectionText(textSelection.text); setTextSelection(null); setMutating(true); }} style={{ background: '#7C3AED', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Ask about this</button>
-                    <button onClick={() => setTextSelection(null)} style={{ background: 'none', border: '1px solid #4C1D95', color: '#A78BFA', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>&#x2715;</button>
+                    <span style={{ color: 'var(--ag-ring-left)', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{textSelection.text.length > 45 ? textSelection.text.slice(0, 45) + '…' : textSelection.text}</span>
+                    <button onClick={() => { setPendingSelectionText(textSelection.text); setTextSelection(null); setMutating(true); }} style={{ background: 'var(--ag-purple)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Ask about this</button>
+                    <button onClick={() => setTextSelection(null)} style={{ background: 'none', border: '1px solid #4C1D95', color: 'var(--ag-ring-right)', borderRadius: 5, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>&#x2715;</button>
                 </div>
             )}
             {undoToast && <UndoToast toast={undoToast} onUndo={handleUndoCommit} onDismiss={dismissUndo} />}

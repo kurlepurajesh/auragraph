@@ -82,6 +82,8 @@ def test_validate_bad_token(monkeypatch, tmp_path):
 
 def test_demo_token(monkeypatch, tmp_path):
     _patch_db(monkeypatch, tmp_path)
+    import agents.auth_utils as au
+    monkeypatch.setattr(au, "_DEMO_ENABLED", True)
     from agents.auth_utils import validate_token
     u = validate_token("demo-token")
     assert u is not None and u["id"] == "demo"

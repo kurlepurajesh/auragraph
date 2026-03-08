@@ -55,8 +55,13 @@ def test_separate_users_isolated(monkeypatch, tmp_path):
     db_b = get_db("user_b")
     if db_a["nodes"] and db_b["nodes"]:
         label_a = db_a["nodes"][0]["label"]
+        # Set both to a known baseline so the test is deterministic
+        update_node_status(label_a, "partial", "user_a")
+        update_node_status(label_a, "partial", "user_b")
+        # Now only update user_a
         update_node_status(label_a, "mastered", "user_a")
         db_b2 = get_db("user_b")
         node_b = next((n for n in db_b2["nodes"] if n["label"] == label_a), None)
         if node_b is not None:
-            assert node_b["status"] != "mastered" or label_a not in [n["label"] for n in db_b["nodes"]]
+            assert node_b["status"] == "partial", \
+                f"User B's status should not have been changed; got {node_b['status']!r}"

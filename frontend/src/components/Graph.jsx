@@ -3,9 +3,9 @@ import { Brain } from 'lucide-react';
 
 /** Status → { fill, ring } colour map — used by KnowledgeGraph and KnowledgePanel */
 export const SC = {
-    mastered:  { fill: '#10B981', ring: '#6EE7B7' },
-    partial:   { fill: '#F59E0B', ring: '#FCD34D' },
-    struggling:{ fill: '#EF4444', ring: '#FCA5A5' },
+    mastered:  { fill: 'var(--ag-emerald)', ring: '#6EE7B7' },
+    partial:   { fill: 'var(--ag-gold)', ring: '#FCD34D' },
+    struggling:{ fill: 'var(--ag-red)', ring: '#FCA5A5' },
 };
 
 // ── GalaxyGraph (animated canvas) ─────────────────────────────────────────────
@@ -32,7 +32,7 @@ export function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         let t = 0;
         const getPos = n => ({ x: (n.x / 100) * (W - 60) + 30, y: (n.y / 100) * (H - 60) + 30 });
-        const statusColor = { mastered: '#10B981', partial: '#F59E0B', struggling: '#EF4444' };
+        const statusColor = { mastered: 'var(--ag-emerald)', partial: 'var(--ag-gold)', struggling: 'var(--ag-red)' };
         const nodeById = Object.fromEntries((nodes || []).map(n => [n.id, n]));
 
         const draw = () => {
@@ -71,7 +71,7 @@ export function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
 
             for (const n of (nodes || [])) {
                 const { x, y } = getPos(n);
-                const c = statusColor[n.status] || '#F59E0B';
+                const c = statusColor[n.status] || 'var(--ag-gold)';
                 const isSel = n.id === selectedNodeId;
                 const pulse = 1 + 0.12 * Math.sin(t * 2 + (n.x + n.y) / 40);
                 const glowR = (isSel ? 22 : 16) * pulse;
@@ -102,7 +102,7 @@ export function GalaxyGraph({ nodes, edges, onNodeClick, selectedNodeId }) {
                 if ((n.mutation_count || 0) > 0) {
                     ctx.beginPath();
                     ctx.arc(x + 8, y - 8, 5, 0, Math.PI * 2);
-                    ctx.fillStyle = '#7C3AED';
+                    ctx.fillStyle = 'var(--ag-purple)';
                     ctx.fill();
                     ctx.fillStyle = '#fff';
                     ctx.font = 'bold 7px Space Grotesk, sans-serif';

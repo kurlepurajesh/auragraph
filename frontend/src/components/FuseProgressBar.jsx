@@ -50,7 +50,7 @@ export default function FuseProgressBar({ active, forceStep = null }) {
             </div>
             <div style={{ display: 'flex', gap: 5, marginTop: 10 }}>
                 {FUSE_STEPS.map((s, i) => (
-                    <div key={i} title={s.label} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= displayStep ? '#7C3AED' : 'var(--border)', transition: 'background 0.4s' }} />
+                    <div key={i} title={s.label} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= displayStep ? 'var(--ag-purple)' : 'var(--border)', transition: 'background 0.4s' }} />
                 ))}
             </div>
         </div>
