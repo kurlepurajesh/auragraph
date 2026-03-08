@@ -564,36 +564,40 @@ def _budget_for_topic(slide_text: str, provider: str) -> int:
     """
     Dynamically scale max_tokens based on how dense the slide content is.
 
-    The rule of thumb: 1 char of slide content → ~1.2 chars of notes (explanations,
-    worked examples, and LaTeX expand the content). Then add a fixed overhead for
-    the Exam Tip, Mnemonic, and Worked Example blocks (~600 tokens).
+    Expansion ratio: 3.0× input chars.
+    Rationale: Beginner/Foundations proficiency adds analogies, symbol tables,
+    worked examples and plain-English walkthroughs that easily expand 1 char of
+    slide input into 4–5 chars of notes. Using 3.0× guarantees the budget is
+    sufficient for ALL proficiency levels without over-allocating for Expert notes.
+    Previous value of 1.2× caused truncation for Beginner/Intermediate modes.
 
     Hard ceilings are set by provider API limits:
       Azure GPT-4o  — 16,384 output tokens  (we cap at 14,000 to leave headroom)
       Groq llama-3  —  8,192 output tokens  (we cap at  7,500 to leave headroom)
     """
-    # Estimate output chars needed ≈ 1.2× input chars + 2400 overhead chars
-    estimated_output_chars = int(len(slide_text) * 1.2) + 2400
+    # Estimate output chars needed ≈ 3.0× input chars + 3200 overhead chars
+    estimated_output_chars = int(len(slide_text) * 3.0) + 3200
     # Convert chars → tokens (≈ 4 chars per token)
     estimated_tokens = estimated_output_chars // 4
 
     if provider == "azure":
         # Azure GPT-4o supports 16,384 output tokens; cap conservatively at 14,000
-        return max(3000, min(estimated_tokens, 14_000))
+        return max(4500, min(estimated_tokens, 14_000))
     else:
         # Groq llama-3 supports 8,192 output tokens; cap at 7,500
-        return max(2500, min(estimated_tokens, 7_500))
+        return max(3500, min(estimated_tokens, 7_500))
 
 
 # ── Sub-chunk sizes (chars of slide_text per LLM call) ───────────────────────
-# These are tuned so each call generates thorough notes without hitting output
-# token limits.  The merge call later combines sub-drafts into one coherent section.
-_SUBCHUNK_AZURE = 4_000   # ~1000 tokens input → ~1500 tokens output per sub-chunk
-_SUBCHUNK_GROQ  = 3_000   # Groq is tighter; smaller chunks = less risk of truncation
+# Smaller sub-chunks mean each LLM call generates a fully completable draft
+# without hitting output token limits.  The merge call later combines everything.
+_SUBCHUNK_AZURE = 3_000   # ~750 tokens input → ~4500 tokens output (3.0× expansion)
+_SUBCHUNK_GROQ  = 2_000   # Groq is tighter; smaller chunks = less risk of truncation
 
 # A topic is only split when slide_text exceeds this size.
-# Below this threshold it's handled as one call (no merge overhead).
-_SPLIT_THRESHOLD = 4_500
+# Lowered from 4500 so more topics use the split-merge path, which is inherently
+# more complete: each sub-chunk is covered exhaustively, then merged.
+_SPLIT_THRESHOLD = 2_800
 
 
 def _split_slide_text(slide_text: str, chunk_size: int) -> list[str]:

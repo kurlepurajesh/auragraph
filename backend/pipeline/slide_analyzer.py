@@ -216,7 +216,16 @@ async def _call_azure_json(slides_text: str) -> Optional[list[dict]]:
                 await _asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
-            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            choice = resp.json()["choices"][0]
+            if choice.get("finish_reason") == "length":
+                # JSON output was truncated — parsing it would silently drop the last N topics.
+                # Return None so Groq / deterministic fallback handles this chunk instead.
+                logger.warning(
+                    "slide_analyzer Azure: response truncated (finish_reason=length) — "
+                    "falling back to Groq / deterministic parser for this chunk"
+                )
+                return None
+            raw = choice["message"]["content"].strip()
             logger.info("slide_analyzer Azure raw response (first 300 chars): %r", raw[:300])
             topics = _parse_topics_json(raw)
             logger.info("slide_analyzer Azure parsed %s topics", len(topics) if topics else 0)
@@ -265,7 +274,15 @@ async def _call_groq_json(slides_text: str) -> Optional[list[dict]]:
                 await _asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
-            raw = resp.json()["choices"][0]["message"]["content"].strip()
+            choice = resp.json()["choices"][0]
+            if choice.get("finish_reason") == "length":
+                # JSON truncated — drop to deterministic fallback rather than losing topics.
+                logger.warning(
+                    "slide_analyzer Groq: response truncated (finish_reason=length) — "
+                    "falling back to deterministic parser for this chunk"
+                )
+                return None
+            raw = choice["message"]["content"].strip()
             logger.info("slide_analyzer Groq raw response (first 300 chars): %r", raw[:300])
             topics = _parse_topics_json(raw)
             logger.info("slide_analyzer Groq parsed %s topics", len(topics) if topics else 0)
@@ -375,7 +392,7 @@ def _extract_bullets(text: str) -> list[str]:
 
 # -- Public API ----------------------------------------------------------------
 
-_SLIDE_CHUNK_SIZE = 32_000   # chars per LLM call - increased from 24k to reduce cross-chunk topic splits
+_SLIDE_CHUNK_SIZE = 18_000   # chars per LLM call — kept small so the topics JSON never approaches the 16k-token output limit
 # FIX G2: no longer hard-truncate the full deck; instead split into chunks
 # and merge the resulting topic lists.
 
