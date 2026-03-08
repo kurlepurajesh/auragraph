@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 function getUserId(user) {
-    return user?.id || localStorage.getItem('ag_user') && JSON.parse(localStorage.getItem('ag_user') || 'null')?.id || 'demo-user';
+    return user?.id || 'demo-user';
 }
 
 // ─── Streak helpers ────────────────────────────────────────────────────────────

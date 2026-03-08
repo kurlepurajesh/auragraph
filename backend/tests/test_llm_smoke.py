@@ -72,8 +72,8 @@ def test_mutate_offline_fallback_returns_correct_schema(smoke_client, smoke_auth
     """With no LLM, /api/mutate must still return a valid MutationResponse
     (using local_mutate) and set can_mutate=False."""
     token, nb_id = smoke_auth
-    with patch("main._is_azure_available", return_value=False), \
-         patch("main._is_groq_available",  return_value=False):
+    with patch("deps._is_azure_available", return_value=False), \
+         patch("deps._is_groq_available",  return_value=False):
         r = smoke_client.post("/api/mutate",
                               json={"notebook_id": nb_id,
                                     "doubt": "What is convolution?",
@@ -94,8 +94,8 @@ def test_mutate_offline_fallback_returns_correct_schema(smoke_client, smoke_auth
 def test_mutate_response_never_empty_when_offline(smoke_client, smoke_auth):
     """Even for a one-word doubt, local fallback must return non-trivial text."""
     token, nb_id = smoke_auth
-    with patch("main._is_azure_available", return_value=False), \
-         patch("main._is_groq_available",  return_value=False):
+    with patch("deps._is_azure_available", return_value=False), \
+         patch("deps._is_groq_available",  return_value=False):
         r = smoke_client.post("/api/mutate",
                               json={"notebook_id": nb_id,
                                     "doubt": "why?",
@@ -120,7 +120,7 @@ def test_mutate_with_mocked_azure_llm(smoke_client, smoke_auth):
             "azure",
         )
 
-    with patch("main._llm_mutate", new=fake_llm_mutate):
+    with patch("deps._llm_mutate", new=fake_llm_mutate):
         r = smoke_client.post("/api/mutate",
                               json={"notebook_id": nb_id,
                                     "doubt": "Explain convolution",
@@ -144,7 +144,7 @@ def test_mutate_llm_none_triggers_fallback(smoke_client, smoke_auth):
     async def broken_llm(note_page, doubt, slide_ctx, textbook_ctx):
         return None, None, None, "none"
 
-    with patch("main._llm_mutate", new=broken_llm):
+    with patch("deps._llm_mutate", new=broken_llm):
         r = smoke_client.post("/api/mutate",
                               json={"notebook_id": nb_id,
                                     "doubt": "fallback test",
@@ -164,8 +164,8 @@ def test_doubt_offline_fallback_is_structured(smoke_client, smoke_auth):
     """With no LLM, /api/doubt must still return a DoubtResponse with a
     non-empty local answer (analogy-based fallback)."""
     token, nb_id = smoke_auth
-    with patch("main._is_azure_available", return_value=False), \
-         patch("main._is_groq_available",  return_value=False):
+    with patch("deps._is_azure_available", return_value=False), \
+         patch("deps._is_groq_available",  return_value=False):
         r = smoke_client.post("/api/doubt",
                               json={"notebook_id": nb_id,
                                     "doubt": "What is the Z-transform?",
@@ -182,8 +182,8 @@ def test_doubt_offline_fallback_is_structured(smoke_client, smoke_auth):
 def test_doubt_offline_answer_contains_doubt_topic(smoke_client, smoke_auth):
     """Local fallback should echo or reference the student's topic somewhere."""
     token, nb_id = smoke_auth
-    with patch("main._is_azure_available", return_value=False), \
-         patch("main._is_groq_available",  return_value=False):
+    with patch("deps._is_azure_available", return_value=False), \
+         patch("deps._is_groq_available",  return_value=False):
         r = smoke_client.post("/api/doubt",
                               json={"notebook_id": nb_id,
                                     "doubt": "convolution theorem",
@@ -211,8 +211,9 @@ def test_doubt_with_mocked_azure(smoke_client, smoke_auth):
     async def fake_answer_doubt(**kwargs):
         return mock_raw
 
-    with patch("main._is_azure_available", return_value=True), \
-         patch("main.fusion_agent.answer_doubt", new=fake_answer_doubt):
+    with patch("deps._is_azure_available", return_value=True), \
+         patch("deps.fusion_agent") as mock_fa:
+        mock_fa.answer_doubt = fake_answer_doubt
         r = smoke_client.post("/api/doubt",
                               json={"notebook_id": nb_id,
                                     "doubt": "What is Z-transform?",
@@ -237,8 +238,8 @@ def test_mutate_rejects_non_owner(smoke_client):
     owner = smoke_client.post("/auth/login",
                               json={"email": "smoke@test.com", "password": "Smoke123!"})
     owner_token = owner.json()["token"]
-    nbs = smoke_client.get("/notebooks", headers=auth_h(owner_token)).json()
-    nb_id = nbs[0]["id"]
+    nbs_resp = smoke_client.get("/notebooks", headers=auth_h(owner_token)).json()
+    nb_id = nbs_resp["notebooks"][0]["id"]
 
     r = smoke_client.post("/api/mutate",
                           json={"notebook_id": nb_id,

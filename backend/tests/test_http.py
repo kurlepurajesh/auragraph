@@ -144,7 +144,11 @@ def test_create_and_list_notebook(client):
 
     r2 = client.get("/notebooks", headers=_auth(token))
     assert r2.status_code == 200
-    ids = [n["id"] for n in r2.json()]
+    payload = r2.json()
+    # Response is now paginated: {total, offset, limit, notebooks: [...]}
+    assert "notebooks" in payload, "Expected paginated response with 'notebooks' key"
+    assert "total" in payload
+    ids = [n["id"] for n in payload["notebooks"]]
     assert nb_id in ids
 
 
