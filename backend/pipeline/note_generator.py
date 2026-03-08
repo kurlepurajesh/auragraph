@@ -113,6 +113,11 @@ Not a summary of it. Not a mention of it. The actual content -- every formula, e
 definition, every algorithm step, every property, every condition, every exception,
 every worked example, every edge case -- must be present in the generated notes.
 
+THE SLIDE TEXT IS THE CONTRACT:
+Read the SLIDE / LECTURE NOTES CONTENT section line by line.
+Every line that is not a boundary marker (--- Slide N ---) is content that MUST appear
+in your output. Think of each non-marker line as a separate, non-negotiable obligation.
+
 Proficiency level NEVER controls what is included. It only controls HOW things are explained.
 A concept present in the slides that is absent from the notes is always an error,
 regardless of proficiency level.
@@ -132,107 +137,185 @@ BANNED PHRASES (never write): "delve", "explore", "It is important to note",
 
 # Per-proficiency instruction blocks injected into the user prompt
 
-_PROFICIENCY_BEGINNER = """PROFICIENCY: BEGINNER
+_PROFICIENCY_BEGINNER = """PROFICIENCY: BEGINNER — Self-Paced Learner Starting From Scratch
 
-CRITICAL — TWO-PASS APPROACH (prevents running out of tokens before all concepts are covered):
+GOAL: The student is encountering this topic for the very first time.
+These notes must be completely self-contained — the student should need nothing else.
+Every single concept from the slides must be explained as if teaching a smart but
+uninitiated person who has never seen this material before.
 
-PASS 1 — COVERAGE (do this mentally before writing anything):
-  List every concept, formula, definition, algorithm, condition, and example
-  in the slides. This is your CONTRACTUAL CHECKLIST. Every item on it MUST
-  appear somewhere in your output, without exception.
+══════════════════════════════════════════════════════
+BEFORE WRITING ANYTHING — MANDATORY PRE-SCAN:
+  Read the entire slide content. Mentally list every:
+    - named concept or term
+    - formula or equation
+    - definition
+    - algorithm or procedure
+    - condition, constraint, or exception
+    - worked example or numerical value
+  This is your checklist. You CANNOT finish until every item is covered.
+══════════════════════════════════════════════════════
 
-PASS 2 — DEPTH (write the notes in this order for each concept):
-  1. Start with a plain-English sentence: "Simply put, X means..."
-  2. Follow with a real-world analogy in a > blockquote to make it concrete.
-  3. State the formal definition after the analogy — never before.
-  4. For EVERY formula:
-       a. Write the formula in display LaTeX ($$...$$)
-       b. Follow with a symbol table:
-          | Symbol | What it means | Typical units/range |
-          |--------|---------------|---------------------|
-       c. Walk through it in plain English: "This says that X equals Y times Z, where..."
-       d. Work a FULLY SOLVED numerical example — show every arithmetic step, no skipping.
-  5. For every algorithm or process: write it as a numbered step-by-step procedure.
-     Each step gets one plain-English sentence of explanation.
-  6. For every condition or exception: explain WHY it exists.
-     ("This condition is needed because without it, X would fail/blow up/be undefined...")
-  7. For every edge case: explain what it means and when it arises.
+FOR EVERY CONCEPT, FORMULA, DEFINITION, AND ALGORITHM, write in this exact order:
 
-SAFETY RULE — if you are running low on output budget:
-  A concept with ONLY its name, formula, and one-line definition is ALWAYS
-  better than a concept that was silently omitted. Include every concept
-  even if only briefly — never drop a concept to add more depth to another.
+  STEP 1 — Plain-English opening (mandatory first sentence):
+    "In simple terms, [X] means ..." — never start with a formula.
 
-DEPTH: Go deep. Leave nothing assumed. Never truncate explanations.
-LENGTH: Beginner notes are the longest of the three levels.
+  STEP 2 — Real-world analogy (mandatory, in a blockquote):
+    > Think of it like [analogy] — [one sentence connecting the analogy to the concept].
+
+  STEP 3 — Formal definition:
+    State precisely, only AFTER the student has intuition from Steps 1-2.
+
+  STEP 4 — For EVERY formula without exception:
+    a. Display equation:  $$  formula  $$
+    b. Symbol table immediately below:
+       | Symbol | Meaning | Units or Range |
+       |--------|---------|----------------|
+    c. Plain-English walkthrough: "This formula says [X] equals [Y] times [Z],
+       meaning that when [Y] increases, [X] increases because ..."
+    d. Fully worked numerical example — show EVERY arithmetic step.
+       Label each step: "Step 1: substitute ... → Step 2: simplify ... → Step 3: ..."
+
+  STEP 5 — For every algorithm or multi-step process:
+    Numbered procedure. Each step gets one sentence explaining WHY it is done.
+
+  STEP 6 — For every condition or constraint:
+    "This condition is required because without it, [thing] would [fail/blow up/be undefined]."
+
+  STEP 7 — For every edge case:
+    "This special case arises when [X]. In this situation, [consequence/what changes]."
+
+SAFETY RULE (coverage always beats depth):
+  If running low on output space: give remaining concepts their name + formula +
+  one-line definition. NEVER silently skip a concept to write more about another.
+
+MINIMUM OUTPUT SIZE — NON-NEGOTIABLE:
+  • Count the --- Slide N --- / --- Page N --- markers in the input.
+    Each marker MUST produce at minimum one dedicated ### sub-section.
+    FOUR slides in → FOUR ### sub-sections minimum. NEVER collapse them.
+  • Each ### sub-section: minimum 500 words.
+  • Every formula in that sub-section MUST complete all 7 Steps fully
+    (plain English → analogy → formal definition → symbol table →
+    worked example with every arithmetic step → conditions → edge cases).
+  • Total output MUST be 8–10× the length of the raw slide text.
+    A slide with 3 bullet points expands to 3–4 detailed paragraphs each.
+    Short input = MORE explanation needed, not less.
+
+LENGTH: These are the longest, most detailed notes of the three levels.
+        Do not truncate. Do not compress. Do not skip.
 """
 
-_PROFICIENCY_INTERMEDIATE = """PROFICIENCY: INTERMEDIATE
+_PROFICIENCY_INTERMEDIATE = """PROFICIENCY: INTERMEDIATE — Knows the Basics, Building Full Fluency
 
-The student knows the basics. Your goal is to bridge surface understanding and
-real exam-level fluency.
+GOAL: The student has seen this subject before but has gaps or shallow spots.
+These notes must achieve three things simultaneously:
+  (a) 100% of the slide content — every concept present, zero omissions
+  (b) Topics that are hard, rushed, or only briefly mentioned in the slides get
+      a deeper, more thorough explanation than the slides provided
+  (c) Textbook analogies and explanations that the slides glossed over are
+      actively brought in and integrated
 
-HOW TO HANDLE EVERY CONCEPT FROM THE SLIDES:
-  1. State the formal definition directly.
-  2. For EVERY formula:
-       a. Write it in display LaTeX ($$...$$) with symbols defined inline.
-       b. Give one sentence of intuition: what is the formula really saying,
-          not just what it computes.
-       c. Show a worked example that reveals non-obvious behaviour -- use numbers
-          or symbolic values that make the formula's meaning clear.
-  3. For any concept commonly misunderstood or confused with something else:
-     write a focused explanation of the correct mental model.
-  4. For any concept where the slides only give a brief mention or glance:
-     fill in the gap with a precise explanation so the student has no holes.
-  5. Where the textbook has a cleaner analogy or a better way of seeing something
-     that was rushed over in the slides: bring it in. Mark it [Textbook] inline.
-  6. Show a comparison table wherever related formulas or concepts are easily confused:
-     | Concept | When to use | Key difference |
-     |---------|-------------|----------------|
-  7. For every condition, exception, and edge case: state it and explain
-     the consequence of violating or ignoring it.
+══════════════════════════════════════════════════════
+TWO-TIER TREATMENT — classify each slide item first:
 
-DEPTH: Full coverage, no shortcuts. Explanations assume mathematical maturity
-and skip trivial steps, but never skip important ones.
+TIER 1 — Clearly explained in the slides (full treatment, not rushed):
+  • Concise formal definition.
+  • Formula in display LaTeX with all symbols defined inline.
+  • One sentence of intuition: what the formula is really saying.
+  • Worked example using instructive numbers that reveal the formula's behaviour.
+  • All conditions, exceptions, edge cases: state each + explain consequence of ignoring.
 
-LENGTH: Comprehensive. Every topic in the slides gets thorough treatment.
+TIER 2 — Hard, briefly mentioned, glossed over, or just listed without explanation:
+  (Signs: a short bullet with no explanation, a formula with no context, a term
+   introduced without definition, a "see textbook" hint, a concept named and moved on)
+  Give these topics the FULL treatment:
+  • Explain from first principles — fill the exact gap the slide left.
+  • Bring in the textbook's fuller explanation, better analogy, or cleaner notation.
+    Label it [Textbook] inline whenever you draw from the textbook context.
+  • Show WHY the formula or result holds, not just what it says.
+  • Detailed worked example with non-obvious or illuminating numbers.
+  • Comparison table wherever this concept is easily confused with another:
+    | Concept | Formula | When to use | Key difference |
+    |---------|---------|-------------|----------------|
+══════════════════════════════════════════════════════
+
+TEXTBOOK INTEGRATION:
+  The textbook context is a PRIMARY resource — use it actively:
+  • For Tier 2 topics especially: bring in the textbook's explanation, analogy, proof.
+  • If the textbook has a worked example matching the topic: include or adapt it.
+  • Do NOT introduce textbook topics that have no corresponding slide content.
+
+MINIMUM OUTPUT SIZE — NON-NEGOTIABLE:
+  • Count the --- Slide N --- / --- Page N --- markers in the input.
+    Each marker MUST produce at minimum one dedicated ### sub-section.
+    FOUR slides in → FOUR ### sub-sections minimum. NEVER collapse them.
+  • Tier 1 sub-sections: minimum 350 words.
+    Tier 2 sub-sections (rushed, hard, or briefly mentioned): minimum 500 words.
+  • Total output MUST be 5–7× the length of the raw slide text.
+    A slide that has only 2 lines still requires the full Tier 1 or Tier 2
+    treatment — input brevity never justifies a brief output.
+
+COVERAGE GUARANTEE: Every item from the slides MUST appear.
+LENGTH: Comprehensive — every slide item covered; Tier 2 items covered in more depth.
 """
 
-_PROFICIENCY_ADVANCED = """PROFICIENCY: ADVANCED
+_PROFICIENCY_ADVANCED = """PROFICIENCY: ADVANCED — Exam-Ready, Pushing to Genuine Mastery
 
-The student is exam-ready on the basics. Your goal is to push them to genuine mastery.
+GOAL: The student knows the slides well. Push them to depth the slides didn't reach.
+These notes must:
+  (a) Include 100% of the slide content — nothing omitted
+  (b) Go deeper on every non-trivial concept: proofs, generalisations, precise
+      conditions, connections to related results, what breaks and why
+  (c) Include hard, multi-concept problems with complete solutions
 
-HOW TO HANDLE EVERY CONCEPT FROM THE SLIDES:
-  1. All fundamental definitions and basic properties: state them concisely.
-     One or two sentences. No hand-holding.
-  2. For EVERY formula:
-       a. Write it in display LaTeX.
-       b. If it has a non-trivial derivation: show the full derivation.
-          Terse algebra, no commentary between steps. Skip only trivially
-          obvious algebraic rearrangements.
-       c. State ALL conditions for validity: convergence, domain restrictions,
-          boundary conditions, underlying assumptions. If the slides omit a
-          mathematically necessary condition, add it.
-  3. For every important concept: go one level deeper.
-     Bring in the stronger theorem, the generalisation, the connection to a
-     related concept, or the precise condition under which it breaks down.
-     Use the textbook as the source for this deeper material.
-  4. Replace trivial textbook examples with HARD problems:
-       - Problems requiring two or more concepts from the slides combined.
-       - Non-standard parameter values that reveal edge-case behaviour.
-       - Problems that look like one type but require insight to recognise as another.
-     Show full solutions with every step and a note on the key insight.
-  5. For every edge case and exception: explain the mathematical reason it arises,
-     not just the fact that it exists.
-  6. Where two concepts are related or one generalises the other, add a precise
-     comparison:
-     | Aspect | This | Generalisation / Related |
-     |--------|------|--------------------------|
+══════════════════════════════════════════════════════
+FOR EVERY CONCEPT IN THE SLIDES:
 
-DEPTH: Every concept from the slides gets full advanced treatment. Basic things
-get one sentence; non-trivial things get derivations, hard examples, and deeper theory.
+  BASIC DEFINITIONS & STANDARD PROPERTIES:
+    State concisely. One or two precise sentences. No hand-holding.
 
-LENGTH: As long as needed. Do not truncate derivations or problem solutions.
+  EVERY FORMULA — mandatory:
+    a. Display LaTeX: $$ formula $$
+    b. Non-trivial derivation → show it in full.
+       Terse algebra. No commentary between steps.
+       Skip ONLY trivially obvious rearrangements.
+    c. State every condition for validity explicitly:
+       convergence criteria, domain restrictions, assumptions, boundary conditions.
+       If the slide omits a mathematically necessary condition — ADD IT.
+
+  GOING DEEPER (mandatory for every important concept):
+    After the slide-level content, add at least one of:
+    • The stronger or more general version of the theorem/result
+    • The precise condition under which this result breaks down — and why
+    • The connection to a related concept (how this is a special case, or generalises)
+    • The key mathematical insight behind WHY this is true
+    Draw from the textbook context as the source for this deeper layer.
+
+  HARD WORKED PROBLEMS (mandatory — at least one per major concept):
+    Use genuinely challenging problems, not plug-and-compute:
+    • Require two or more slide concepts applied together
+    • Non-standard parameters that expose edge-case or boundary behaviour
+    • Problems that appear simple but need a key insight to crack
+    • Derivation or proof-based questions where the concept warrants it
+    Show FULL solutions with every non-trivial step.
+    End each: "Key insight: [the non-obvious thing that unlocks this]"
+
+  EDGE CASES & EXCEPTIONS:
+    Explain the mathematical REASON each one arises — not just that it exists.
+══════════════════════════════════════════════════════
+
+MINIMUM OUTPUT SIZE — NON-NEGOTIABLE:
+  • Count the --- Slide N --- / --- Page N --- markers in the input.
+    Each marker MUST produce at minimum one dedicated ### sub-section.
+    FOUR slides in → FOUR ### sub-sections minimum. NEVER collapse them.
+  • Each sub-section: minimum 400 words PLUS at least one derivation or
+    hard multi-concept problem with a full solution.
+  • Total output MUST be 4–6× the length of the raw slide text.
+
+COVERAGE GUARANTEE: Every slide item MUST appear. Advanced treatment adds depth
+AROUND each item — it never removes or condenses slide content for extra material.
+LENGTH: As long as needed. Never truncate a derivation or a problem solution.
 """
 
 _NOTE_USER_TEMPLATE = """Generate study notes for the following lecture topic.
@@ -247,8 +330,27 @@ verify every item is in your output. A missing item is a hard error.
 
 {key_points_block}
 ═════════════════════════════════════════════════════════════════
-SLIDE / LECTURE NOTES CONTENT (primary source):
+SLIDE / LECTURE NOTES CONTENT (primary source — every non-marker line is an obligation):
 {slide_text}
+
+═════════════════════════════════════════════════════════════════
+LINE-BY-LINE OBLIGATION:
+Read every line of the SLIDE CONTENT above that is not a "--- Slide N ---" marker.
+Each such line is a SEPARATE MANDATORY ITEM that must appear in your notes.
+If a line is a formula: the formula must appear.
+If a line is a definition: the definition must appear.
+If a line is a property or condition: it must appear.
+If a line is a worked step or example value: it must appear.
+There are NO exceptions. Depth and style are adjustable. Omission is not.
+═════════════════════════════════════════════════════════════════
+
+PER-SLIDE SUB-SECTIONS (STRUCTURAL REQUIREMENT):
+Count the --- Slide N --- / --- Page N --- markers in the SLIDE CONTENT above.
+Each such marker = one slide of teaching content = one ### sub-heading in your output.
+NEVER collapse multiple slides into a single undivided paragraph block.
+Only exception: two consecutive slides that are an identical concept continued
+(e.g. "Proof — Part 2") may share one ### heading.
+All other slides → separate ### sub-sections, each with its own full treatment.
 
 {textbook_instruction}
 
@@ -259,9 +361,10 @@ COVERAGE RULES (absolute — apply at ALL proficiency levels)
 1. Every item in the MANDATORY COVERAGE CHECKLIST above MUST appear.
 2. Every formula, definition, algorithm, theorem, condition, edge case and
    worked example in the SLIDE CONTENT above MUST appear.
-3. Proficiency controls HOW deeply you explain each item. It never controls
+3. Every non-marker line of the SLIDE CONTENT is a separate obligation.
+4. Proficiency controls HOW deeply you explain each item. It never controls
    WHETHER an item appears. Depth is adjustable. Omission is not.
-4. If you are running low on output budget: give each remaining concept
+5. If you are running low on output budget: give each remaining concept
    a brief name + formula + one-line definition. Never silently drop an item.
 
 STRUCTURE
@@ -368,7 +471,7 @@ def _resolve_proficiency_block(proficiency: str) -> str:
     return _PROFICIENCY_INTERMEDIATE
 
 
-def _textbook_instruction_block(textbook_context: str, max_chars: int = 7_000) -> str:
+def _textbook_instruction_block(textbook_context: str, max_chars: int = 10_000) -> str:
     """Build the textbook context block for the note generation prompt."""
     has_tb = bool(textbook_context) and textbook_context.strip() not in ("", "(none)")
     if has_tb:
@@ -592,24 +695,33 @@ def _coverage_check(key_points: list[str], generated_text: str) -> list[str]:
     """
     Return key_points whose content is not reflected in generated_text.
 
-    Strategy: for each key_point, extract words of length >= 5 as "signal words".
-    If fewer than half the signal words appear in the generated text, the concept
-    is considered missing.
+    Strategy: for each key_point, extract words of length >= 3 as "signal words"
+    (lowered from 5 so domain terms like DFT, FFT, ROC, norm, pole, gain are
+    captured). If fewer than 75% of signal words appear in the generated text,
+    the concept is considered missing.
 
-    This is intentionally lenient (50% threshold) to avoid false positives where
-    the LLM paraphrased a concept using synonyms.
+    The 75% threshold (raised from 50%) avoids false-negatives where the LLM
+    paraphrased one word but skipped the rest of the concept.
     """
     gen_lower = generated_text.lower()
     missing: list[str] = []
+    _STOP = {
+        "which", "where", "there", "their", "these", "those",
+        "function", "value", "given", "since", "using",
+        "system", "signal", "defined", "called", "with", "from",
+        "that", "this", "have", "been", "when", "into", "each",
+        "for", "the", "and", "are", "its", "not",
+    }
     for kp in key_points:
-        sig = [w for w in re.findall(r'[a-zA-Z]{5,}', kp.lower())
-               if w not in {"which", "where", "there", "their", "these", "those",
-                            "function", "value", "given", "since", "using",
-                            "system", "signal", "defined", "called"}]
+        # Use words of length >= 3 so short domain terms (DFT, FFT, ROC, etc.)
+        # are included as signal words.
+        sig = [w for w in re.findall(r'[a-zA-Z]{3,}', kp.lower())
+               if w not in _STOP]
         if not sig:
             continue
         found = sum(1 for w in sig if w in gen_lower)
-        if found < max(1, len(sig) // 2):
+        # 75% threshold: at least 3/4 signal words must appear
+        if found < max(1, int(len(sig) * 0.75)):
             missing.append(kp)
     return missing
 
@@ -634,7 +746,7 @@ async def _patch_missing_coverage(
         topic=topic_name,
         proficiency=proficiency,
         missing_block=missing_block,
-        slide_snippet=slide_text[:3_000],
+        slide_snippet=slide_text,   # pass FULL slide text — truncation caused missing formulas
     )
     budget = _budget_for_topic(" " * (len(missing_kps) * 200), provider, proficiency)
     async def _call():
@@ -647,6 +759,30 @@ async def _patch_missing_coverage(
     return await _call()
 
 
+def _extract_slide_lines(slide_text: str) -> list[str]:
+    """
+    Extract every meaningful content line from raw slide_text as coverage obligations.
+    This supplements key_points (which are LLM-extracted and may be incomplete).
+    Skips slide boundary markers and trivially short lines.
+    """
+    lines = []
+    seen: set[str] = set()
+    for line in slide_text.split('\n'):
+        stripped = line.strip()
+        # Skip blank lines, boundary markers, and very short lines
+        if not stripped or stripped.startswith('---') or len(stripped) < 10:
+            continue
+        norm = stripped.lower()
+        if norm in seen:
+            continue
+        seen.add(norm)
+        # Strip bullet markers for cleaner signal
+        clean = stripped.lstrip('–-*•-> ').strip()
+        if clean:
+            lines.append(clean)
+    return lines
+
+
 async def _ensure_full_coverage(
     text:       str,
     provider:   str,
@@ -655,18 +791,37 @@ async def _ensure_full_coverage(
     api_sem:    asyncio.Semaphore | None = None,
 ) -> tuple[str, str]:
     """
-    Run coverage audit on *text*.  If any key_points are missing, call
-    _patch_missing_coverage and append the result.
+    Run coverage audit on *text*.
+
+    Two-pass audit:
+      Pass 1 — Check LLM-extracted key_points (semantic, concept-level)
+      Pass 2 — Check raw slide_text lines (literal, line-level)
+
+    Both passes use the same _coverage_check logic. Missing items from BOTH
+    passes are merged and patched in a single LLM call to avoid redundant API calls.
+
     Always returns (final_text, provider).
     """
-    if not topic.key_points:
+    # Build the combined checklist: key_points + raw slide lines
+    all_obligations: list[str] = list(topic.key_points) if topic.key_points else []
+
+    # Add raw slide lines that are NOT already represented in key_points
+    slide_lines = _extract_slide_lines(topic.slide_text)
+    kp_lower = {kp.lower() for kp in all_obligations}
+    for line in slide_lines:
+        if line.lower() not in kp_lower:
+            all_obligations.append(line)
+
+    if not all_obligations:
         return text, provider
-    missing = _coverage_check(topic.key_points, text)
+
+    missing = _coverage_check(all_obligations, text)
     if not missing:
         return text, provider
+
     logger.info(
-        "coverage_check: '%s' — %d/%d key_points missing %s, patching",
-        topic.topic, len(missing), len(topic.key_points), missing,
+        "coverage_check: '%s' — %d/%d obligations missing, patching: %s",
+        topic.topic, len(missing), len(all_obligations), missing[:5],
     )
     patch = await _patch_missing_coverage(
         topic.topic, topic.slide_text, missing, proficiency, provider, api_sem
@@ -680,63 +835,51 @@ async def _ensure_full_coverage(
 
 def _budget_for_topic(slide_text: str, provider: str, proficiency: str = "Practitioner") -> int:
     """
-    Dynamically scale max_tokens based on slide content density AND proficiency.
+    Return the token budget for a single topic LLM call.
 
-    Why proficiency matters:
-      Expert/Advanced   — terse derivations + formal definitions only → ~2× expansion
-      Practitioner      — definition + intuition + worked example + comparison tables
-                          + conditions → ~5× expansion
-      Beginner          — all of Practitioner PLUS plain-English walkthrough, analogy
-                          blockquote, symbol table per formula, step-by-step process
-                          → ~7× expansion
+    Single-user quality mode: always use the MAXIMUM available ceiling.
+    Beginner notes are the longest (7× expansion), Advanced the most terse (2×),
+    Intermediate in between (5×). But we always prefer the ceiling over the floor
+    because for one user waiting for their notes, quality beats speed.
 
-    Using a single flat ratio caused Practitioner/Beginner notes to be truncated
-    mid-content while Expert notes (being terse) always fit.
-
-    Hard ceilings set by provider API limits:
-      Azure GPT-4o  — 16,384 output tokens  (we cap at 14,000 to leave headroom)
-      Groq llama-3  —  8,192 output tokens  (we cap at  7,500 to leave headroom)
+    Hard ceilings:
+      Azure GPT-4o  — 16,384 output tokens  (we use 14,000 to leave headroom)
+      Groq llama-3  —  8,192 output tokens  (we use  7,500 to leave headroom)
     """
     p = proficiency.strip().lower()
-    if p in ("beginner", "foundations", "foundation", "basic"):
-        ratio, overhead = 7.0, 4000
-    elif p in ("advanced", "expert"):
-        ratio, overhead = 2.0, 2000
-    else:  # Practitioner / Intermediate / default
-        ratio, overhead = 5.0, 3500
-
-    estimated_output_chars = int(len(slide_text) * ratio) + overhead
-    estimated_tokens = estimated_output_chars // 4   # ≈ 4 chars per token
 
     if provider == "azure":
-        # Floor per proficiency — Practitioner/Beginner need more headroom
+        # Single-user mode: always give maximum budget
+        # Beginner gets the hard ceiling; others slightly below to leave merge headroom
         if p in ("beginner", "foundations", "foundation", "basic"):
-            floor = 7_000
+            return 14_000
         elif p in ("advanced", "expert"):
-            floor = 3_000
-        else:   # Practitioner / Intermediate
-            floor = 6_000
-        return max(floor, min(estimated_tokens, 14_000))
+            return 10_000   # Advanced is terse — 10k is more than enough
+        else:
+            return 14_000   # Intermediate: full budget, notes are comprehensive
     else:
+        # Groq
         if p in ("beginner", "foundations", "foundation", "basic"):
-            floor = 5_500
+            return 7_500
         elif p in ("advanced", "expert"):
-            floor = 2_500
-        else:   # Practitioner / Intermediate
-            floor = 4_500
-        return max(floor, min(estimated_tokens, 7_500))
+            return 6_000
+        else:
+            return 7_500
 
 
 # ── Sub-chunk sizes (chars of slide_text per LLM call) ───────────────────────
-# Smaller sub-chunks mean each LLM call generates a fully completable draft
-# without hitting output token limits.  The merge call later combines everything.
-_SUBCHUNK_AZURE = 3_000   # ~750 tokens input → ~4500 tokens output (3.0× expansion)
-_SUBCHUNK_GROQ  = 2_000   # Groq is tighter; smaller chunks = less risk of truncation
+# Single-user quality mode: use SMALLER sub-chunks so each call is well within
+# the output token ceiling. Better to have 4 thorough sub-chunk calls than 1
+# truncated mega-call. The merge step ensures everything is unified.
+_SUBCHUNK_AZURE = 2_000   # ~500 tokens input → leaves full 14k output budget
+_SUBCHUNK_GROQ  = 1_500   # Groq is tighter; keep chunks small for full coverage
 
-# A topic is only split when slide_text exceeds this size.
-# Lowered from 4500 so more topics use the split-merge path, which is inherently
-# more complete: each sub-chunk is covered exhaustively, then merged.
-_SPLIT_THRESHOLD = 2_800
+# Split threshold: split aggressively so every sub-chunk is small enough to be
+# fully covered within the token ceiling at any proficiency level.
+# Beginner expands 7×, so 1000 chars → ~7000 tokens output (safe under 14k)
+# Intermediate expands 5×, so 1500 chars → ~7500 tokens (safe)
+# Advanced expands 3×, so 2500 chars → ~7500 tokens (safe)
+_SPLIT_THRESHOLD = 1_500   # almost all topics will go through the split→merge path
 
 
 def _split_slide_text(slide_text: str, chunk_size: int) -> list[str]:
@@ -775,6 +918,12 @@ YOUR ONLY JOB: Extract and explain EVERY piece of content in the slide chunk bel
 Do NOT write an introduction, conclusion, exam tip, or mnemonic — those go in the final merge.
 Do NOT skip anything — formulas, definitions, algorithms, properties, examples — all of it.
 
+THE SLIDE TEXT IS YOUR CONTRACT — LINE BY LINE:
+Every non-marker line (i.e., every line that is NOT "--- Slide N ---" or "--- Page N ---")
+is a separate, mandatory coverage item. Read every such line. Cover every such line.
+A concept present in the slide that is absent from your draft is always a failure,
+no matter how minor it seems.
+
 Laws you NEVER break:
 - Every formula, definition, and algorithm from this chunk MUST appear.
 - All math in LaTeX ($...$ inline, $$...$$ display). Never write "integral", "sigma" as English.
@@ -787,8 +936,22 @@ _SUBCHUNK_USER = """\
 TOPIC (overall): {topic}
 CHUNK NUMBER: {chunk_num} of {total_chunks}
 
-SLIDE CONTENT FOR THIS CHUNK:
+SLIDE CONTENT FOR THIS CHUNK (every non-marker line is a MANDATORY ITEM):
 {slide_text}
+
+LINE-BY-LINE OBLIGATION:
+Read every line of the SLIDE CONTENT above that is not a "--- Slide N ---" / "--- Page N ---" marker.
+Each such line is a SEPARATE MANDATORY ITEM:
+  • formula line → the formula MUST appear in your notes
+  • definition line → the definition MUST appear
+  • property/condition line → it MUST appear
+  • example/step line → it MUST appear
+No exceptions. Never drop a line to add more depth to another.
+
+PER-SLIDE SUB-SECTIONS (STRUCTURAL REQUIREMENT):
+Count the --- Slide N --- / --- Page N --- markers above.
+Each marker = one ### sub-heading in your output.
+NEVER collapse multiple slides into one undivided block.
 
 {textbook_instruction}
 
@@ -889,7 +1052,7 @@ async def _merge_drafts(
         proficiency_block=_resolve_proficiency_block(proficiency),
         n=str(len(drafts)),
         drafts_block=drafts_block,
-        textbook_context=textbook_context[:6_000] if textbook_context else "(none)",
+        textbook_context=textbook_context[:10_000] if textbook_context else "(none)",
     )
     total_draft_chars = sum(len(d) for d in drafts)
     tokens = _budget_for_topic(" " * total_draft_chars, provider, proficiency)
@@ -937,22 +1100,14 @@ async def generate_topic_note(
         return _build_fallback_section(topic, textbook_context, proficiency), "local"
 
     chunk_size   = _SUBCHUNK_AZURE if provider == "azure" else _SUBCHUNK_GROQ
-    tb_per_chunk = 4_000            if provider == "azure" else 3_000
+    tb_per_chunk = 5_000            if provider == "azure" else 3_500
 
-    # Proficiency-aware split threshold:
-    # Verbose modes (Practitioner/Beginner) expand slide text much more than
-    # Expert mode, so they need to split into sub-chunks at a lower threshold
-    # to keep each LLM call within the output token ceiling.
-    _p = proficiency.strip().lower()
-    if _p in ("beginner", "foundations", "foundation", "basic"):
-        _effective_split = 1_000   # Beginner expands 7×; split aggressively so each sub-chunk is small & fully coverable
-    elif _p in ("advanced", "expert"):
-        _effective_split = 4_000   # Expert is terse; single call handles more
-    else:
-        _effective_split = 2_000   # Practitioner expands 5×; split at 2k chars
+    # Single-user quality mode: use _SPLIT_THRESHOLD universally across all proficiency
+    # levels. The threshold is set aggressively low so virtually every topic goes through
+    # the split→parallel→merge path, guaranteeing full coverage via smaller focused calls.
 
-    # ── Short topic: single call path (no split overhead) ────────────────────
-    if len(topic.slide_text) <= _effective_split:
+    # ── Short topic: single call path ────────────────────────────────────────
+    if len(topic.slide_text) <= _SPLIT_THRESHOLD:
         tb_instr = _textbook_instruction_block(textbook_context, tb_per_chunk)
         user = _safe_format(
             _NOTE_USER_TEMPLATE,
@@ -1234,10 +1389,10 @@ async def run_generation_pipeline(
     if not topics:
         return "", "local"
 
-    # Concurrency control: every individual LLM call (sub-chunks + merges) is
-    # throttled by this semaphore. This is more precise than wrapping entire topics
-    # since a long topic may now make 3-5 LLM calls internally.
-    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "5"))
+    # Single-user quality mode: high concurrency — all topics generate in parallel.
+    # For one user there is no rate-sharing concern, so we can fire all topic calls
+    # simultaneously. Set LLM_CONCURRENCY env var to limit if needed.
+    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "20"))
     _api_sem = asyncio.Semaphore(_concurrency)
 
     async def _generate_with_sem(topic: SlideTopic) -> tuple[str, str]:
@@ -1262,20 +1417,11 @@ async def run_generation_pipeline(
     else:
         source = "local"
 
-    # Refinement pass: improves clarity but is not essential for correctness.
-    # Skip it when notes are very large (> 80k chars) -- the sub-chunk architecture
-    # already produces well-structured notes, and refinement on 100+ topics would
-    # add dozens of extra LLM calls without meaningful quality gain.
-    _REFINE_CHAR_LIMIT = 80_000
-    if refine and len(merged) <= _REFINE_CHAR_LIMIT and (_azure_available() or _groq_available()):
+    # Refinement pass: always run for single-user quality mode.
+    # The 80k-char skip limit is removed — one user can wait for a polished result.
+    if refine and (_azure_available() or _groq_available()):
         logger.info("Running refinement pass on %d chars (source=%s)", len(merged), source)
         merged = await refine_notes(merged)
-    elif refine and len(merged) > _REFINE_CHAR_LIMIT:
-        logger.info(
-            "Skipping refinement pass: notes are %d chars (> %d limit). "
-            "Sub-chunk architecture already ensures quality.",
-            len(merged), _REFINE_CHAR_LIMIT
-        )
 
     # Verification pass: fact-checks formulas, definitions, and claims.
     # Run always -- correctness is non-negotiable regardless of output size.
@@ -1323,7 +1469,7 @@ async def run_generation_pipeline_stream(
 
     yield {"type": "start", "total": len(filtered)}
 
-    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "5"))
+    _concurrency = int(os.environ.get("LLM_CONCURRENCY", "20"))
     api_sem = asyncio.Semaphore(_concurrency)
 
     async def _wrapped(t: SlideTopic, idx: int):
@@ -1355,18 +1501,30 @@ async def run_generation_pipeline_stream(
     # Merge in original topic order
     merged = merge_sections(ordered_sections)
 
-    # Refinement pass (skip for very large notes)
-    _REFINE_CHAR_LIMIT = 80_000
-    if len(merged) <= _REFINE_CHAR_LIMIT and (_azure_available() or _groq_available()):
+    # Refinement pass — emit heartbeats every 8 s so the frontend stall-detector
+    # (240 s) never fires while the LLM is working silently.
+    if _azure_available() or _groq_available():
+        yield {"type": "status", "message": "Refining notes for depth and clarity…"}
         try:
-            merged = await refine_notes(merged)
+            _refine_task = asyncio.create_task(refine_notes(merged))
+            while not _refine_task.done():
+                await asyncio.sleep(8)
+                if not _refine_task.done():
+                    yield {"type": "heartbeat"}
+            merged = await _refine_task
         except Exception as e:
             logger.warning("Stream refinement pass failed: %s", e)
 
     # Verification pass
     if _azure_available() or _groq_available():
+        yield {"type": "status", "message": "Verifying all formulas and definitions…"}
         try:
-            merged = await verify_notes(merged)
+            _verify_task = asyncio.create_task(verify_notes(merged))
+            while not _verify_task.done():
+                await asyncio.sleep(8)
+                if not _verify_task.done():
+                    yield {"type": "heartbeat"}
+            merged = await _verify_task
         except Exception as e:
             logger.warning("Stream verification pass failed: %s", e)
 

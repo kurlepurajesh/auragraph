@@ -28,10 +28,7 @@ export function useFuse(id, deps = {}) {
         setFusing(true);
         setFuseProgress('Uploading files…');
         setMutatedPages?.(new Set());
-        // Save the existing note so we can restore it if generation fails
-        // (instead of leaving the user on a blank upload screen)
-        let previousNote = '';
-        setNote?.(prev => { previousNote = prev || ''; return ''; });
+        setNote?.('');
         setCurrentPage?.(0);
 
         try {
@@ -43,9 +40,9 @@ export function useFuse(id, deps = {}) {
             if (id) form.append('notebook_id', id);
             setFuseProgress('Running Fusion Agent…');
 
-            // Hard abort: 15 minutes — generous enough for 3 slides (30+ topics) at any proficiency
+            // Abort the stream if no data arrives within 25 minutes
             const abortCtrl = new AbortController();
-            const streamTimeout = setTimeout(() => abortCtrl.abort(), 15 * 60 * 1000);
+            const streamTimeout = setTimeout(() => abortCtrl.abort(), 25 * 60 * 1000);
 
             const res = await apiFetch(`${API}/api/upload-fuse-stream`, {
                 method: 'POST',
@@ -56,12 +53,7 @@ export function useFuse(id, deps = {}) {
             if (!res.ok) {
                 clearTimeout(streamTimeout);
                 let detail = `Server error (${res.status})`;
-                try {
-                    const j = await res.json();
-                    const raw = j.detail;
-                    if (typeof raw === 'string') detail = raw;
-                    else if (Array.isArray(raw)) detail = raw.map(e => e?.msg || JSON.stringify(e)).join(' · ');
-                } catch { }
+                try { const j = await res.json(); detail = j.detail || detail; } catch { }
                 throw new Error(detail);
             }
 
@@ -71,10 +63,10 @@ export function useFuse(id, deps = {}) {
             let streamedNote = '';
             let streamSource = 'azure';
             let lastChunkAt = Date.now();
-            // Per-chunk stall detection: 300 s (5 min) with no data → abort
-            // A single Beginner-level topic with sub-chunks can legitimately take 2-3 min
+            // Per-chunk stall detection: 4 min with no data → abort
+            // (refinement + verification passes can be 2-3 min — heartbeats keep connection alive)
             const stallCheck = setInterval(() => {
-                if (Date.now() - lastChunkAt > 300_000) {
+                if (Date.now() - lastChunkAt > 240_000) {
                     abortCtrl.abort();
                     clearInterval(stallCheck);
                 }
@@ -101,10 +93,8 @@ export function useFuse(id, deps = {}) {
                         } else if (event.type === 'section') {
                             streamedNote += (streamedNote ? '\n\n' : '') + event.content;
                             setFuseProgress(`Building: ${event.topic}…`);
-                            // Show partial notes progressively so the user isn’t staring at a blank
-                            // screen the whole time — AND so they see something useful if it
-                            // fails before the final ‘done’ event.
-                            setNote?.(streamedNote);
+                        } else if (event.type === 'heartbeat') {
+                            /* keep-alive ping during refine/verify — no UI change needed */
                         } else if (event.type === 'done') {
                             setVerifyingStep(null);
                             streamedNote = event.note;
@@ -132,9 +122,6 @@ export function useFuse(id, deps = {}) {
             setFuseProgress('Extracting concept map…');
             await extractAndSaveGraph?.(streamedNote);
         } catch (err) {
-            // Restore the previous note if generation failed (don’t leave the
-            // user on a blank upload screen after waiting several minutes)
-            if (previousNote) setNote?.(previousNote);
             const message = err.name === 'AbortError'
                 ? 'Generation timed out — the backend took too long to respond. Try again or use a smaller file.'
                 : (err.message || '');
