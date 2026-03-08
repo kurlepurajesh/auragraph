@@ -8,9 +8,10 @@ import os
 import sqlite3
 import time
 import uuid
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
+
+from agents.db_pool import pooled_conn
 
 try:
     import bcrypt as _bcrypt_lib
@@ -27,19 +28,9 @@ DB_PATH = Path(__file__).parent.parent / "auragraph.db"
 TOKEN_TTL_SECONDS = 7 * 24 * 3600   # 7 days
 
 
-@contextmanager
 def _conn():
-    con = sqlite3.connect(str(DB_PATH), timeout=30, check_same_thread=False)
-    con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")
-    try:
-        yield con
-        con.commit()
-    except Exception:
-        con.rollback()
-        raise
-    finally:
-        con.close()
+    """Pooled connection context manager for the shared auragraph.db."""
+    return pooled_conn(str(DB_PATH))
 
 
 def _init_users():

@@ -20,9 +20,10 @@ from __future__ import annotations
 import logging
 import sqlite3
 
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
+
+from agents.db_pool import pooled_conn
 
 logger = logging.getLogger("auragraph")
 
@@ -42,20 +43,9 @@ _DEFAULT_EDGES = [[1, 2], [2, 3], [2, 4], [3, 5], [4, 5]]
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
-@contextmanager
 def _conn():
-    con = sqlite3.connect(str(DB_PATH), timeout=30, check_same_thread=False)
-    con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")
-    con.execute("PRAGMA foreign_keys=ON")
-    try:
-        yield con
-        con.commit()
-    except Exception:
-        con.rollback()
-        raise
-    finally:
-        con.close()
+    """Pooled connection context manager for the shared auragraph.db."""
+    return pooled_conn(str(DB_PATH))
 
 
 def _init_tables() -> None:

@@ -6,10 +6,11 @@ Tables:
   sections   — per-notebook topic/chapter sections for structured notes
 """
 import json, logging, re, sqlite3, uuid
-from contextlib import contextmanager
-from datetime import datetime, timezone
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Optional
+
+from agents.db_pool import pooled_conn
 
 logger = logging.getLogger("auragraph")
 DB_PATH = Path(__file__).parent.parent / "auragraph.db"
@@ -19,20 +20,9 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-@contextmanager
 def _conn():
-    con = sqlite3.connect(str(DB_PATH), timeout=30, check_same_thread=False)
-    con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")
-    con.execute("PRAGMA foreign_keys=ON")
-    try:
-        yield con
-        con.commit()
-    except Exception:
-        con.rollback()
-        raise
-    finally:
-        con.close()
+    """Pooled connection context manager for the shared auragraph.db."""
+    return pooled_conn(str(DB_PATH))
 
 
 def _init_db():

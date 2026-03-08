@@ -85,8 +85,14 @@ export function usePagination(note, { mutating = false, setMutating, setShowSear
 
     // Keyboard navigation
     useEffect(() => {
+        const isTyping = (el) =>
+            el.tagName === 'INPUT' ||
+            el.tagName === 'TEXTAREA' ||
+            el.tagName === 'SELECT' ||
+            el.isContentEditable;
+
         const h = (e) => {
-            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+            if (isTyping(e.target)) return;
             if (mutating) return;
             if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
                 e.preventDefault();

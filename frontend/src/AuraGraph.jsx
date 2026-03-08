@@ -105,8 +105,7 @@ function FileDrop({ label, icon, accept, onFile, file }) {
 }
 
 // ─── Knowledge Fusion Upload Screen ──────────────────────────────────────────
-function KnowledgeFusionView({ onDone }) {
-    const dispatch = useDispatch();
+function KnowledgeFusionView({ onDone, onNoteReady }) {
     const [slidesFile, setSlidesFile] = useState(null);
     const [textbookFile, setTextbookFile] = useState(null);
     const [proficiency, setProficiency] = useState("Intermediate");
@@ -128,7 +127,7 @@ function KnowledgeFusionView({ onDone }) {
 
             const res = await fetch('http://localhost:8000/api/upload-fuse', {
                 method: 'POST',
-                body: formData   // multipart/form-data — no Content-Type header needed
+                body: formData
             });
 
             if (!res.ok) {
@@ -137,16 +136,13 @@ function KnowledgeFusionView({ onDone }) {
             }
 
             const data = await res.json();
-            dispatch(setNote(data.fused_note));
-            dispatch(setProf(proficiency));
+            onNoteReady(data.fused_note, proficiency);
             onDone();
 
         } catch (e) {
             console.error(e);
-            // Fallback mock note for demo purposes
-            const mockNote = `## The Convolution Theorem — AuraGraph Fused Note (${proficiency})\n\nThe Convolution Theorem states that convolution in the time domain corresponds to pointwise multiplication in the frequency domain.\n\nFormally: If x(t) ↔ X(jω) and h(t) ↔ H(jω) then:\n\n**x(t) * h(t) ↔ X(jω) · H(jω)**\n\nThis eliminates the costly convolution integral — instead, transform both signals, multiply their spectra, and inverse-transform.\n\nFor LTI systems this implies the output spectrum is shaped directly by Y(jω) = X(jω) H(jω). Engineers exploit this in digital filtering and spectral analysis constantly.`;
-            dispatch(setNote(mockNote));
-            dispatch(setProf(proficiency));
+            const mockNote = `## The Convolution Theorem — AuraGraph Fused Note (${proficiency})\n\nThe Convolution Theorem states that convolution in the time domain corresponds to pointwise multiplication in the frequency domain.\n\nFormally: If x(t) ↔ X(jω) and h(t) ↔ H(jω) then:\n\n**x(t) * h(t) ↔ X(jω) · H(jω)**\n\nThis eliminates the costly convolution integral — instead, transform both signals, multiply their spectra, and inverse-transform.`;
+            onNoteReady(mockNote, proficiency);
             onDone();
         }
         setFusing(false);
@@ -216,7 +212,10 @@ function NoteViewer({ pages, currentPage, setCurrentPage, note, prof }) {
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function AuraGraph() {
     const dispatch = useDispatch();
-    const { note, nodes, edges, prof } = useSelector(state => state.graph);
+    // note and prof are LOCAL state — they are not in the Redux store
+    const [note, setNote] = useState('');
+    const [prof, setProf] = useState('Intermediate');
+    const { nodes, edges } = useSelector(state => state.graph);
 
     const [mutating, setMutating] = useState(false);
     const [gapText, setGapText] = useState("");
@@ -242,13 +241,12 @@ export default function AuraGraph() {
                 body: JSON.stringify({ original_paragraph: page, student_doubt: doubt })
             });
             const data = await res.json();
-            const newNote = note.replace(page, data.mutated_paragraph);
-            dispatch(setNote(newNote));
+            setNote(prev => prev.replace(page, data.mutated_paragraph));
             setGapText(data.concept_gap);
             fetch('http://localhost:8000/api/graph').then(r => r.json()).then(d => dispatch(setGraphData(d)));
         } catch {
             const fallback = "⚡ [Rewritten] This concept was rewritten based on your doubt. Connect to Azure OpenAI for the real mutation.";
-            dispatch(setNote(note.replace(page, fallback)));
+            setNote(prev => prev.replace(page, fallback));
             dispatch(updateNodeStatus({ label: "Convolution Theorem", status: "partial" }));
         }
     }, [note, dispatch]);
@@ -299,7 +297,10 @@ export default function AuraGraph() {
             {/* Body */}
             <main style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 380px", minHeight: 0 }}>
                 {viewState === 'fusion' ? (
-                    <KnowledgeFusionView onDone={() => { setViewState('viewer'); setCurrentPage(0); setGapText(""); }} />
+                    <KnowledgeFusionView
+                        onDone={() => { setViewState('viewer'); setCurrentPage(0); setGapText(''); }}
+                        onNoteReady={(n, p) => { setNote(n); setProf(p); }}
+                    />
                 ) : (
                     <section style={{ borderRight: border, display: "flex", flexDirection: "column" }}>
                         {/* Note toolbar */}

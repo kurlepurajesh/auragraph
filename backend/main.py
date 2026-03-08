@@ -45,12 +45,15 @@ import json
 import logging
 import os
 import re
+import time
+import uuid
 from contextlib import asynccontextmanager
 from typing import Optional, List
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -153,6 +156,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class _RequestIdMiddleware(BaseHTTPMiddleware):
+    """Attaches a short UUID to every request and logs method/path/status/ms."""
+    async def dispatch(self, request: Request, call_next):
+        req_id = str(uuid.uuid4())[:8]
+        request.state.request_id = req_id
+        t0 = time.perf_counter()
+        response = await call_next(request)
+        ms = (time.perf_counter() - t0) * 1000
+        response.headers["X-Request-Id"] = req_id
+        logger.info(
+            "[%s] %s %s -> %d  %.1fms",
+            req_id, request.method, request.url.path, response.status_code, ms,
+        )
+        return response
+
+
+app.add_middleware(_RequestIdMiddleware)
 
 
 # ── Auth helpers ───────────────────────────────────────────────────────────────

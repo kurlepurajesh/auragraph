@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { addToast } from '../store';
 import { ls_getNotebook, ls_saveNote } from '../localNotebooks';
 import {
     Sparkles, Loader2, ChevronLeft, ChevronRight, Upload, FileText,
@@ -75,6 +77,7 @@ export default function NotebookWorkspace() {
         noteSource, fallbackWarning, setFallbackWarning, handleFuse,
     } = useFuse(id, { prof, setNote, setCurrentPage, setMutatedPages, saveNote, extractAndSaveGraph });
     const { sidebarOpen, setSidebarOpen, sidebarWidth, startResizeSidebar } = useSidebar();
+    const dispatch = useDispatch();
 
     // ── On mount ─────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -142,7 +145,14 @@ export default function NotebookWorkspace() {
                 setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
                 setRightTab('doubts');
             }
-        } catch {
+        } catch (err) {
+            dispatch(addToast({
+                kind: 'error',
+                title: 'Mutation failed',
+                message: err?.message?.includes('401') || err?.message?.includes('403')
+                    ? 'Session expired — please log in again.'
+                    : err?.message || 'Could not reach the backend.',
+            }));
             const entry = { id: lid, pageIdx: currentPage, doubt, insight: 'Could not reach backend. Your doubt has been recorded.', gap: 'Backend unreachable', time: ts, success: false };
             setDoubtsLog(prev => { const u = [entry, ...prev]; saveDoubts(id, u); return u; });
             setRightTab('doubts');
@@ -179,6 +189,11 @@ export default function NotebookWorkspace() {
             setCurrentPage(pageIdx);
             setMutatedPages(prev => new Set([...prev, pageIdx]));
         } catch (err) {
+            dispatch(addToast({
+                kind: 'error',
+                title: 'Regeneration failed',
+                message: err?.message || 'Could not regenerate this section. Is the backend running?',
+            }));
             console.error('Re-generate section failed:', err);
         }
         setRegenLoadingPages(prev => { const s = new Set(prev); s.delete(pageIdx); return s; });
