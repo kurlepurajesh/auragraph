@@ -1208,34 +1208,100 @@ function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusChange, onJumpTo
 // ─── Note Renderer ────────────────────────────────────────────────────────────
 function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
     const mk = {
-        h1({ children }) { return <div style={{ marginBottom: 28 }}><div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#71717A', marginBottom: 6, fontFamily: '"DM Sans",sans-serif', fontWeight: 600 }}>AuraGraph · Study Notes</div><div style={{ fontSize: 22, fontWeight: 800, color: '#000', lineHeight: 1.25, fontFamily: '"Sora",sans-serif' }}>{children}</div></div>; },
-        h2({ children }) { return <div style={{ marginTop: 36, marginBottom: 14 }}><div style={{ fontSize: 17, fontWeight: 700, color: '#000', lineHeight: 1.3, fontFamily: '"Sora",sans-serif' }}>{children}</div><div style={{ height: 1.5, background: '#E4E4E7', marginTop: 8 }} /></div>; },
-        h3({ children }) { return <div style={{ marginTop: 20, marginBottom: 8 }}><span style={{ fontSize: 11, fontWeight: 600, color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: '"DM Sans",sans-serif' }}>{children}</span></div>; },
+        h1({ children }) {
+            return (
+                <div style={{ marginBottom: 32, paddingBottom: 20, borderBottom: '2px solid #EDE9FE' }}>
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#7C3AED', marginBottom: 8, fontFamily: '"DM Sans",sans-serif', fontWeight: 700 }}>AuraGraph · Study Notes</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: '#0F0A1E', lineHeight: 1.2, fontFamily: '"Sora",sans-serif', letterSpacing: '-0.01em' }}>{children}</div>
+                </div>
+            );
+        },
+        h2({ children }) {
+            return (
+                <div style={{ marginTop: 40, marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 4, height: 22, borderRadius: 3, background: 'linear-gradient(180deg,#7C3AED,#4F46E5)', flexShrink: 0 }} />
+                        <div style={{ fontSize: 17, fontWeight: 700, color: '#0F0A1E', lineHeight: 1.3, fontFamily: '"Sora",sans-serif', letterSpacing: '-0.01em' }}>{children}</div>
+                    </div>
+                    <div style={{ height: 1, background: 'linear-gradient(90deg,#EDE9FE,transparent)', marginTop: 10 }} />
+                </div>
+            );
+        },
+        h3({ children }) {
+            return (
+                <div style={{ marginTop: 24, marginBottom: 10 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#6D28D9', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 20, padding: '3px 10px', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"DM Sans",sans-serif' }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#7C3AED', flexShrink: 0, display: 'inline-block' }} />
+                        {children}
+                    </span>
+                </div>
+            );
+        },
         code({ className, children }) {
-            if (!className) return <code style={{ background: '#F4F4F5', color: '#18181B', borderRadius: 4, padding: '1px 6px', fontSize: 13, fontFamily: '"JetBrains Mono","Courier New",monospace', fontWeight: 500 }}>{children}</code>;
-            return <pre style={{ background: '#F4F4F5', border: '1px solid #E4E4E7', borderRadius: 8, padding: '14px 18px', margin: '14px 0', fontFamily: '"JetBrains Mono","Courier New",monospace', fontSize: 13, lineHeight: 1.75, color: '#18181B', overflowX: 'auto', whiteSpace: 'pre-wrap' }}><code>{children}</code></pre>;
+            if (!className) return <code style={{ background: '#F5F3FF', color: '#5B21B6', borderRadius: 5, padding: '2px 7px', fontSize: 13, fontFamily: '"JetBrains Mono","Courier New",monospace', fontWeight: 600, border: '1px solid #DDD6FE' }}>{children}</code>;
+            return (
+                <pre style={{ background: '#1E1B4B', border: '1px solid #312E81', borderRadius: 10, padding: '16px 20px', margin: '16px 0', fontFamily: '"JetBrains Mono","Courier New",monospace', fontSize: 13, lineHeight: 1.8, color: '#E0E7FF', overflowX: 'auto', whiteSpace: 'pre-wrap', boxShadow: '0 4px 16px rgba(79,70,229,0.12)' }}>
+                    <code style={{ color: '#E0E7FF' }}>{children}</code>
+                </pre>
+            );
         },
         pre({ children }) { return <>{children}</>; },
         blockquote({ children }) {
             const extract = n => { if (!n) return ''; if (typeof n === 'string') return n; if (Array.isArray(n)) return n.map(extract).join(''); if (n?.props?.children) return extract(n.props.children); return ''; };
             const flat = extract(children);
             const isExamTip = flat.includes('Exam Tip');
-            const isFormula = flat.includes('Formulas for this topic');
-            const isIntuition = flat.includes('💡') || flat.includes('Intuition') || flat.includes('Think of it') || flat.includes('mutation');
+            const isFormula = flat.includes('Formulas for this topic') || flat.includes('Formula');
+            const isIntuition = flat.includes('💡') || flat.includes('Intuition') || flat.includes('Think of it');
             const isWarning = flat.includes('⚠️') || flat.includes('⚠') || flat.includes('offline mode') || flat.includes('Offline') || flat.includes('Unresolved Doubt');
-            if (isExamTip) return <div style={{ background: '#F4F4F5', border: '1px solid #E4E4E7', borderLeft: '4px solid #000', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}><span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>🎯</span><div style={{ fontSize: 13.5, color: '#18181B', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div></div>;
-            if (isFormula) return <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderLeft: '4px solid #2563EB', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}><span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>🔢</span><div style={{ fontSize: 13, color: '#1E3A8A', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div></div>;
-            if (isIntuition) return <div style={{ background: '#fff', border: '1px solid #E4E4E7', borderLeft: '4px solid #000', borderRadius: 8, padding: '12px 16px', margin: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start' }}><span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>✨</span><div style={{ fontSize: 13.5, color: '#18181B', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div></div>;
-            if (isWarning) return <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderLeft: '4px solid #F97316', borderRadius: 8, padding: '12px 16px', margin: '10px 0', fontSize: 13, color: '#7C2D12', lineHeight: 1.65, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>;
-            return <div style={{ background: '#F4F4F5', border: '1px solid #E4E4E7', borderLeft: '4px solid #000', borderRadius: 8, padding: '12px 16px', margin: '12px 0', fontSize: 13.5, color: '#18181B', lineHeight: 1.7, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>;
+            const isMutation = flat.includes('mutation') || flat.includes('Mutated');
+            if (isExamTip) return (
+                <div style={{ background: 'linear-gradient(135deg,#FFFBEB,#FEF3C7)', border: '1px solid #FDE68A', borderLeft: '4px solid #F59E0B', borderRadius: 10, padding: '14px 16px', margin: '16px 0', display: 'flex', gap: 12, alignItems: 'flex-start', boxShadow: '0 2px 8px rgba(245,158,11,0.1)' }}>
+                    <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>🎯</span>
+                    <div style={{ fontSize: 13.5, color: '#78350F', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>
+                </div>
+            );
+            if (isFormula) return (
+                <div style={{ background: 'linear-gradient(135deg,#EFF6FF,#DBEAFE)', border: '1px solid #93C5FD', borderLeft: '4px solid #2563EB', borderRadius: 10, padding: '14px 18px', margin: '16px 0', boxShadow: '0 2px 8px rgba(37,99,235,0.1)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}><span style={{ fontSize: 15 }}>🔢</span><span style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: '"DM Sans",sans-serif' }}>Formula</span></div>
+                    <div style={{ fontSize: 13.5, color: '#1E3A8A', lineHeight: 1.8, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>
+                </div>
+            );
+            if (isIntuition) return (
+                <div style={{ background: 'linear-gradient(135deg,#F5F3FF,#EDE9FE)', border: '1px solid #C4B5FD', borderLeft: '4px solid #7C3AED', borderRadius: 10, padding: '14px 18px', margin: '16px 0', boxShadow: '0 2px 8px rgba(124,58,237,0.08)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}><span style={{ fontSize: 15 }}>💡</span><span style={{ fontSize: 10, fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: '"DM Sans",sans-serif' }}>Intuition</span></div>
+                    <div style={{ fontSize: 13.5, color: '#3B0764', lineHeight: 1.8, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>
+                </div>
+            );
+            if (isWarning) return (
+                <div style={{ background: 'linear-gradient(135deg,#FFF7ED,#FFEDD5)', border: '1px solid #FED7AA', borderLeft: '4px solid #F97316', borderRadius: 10, padding: '14px 16px', margin: '12px 0', display: 'flex', gap: 12, alignItems: 'flex-start', boxShadow: '0 2px 8px rgba(249,115,22,0.1)' }}>
+                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+                    <div style={{ fontSize: 13, color: '#7C2D12', lineHeight: 1.7, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>
+                </div>
+            );
+            if (isMutation) return (
+                <div style={{ background: 'linear-gradient(135deg,#F0FFF4,#DCFCE7)', border: '1px solid #86EFAC', borderLeft: '4px solid #22C55E', borderRadius: 10, padding: '14px 16px', margin: '12px 0', display: 'flex', gap: 12, alignItems: 'flex-start', boxShadow: '0 2px 8px rgba(34,197,94,0.1)' }}>
+                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>✨</span>
+                    <div style={{ fontSize: 13.5, color: '#14532D', lineHeight: 1.7, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>
+                </div>
+            );
+            return (
+                <div style={{ background: '#FAFAFA', border: '1px solid #E4E4E7', borderLeft: '4px solid #A1A1AA', borderRadius: 10, padding: '13px 16px', margin: '14px 0', fontSize: 13.5, color: '#3F3F46', lineHeight: 1.75, fontFamily: '"DM Sans",sans-serif' }}>{children}</div>
+            );
         },
-        strong({ children }) { return <strong style={{ fontWeight: 700, color: '#000' }}>{children}</strong>; },
-        em({ children }) { return <span style={{ fontStyle: 'italic', color: '#3F3F46' }}>{children}</span>; },
-        hr() { return <div style={{ border: 'none', borderTop: '1.5px solid #E4E4E7', margin: '28px 0' }} />; },
-        p({ children }) { return <p style={{ marginBottom: 12, lineHeight: 1.9, color: '#18181B', fontFamily: '"Source Serif 4",Georgia,serif', fontSize }}>{children}</p>; },
-        ul({ children }) { return <ul style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#18181B' }}>{children}</ul>; },
-        ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '8px 0 14px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#18181B' }}>{children}</ol>; },
-        li({ children }) { return <li style={{ marginBottom: 5 }}>{children}</li>; },
+        strong({ children }) { return <strong style={{ fontWeight: 700, color: '#4C1D95', background: 'rgba(124,58,237,0.06)', borderRadius: 3, padding: '0 2px' }}>{children}</strong>; },
+        em({ children }) { return <span style={{ fontStyle: 'italic', color: '#374151' }}>{children}</span>; },
+        hr() { return <div style={{ border: 'none', height: 1, background: 'linear-gradient(90deg,transparent,#DDD6FE 30%,#DDD6FE 70%,transparent)', margin: '32px 0' }} />; },
+        p({ children }) { return <p style={{ marginBottom: 14, lineHeight: 1.95, color: '#1C1917', fontFamily: '"Source Serif 4",Georgia,serif', fontSize }}>{children}</p>; },
+        ul({ children }) { return <ul style={{ paddingLeft: 0, margin: '10px 0 16px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#1C1917', listStyle: 'none' }}>{children}</ul>; },
+        ol({ children }) { return <ol style={{ paddingLeft: 22, margin: '10px 0 16px', lineHeight: 1.9, fontFamily: '"Source Serif 4",Georgia,serif', fontSize, color: '#1C1917' }}>{children}</ol>; },
+        li({ children }) {
+            return (
+                <li style={{ marginBottom: 7, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7C3AED', flexShrink: 0, marginTop: '0.55em', display: 'inline-block' }} />
+                    <span style={{ flex: 1 }}>{children}</span>
+                </li>
+            );
+        },
         img({ src, alt }) {
             const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
             const isApiImage = src && (src.startsWith('/api/images/') || src.startsWith('http'));
@@ -1284,17 +1350,27 @@ function NoteRenderer({ content, onDoubtLink, fontSize = 16 }) {
                 </div>
             );
         },
-        thead({ children }) { return <thead style={{ background: '#F4F4F5' }}>{children}</thead>; },
+        table({ children }) {
+            return (
+                <div style={{ overflowX: 'auto', margin: '18px 0', borderRadius: 10, border: '1px solid #DDD6FE', boxShadow: '0 2px 8px rgba(124,58,237,0.06)' }}>
+                    <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13.5, fontFamily: '"DM Sans",sans-serif' }}>{children}</table>
+                </div>
+            );
+        },
+        thead({ children }) { return <thead style={{ background: 'linear-gradient(135deg,#EDE9FE,#F5F3FF)' }}>{children}</thead>; },
         tbody({ children }) { return <tbody>{children}</tbody>; },
-        tr({ children }) { return <tr style={{ borderBottom: '1px solid #E4E4E7' }}>{children}</tr>; },
-        th({ children }) { return <th style={{ padding: '8px 14px', textAlign: 'left', fontWeight: 700, color: '#18181B', borderBottom: '2px solid #D4D4D8', whiteSpace: 'nowrap' }}>{children}</th>; },
-        td({ children }) { return <td style={{ padding: '7px 14px', color: '#3F3F46', verticalAlign: 'top', lineHeight: 1.6 }}>{children}</td>; },
+        tr({ children, node }) {
+            const idx = node?.position?.start?.line ?? 0;
+            return <tr style={{ borderBottom: '1px solid #EDE9FE', background: idx % 2 === 0 ? '#FAFAFA' : '#FFFFFF' }}>{children}</tr>;
+        },
+        th({ children }) { return <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 700, color: '#4C1D95', borderBottom: '2px solid #C4B5FD', whiteSpace: 'nowrap', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{children}</th>; },
+        td({ children }) { return <td style={{ padding: '9px 16px', color: '#374151', verticalAlign: 'top', lineHeight: 1.6 }}>{children}</td>; },
     };
     // Pre-process: escape pipe chars inside inline $...$ so GFM table parser doesn't split cells
     const safeMath = (src) => src.replace(/\$([^$\n]+?)\$/g, (m, inner) =>
         inner.includes('|') ? '$' + inner.replace(/\|/g, '\\vert ') + '$' : m
     );
-    return <div style={{ color: '#18181B' }}><ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{safeMath(content || '')}</ReactMarkdown></div>;
+    return <div style={{ color: '#1C1917' }}><ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, errorColor: '#cc0000' }]]} components={mk}>{safeMath(content || '')}</ReactMarkdown></div>;
 }
 
 // ─── Doubts Panel ─────────────────────────────────────────────────────────────
@@ -2181,13 +2257,7 @@ export default function NotebookWorkspace() {
                                             <button onClick={() => setFallbackWarning('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', padding: 0, marginLeft: 'auto', flexShrink: 0 }}><X size={13} /></button>
                                         </div>
                                     )}
-                                    {gapText && (
-                                        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                                            <Brain size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                                            <div><b>Concept gap identified:</b> {gapText}</div>
-                                            <button onClick={() => setGapText('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400E', padding: 0, marginLeft: 'auto' }}><X size={13} /></button>
-                                        </div>
-                                    )}
+
                                 </>
                             );
                             const bottomBar = (
