@@ -140,13 +140,15 @@ TASK:
    - Add `> 📝 **Exam Tip:**` if the doubt reveals a common misconception.
    - Use display LaTeX for all math (`$$\n...\n$$`). NEVER use `\[` or `\(`.
    - The rewrite should be more complete than the original, not shorter.
-3. Output EXACTLY TWO sections separated by `|||`:
+3. Output EXACTLY THREE sections separated by `|||`:
 
 <Fully rewritten note page>
 |||
 <One sentence: the diagnosed conceptual gap>
+|||
+<Direct answer to the student's doubt — 3–6 sentences explaining the concept clearly, as if tutoring the student one-on-one. Use plain language and include key formulas where helpful.>
 
-Do NOT write labels like "Rewritten:" or "Gap:". Just two sections split by |||.
+Do NOT write labels like "Rewritten:", "Gap:", or "Answer:". Just three sections split by |||.
 """
 
 
@@ -201,25 +203,29 @@ class FusionAgent:
         return str(result).strip()
 
     @staticmethod
-    def _parse_mutate_response(text: str) -> tuple[str, str]:
+    def _parse_mutate_response(text: str) -> tuple[str, str, str]:
         """
         FIX L3: Single canonical parser for the ||| separator output.
+        Returns (rewritten_note, concept_gap, answer_to_doubt).
         Used by both FusionAgent.mutate (Azure SK path) and the direct
         Groq path in main.py — no duplicate parsing logic anywhere.
         """
-        parts = text.split("|||")
-        if len(parts) >= 2:
-            rewrite = parts[0].strip()
-            gap     = " ".join(p.strip() for p in parts[1:]).strip()
+        parts = [p.strip() for p in text.split("|||")]
+        if len(parts) >= 3:
+            rewrite, gap, answer = parts[0], parts[1], " ".join(parts[2:]).strip()
             if rewrite and gap:
-                return rewrite, gap
+                return rewrite, gap, answer
+        if len(parts) == 2:
+            rewrite, gap = parts[0], parts[1]
+            if rewrite and gap:
+                return rewrite, gap, ""
         # Fallback: last short paragraph = gap sentence
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
         if len(paragraphs) >= 2:
             last = paragraphs[-1]
             if len(last) < 250 and not last.startswith(("#", "$", "|")):
-                return "\n\n".join(paragraphs[:-1]).strip(), last
-        return text, "Student required additional clarification."
+                return "\n\n".join(paragraphs[:-1]).strip(), last, ""
+        return text, "Student required additional clarification.", ""
 
     async def mutate(
         self,
@@ -227,7 +233,7 @@ class FusionAgent:
         doubt: str,
         slide_context: str,
         textbook_context: str,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, str]:
         result = await self._kernel.invoke(self._mutate_fn, KernelArguments(
             note_page=note_page,
             doubt=doubt,

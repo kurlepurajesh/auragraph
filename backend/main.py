@@ -287,19 +287,19 @@ async def _groq_examine(concept_name: str, custom_instruction: str = "") -> str:
 # FIX L3: single mutate path — delegates to FusionAgent._parse_mutate_response
 async def _llm_mutate(
     note_page: str, doubt: str, slide_ctx: str, textbook_ctx: str
-) -> tuple[Optional[str], Optional[str], str]:
+) -> tuple[Optional[str], Optional[str], Optional[str], str]:
     """
     Try Azure (via SK) then Groq for mutation.
     Both use FusionAgent._parse_mutate_response — no duplicate parsers.
-    Returns (mutated_text, gap, source) where source is 'azure'|'groq'|'none'.
+    Returns (mutated_text, gap, answer, source) where source is 'azure'|'groq'|'none'.
     """
     if _is_azure_available():
         try:
-            mutated, gap = await fusion_agent.mutate(
+            mutated, gap, answer = await fusion_agent.mutate(
                 note_page=note_page, doubt=doubt,
                 slide_context=slide_ctx, textbook_context=textbook_ctx,
             )
-            return mutated, gap, "azure"
+            return mutated, gap, answer, "azure"
         except Exception as e:
             logger.warning("Azure mutation failed: %s", e)
 
@@ -315,12 +315,12 @@ async def _llm_mutate(
             )
             text = await _groq_chat([{"role": "user", "content": prompt}])
             # FIX L3: reuse the canonical parser
-            mutated, gap = FusionAgent._parse_mutate_response(text)
-            return mutated, gap, "groq"
+            mutated, gap, answer = FusionAgent._parse_mutate_response(text)
+            return mutated, gap, answer, "groq"
         except Exception as e:
             logger.warning("Groq mutation failed: %s", e)
 
-    return None, None, "none"
+    return None, None, None, "none"
 
 
 # ── Utility helpers ────────────────────────────────────────────────────────────
@@ -1491,11 +1491,12 @@ async def mutate_note(
     slide_ctx    = _format_chunks_for_prompt(slide_hits,    8_000)
     textbook_ctx = _format_chunks_for_prompt(textbook_hits, 8_000)
 
-    mutated, gap, llm_source = await _llm_mutate(note_page, req.doubt, slide_ctx, textbook_ctx)
+    mutated, gap, answer, llm_source = await _llm_mutate(note_page, req.doubt, slide_ctx, textbook_ctx)
 
     if mutated is None:
         mutated, gap = local_mutate(note_page, req.doubt)
         llm_source   = "local"
+        answer       = ""
 
     can_mutate = llm_source in ("azure", "groq")
 
@@ -1531,7 +1532,7 @@ async def mutate_note(
     return MutationResponse(
         mutated_paragraph=mutated,
         concept_gap=gap or "Student required additional clarification.",
-        answer=gap or "",   # The concept gap is the best brief answer; sidebar will show it
+        answer=fix_latex_delimiters(answer) if answer else (gap or ""),
         page_idx=req.page_idx,
         source=llm_source,
         can_mutate=can_mutate,
