@@ -560,32 +560,53 @@ async def _call_groq(
 
 # ── Per-topic generation ───────────────────────────────────────────────────
 
-def _budget_for_topic(slide_text: str, provider: str) -> int:
+def _budget_for_topic(slide_text: str, provider: str, proficiency: str = "Practitioner") -> int:
     """
-    Dynamically scale max_tokens based on how dense the slide content is.
+    Dynamically scale max_tokens based on slide content density AND proficiency.
 
-    Expansion ratio: 3.0× input chars.
-    Rationale: Beginner/Foundations proficiency adds analogies, symbol tables,
-    worked examples and plain-English walkthroughs that easily expand 1 char of
-    slide input into 4–5 chars of notes. Using 3.0× guarantees the budget is
-    sufficient for ALL proficiency levels without over-allocating for Expert notes.
-    Previous value of 1.2× caused truncation for Beginner/Intermediate modes.
+    Why proficiency matters:
+      Expert/Advanced   — terse derivations + formal definitions only → ~2× expansion
+      Practitioner      — definition + intuition + worked example + comparison tables
+                          + conditions → ~5× expansion
+      Beginner          — all of Practitioner PLUS plain-English walkthrough, analogy
+                          blockquote, symbol table per formula, step-by-step process
+                          → ~7× expansion
 
-    Hard ceilings are set by provider API limits:
+    Using a single flat ratio caused Practitioner/Beginner notes to be truncated
+    mid-content while Expert notes (being terse) always fit.
+
+    Hard ceilings set by provider API limits:
       Azure GPT-4o  — 16,384 output tokens  (we cap at 14,000 to leave headroom)
       Groq llama-3  —  8,192 output tokens  (we cap at  7,500 to leave headroom)
     """
-    # Estimate output chars needed ≈ 3.0× input chars + 3200 overhead chars
-    estimated_output_chars = int(len(slide_text) * 3.0) + 3200
-    # Convert chars → tokens (≈ 4 chars per token)
-    estimated_tokens = estimated_output_chars // 4
+    p = proficiency.strip().lower()
+    if p in ("beginner", "foundations", "foundation", "basic"):
+        ratio, overhead = 7.0, 4000
+    elif p in ("advanced", "expert"):
+        ratio, overhead = 2.0, 2000
+    else:  # Practitioner / Intermediate / default
+        ratio, overhead = 5.0, 3500
+
+    estimated_output_chars = int(len(slide_text) * ratio) + overhead
+    estimated_tokens = estimated_output_chars // 4   # ≈ 4 chars per token
 
     if provider == "azure":
-        # Azure GPT-4o supports 16,384 output tokens; cap conservatively at 14,000
-        return max(4500, min(estimated_tokens, 14_000))
+        # Floor per proficiency — Practitioner/Beginner need more headroom
+        if p in ("beginner", "foundations", "foundation", "basic"):
+            floor = 7_000
+        elif p in ("advanced", "expert"):
+            floor = 3_000
+        else:   # Practitioner / Intermediate
+            floor = 6_000
+        return max(floor, min(estimated_tokens, 14_000))
     else:
-        # Groq llama-3 supports 8,192 output tokens; cap at 7,500
-        return max(3500, min(estimated_tokens, 7_500))
+        if p in ("beginner", "foundations", "foundation", "basic"):
+            floor = 5_500
+        elif p in ("advanced", "expert"):
+            floor = 2_500
+        else:   # Practitioner / Intermediate
+            floor = 4_500
+        return max(floor, min(estimated_tokens, 7_500))
 
 
 # ── Sub-chunk sizes (chars of slide_text per LLM call) ───────────────────────
@@ -720,7 +741,7 @@ async def _generate_subchunk(
         textbook_instruction=textbook_instruction,
         proficiency_block=_resolve_proficiency_block(proficiency),
     )
-    tokens = _budget_for_topic(chunk_text, provider)
+    tokens = _budget_for_topic(chunk_text, provider, proficiency)
     async def _call():
         if provider == "azure":
             return await _call_azure(_SUBCHUNK_SYSTEM, user, max_tokens=tokens)
@@ -753,7 +774,7 @@ async def _merge_drafts(
         textbook_context=textbook_context[:6_000] if textbook_context else "(none)",
     )
     total_draft_chars = sum(len(d) for d in drafts)
-    tokens = _budget_for_topic(" " * total_draft_chars, provider)
+    tokens = _budget_for_topic(" " * total_draft_chars, provider, proficiency)
     system = _MERGE_SYSTEM.replace("{topic}", topic)
     async def _call():
         if provider == "azure":
@@ -798,8 +819,20 @@ async def generate_topic_note(
     chunk_size   = _SUBCHUNK_AZURE if provider == "azure" else _SUBCHUNK_GROQ
     tb_per_chunk = 4_000            if provider == "azure" else 3_000
 
+    # Proficiency-aware split threshold:
+    # Verbose modes (Practitioner/Beginner) expand slide text much more than
+    # Expert mode, so they need to split into sub-chunks at a lower threshold
+    # to keep each LLM call within the output token ceiling.
+    _p = proficiency.strip().lower()
+    if _p in ("beginner", "foundations", "foundation", "basic"):
+        _effective_split = 1_500   # Beginner expands 7×; split early
+    elif _p in ("advanced", "expert"):
+        _effective_split = 4_000   # Expert is terse; single call handles more
+    else:
+        _effective_split = 2_000   # Practitioner expands 5×; split at 2k chars
+
     # ── Short topic: single call path (no split overhead) ────────────────────
-    if len(topic.slide_text) <= _SPLIT_THRESHOLD:
+    if len(topic.slide_text) <= _effective_split:
         tb_instr = _textbook_instruction_block(textbook_context, tb_per_chunk)
         user = _safe_format(
             _NOTE_USER_TEMPLATE,
@@ -809,7 +842,7 @@ async def generate_topic_note(
             textbook_instruction=tb_instr,
             proficiency_block=_resolve_proficiency_block(proficiency),
         )
-        tokens = _budget_for_topic(topic.slide_text, provider)
+        tokens = _budget_for_topic(topic.slide_text, provider, proficiency)
         async def _single_call():
             if provider == "azure":
                 return await _call_azure(_NOTE_SYSTEM, user, max_tokens=tokens)
