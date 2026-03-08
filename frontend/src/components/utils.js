@@ -47,3 +47,29 @@ export function saveDoubts(notebookId, doubts) {
     try { localStorage.setItem(`ag_doubts_${notebookId}`, JSON.stringify(doubts)); }
     catch { }
 }
+
+/**
+ * Safely converts a FastAPI / Pydantic `detail` value to a human-readable string.
+ *
+ * FastAPI returns one of two shapes on error:
+ *   - string:  { "detail": "Email already registered" }
+ *   - array:   { "detail": [{"type":"...","loc":[...],"msg":"...","input":...,"ctx":{}}] }
+ *
+ * Rendering an array of objects directly as a React child throws:
+ *   "Objects are not valid as a React child (found: object with keys {type, loc, msg, …})"
+ *
+ * @param {any} detail   The raw `detail` field from the API response JSON.
+ * @param {string} [fallback='Something went wrong.']  Fallback string.
+ * @returns {string}
+ */
+export function extractDetailError(detail, fallback = 'Something went wrong.') {
+    if (!detail) return fallback;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+        return detail
+            .map(e => (e && typeof e.msg === 'string') ? e.msg : JSON.stringify(e))
+            .join(' · ') || fallback;
+    }
+    if (typeof detail === 'object' && typeof detail.msg === 'string') return detail.msg;
+    try { return JSON.stringify(detail); } catch { return fallback; }
+}

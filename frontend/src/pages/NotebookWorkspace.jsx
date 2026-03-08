@@ -192,7 +192,12 @@ export default function NotebookWorkspace() {
             });
             if (!res.ok) {
                 let detail = `Server error (${res.status})`;
-                try { const j = await res.json(); detail = j.detail || detail; } catch { }
+                try {
+                    const j = await res.json();
+                    const raw = j.detail;
+                    if (typeof raw === 'string') detail = raw;
+                    else if (Array.isArray(raw)) detail = raw.map(e => e?.msg || JSON.stringify(e)).join(' · ');
+                } catch { }
                 throw new Error(detail);
             }
             const data = await res.json();

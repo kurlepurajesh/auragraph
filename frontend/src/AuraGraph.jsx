@@ -132,7 +132,11 @@ function KnowledgeFusionView({ onDone, onNoteReady }) {
 
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.detail || `Server error ${res.status}`);
+                const rawDetail = err.detail;
+                const msg = typeof rawDetail === 'string' ? rawDetail
+                    : Array.isArray(rawDetail) ? rawDetail.map(e => e?.msg || JSON.stringify(e)).join(' · ')
+                    : `Server error ${res.status}`;
+                throw new Error(msg);
             }
 
             const data = await res.json();
