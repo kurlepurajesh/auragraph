@@ -684,9 +684,13 @@ kbd {
   }
 
   /* Force scroll-view — all pages visible */
+  [data-print-body],
   [data-print-scroll] {
     overflow: visible !important;
     height: auto !important;
+    max-height: none !important;
+    flex: none !important;
+    display: block !important;
     background: #fff !important;
     padding: 0 !important;
   }

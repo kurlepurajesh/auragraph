@@ -2112,7 +2112,7 @@ export default function NotebookWorkspace() {
             </header>
 
             {/* Body */}
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <div data-print-body style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 {!hasNote ? (
                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
                         <div style={{ maxWidth: 760, width: '100%' }}>
