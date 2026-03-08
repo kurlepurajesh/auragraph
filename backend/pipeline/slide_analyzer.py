@@ -80,7 +80,11 @@ For each topic output:
 
 Rules:
   1. Follow slide order exactly - do NOT reorder topics.
-  2. Merge consecutive slides that cover the same concept into ONE topic entry.
+  2. Create one topic per distinct teaching concept. Only merge two CONSECUTIVE
+     slides into a single topic when they are literally continuing the exact same
+     explanation (e.g. 'Definition (continued)' or 'Proof (Part 2 of 2)').
+     A new formula, a new definition, a new algorithm, or a new sub-heading on
+     a slide MUST become its own topic entry — never fold it into the previous topic.
   3. Ignore metadata slides: cover page, title slide, table of contents, references,
      bibliography, agenda, outline, thank you, acknowledgements, course overview,
      learning objectives. If a slide has only a course/lecture title and author name
@@ -497,9 +501,13 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
             all_topics.extend(result)
 
     if all_topics:
+        before_dedup = len(all_topics)
         all_topics = _deduplicate_topics(all_topics)
-        logger.info("slide_analyzer: %d topics after deduplication (from %d chunks)",
-                    len(all_topics), len(chunks))
+        logger.info(
+            "slide_analyzer: %d topics extracted → %d after deduplication (from %d chunks). Topics: %s",
+            before_dedup, len(all_topics), len(chunks),
+            [t.topic for t in all_topics],
+        )
         return all_topics
 
     logger.info("slide_analyzer: using deterministic fallback parser")
@@ -510,18 +518,30 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
 
 def _topic_similarity(a: str, b: str) -> float:
     """
-    Word-overlap similarity between two topic names (0.0 to 1.0).
-    Used to detect duplicate topics across PDF files.
+    Jaccard word-overlap similarity between two topic names (0.0 to 1.0).
+    Used to detect EXACT duplicate topics across PDF files / chunks.
+
+    Uses Jaccard (|A∩B|/|A∪B|) rather than the asymmetric /min formulation,
+    because /min caused single-word topics like 'Z-Transform' → {'transform'}
+    to match ANY other transform with similarity 1.0, collapsing all topics.
+
+    Stop list: ONLY function words (articles/prepositions/conjunctions).
+    Domain terms (theorem, analysis, transform, …) are kept because they are
+    the primary distinguishing words for academic topics.
     """
+    # Keep only true function words — never domain terms
     stop = {"the", "a", "an", "of", "and", "in", "to", "for", "on", "with",
-            "introduction", "intro", "overview", "basics", "part", "lecture",
-            "distribution", "theorem", "method", "analysis", "process", "function"}
+            "is", "are", "its", "their", "this", "that", "by", "or", "at"}
     def words(s):
-        return {w for w in s.lower().replace("-", " ").split() if len(w) > 2 and w not in stop}
+        # Keep words of length >= 2 so abbreviations like 'Z' (from 'Z Transform')
+        # are NOT filtered out when they are the ONLY distinguishing word.
+        return {w for w in s.lower().replace("-", " ").replace("_", " ").split()
+                if len(w) >= 2 and w not in stop}
     wa, wb = words(a), words(b)
     if not wa or not wb:
         return 0.0
-    return len(wa & wb) / min(len(wa), len(wb))
+    # Jaccard: penalises both missing and extra words symmetrically
+    return len(wa & wb) / len(wa | wb)
 
 
 def _deduplicate_topics(topics: list) -> list:
@@ -529,17 +549,19 @@ def _deduplicate_topics(topics: list) -> list:
     Merge topic entries that refer to the same concept across multiple PDF files.
 
     Duplicates arise when multiple PDFs cover the same topic, or when the LLM
-    uses slightly different names across chunks ("DFT" vs "Discrete Fourier Transform").
+    uses slightly different names across chunks ("DFT" vs "DFT Overview").
 
     Strategy:
-      - Topics with name similarity >= 0.7 are merged into one entry.
+      - Topics with Jaccard similarity >= 0.85 are merged (near-identical names only).
+      - This is intentionally conservative: it is far better to have two slightly
+        redundant ## sections than to silently drop a whole topic.
       - Merged entry keeps the first occurrence name.
       - slide_text values are concatenated so ALL content is preserved.
       - key_points are deduplicated while preserving order.
 
     Result: no duplicate ## sections in the generated notes.
     """
-    THRESHOLD = 0.5
+    THRESHOLD = 0.85  # conservative: only merge truly identical topic names
     merged = []
     used = [False] * len(topics)
 
