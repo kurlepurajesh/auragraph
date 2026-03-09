@@ -1687,5 +1687,5 @@ colour = G if failed == 0 else R
 print(f"\n{'='*62}")
 print(f"{B}{colour}  {passed}/{total} passed  .  {failed} failed  .  {skipped} skipped{RST}")
 print(f"{'='*62}\n")
-if __name__ == '__main__' and failed:
+if failed:
     import sys; sys.exit(1)

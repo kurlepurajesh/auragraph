@@ -1,5 +1,6 @@
 import asyncio
 import os
+import pytest
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from agents.mutation_agent import MutationAgent
@@ -9,12 +10,8 @@ os.environ["AZURE_OPENAI_DEPLOYMENT"] = os.environ.get("AZURE_OPENAI_DEPLOYMENT"
 os.environ["AZURE_OPENAI_ENDPOINT"] = os.environ.get("AZURE_OPENAI_ENDPOINT", "https://mock-endpoint.com/")
 os.environ["AZURE_OPENAI_API_KEY"] = os.environ.get("AZURE_OPENAI_API_KEY", "mock-key")
 
-def test_mutation():
-    """Sync wrapper so pytest can collect and run without pytest-asyncio."""
-    asyncio.run(_test_mutation())
-
-
-async def _test_mutation():
+@pytest.mark.asyncio
+async def test_mutation():
     try:
         kernel = Kernel()
         kernel.add_service(
@@ -43,4 +40,4 @@ async def _test_mutation():
         print(f"Mutation test failed (Expected if Azure OpenAI keys are 'mock-key'): {str(e)}")
 
 if __name__ == "__main__":
-    asyncio.run(_test_mutation())
+    asyncio.run(test_mutation())

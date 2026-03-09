@@ -101,6 +101,8 @@ def _save_store(nb_id: str, store: dict):
 # Beyond this the Jaccard retrieval gets slow and LLM context windows overflow anyway.
 _MAX_STORE_BYTES = int(os.environ.get("MAX_KS_MB", "20")) * 1024 * 1024
 
+import os as _os  # noqa: F811
+
 
 def cleanup_orphaned_stores(active_nb_ids: set) -> int:
     """Delete knowledge store JSON files that belong to deleted notebooks.

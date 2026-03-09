@@ -72,8 +72,7 @@ export function useSections(id, notebookProficiency = 'Intermediate', reloadNote
                 onSectionGenerated?.(sec.title);
             } else {
                 const body = await res.json().catch(() => ({}));
-                const msg = (typeof body.detail === 'string' ? body.detail : Array.isArray(body.detail) ? body.detail.map(e => e?.msg || JSON.stringify(e)).join(' · ') : null) || `Server error ${res.status}`;
-                dispatch(addToast({ kind: 'error', title: 'AI generation failed', message: msg }));
+                dispatch(addToast({ kind: 'error', title: 'AI generation failed', message: body.detail || `Server error ${res.status}` }));
             }
         } catch (err) {
             dispatch(addToast({ kind: 'error', title: 'AI generation failed', message: err?.message || 'Network error — is the backend running?' }));

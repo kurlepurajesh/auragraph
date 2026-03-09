@@ -375,7 +375,7 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
         if topics and title and title.lower() == topics[-1].topic.lower():
             topics[-1].slide_text += "\n\n" + part
             if body:
-                topics[-1].key_points.extend(_extract_bullets(body)[:2])
+                topics[-1].key_points.extend(_extract_bullets(body))  # no [:2] cap
         else:
             topics.append(SlideTopic(
                 topic=display_title,
@@ -387,19 +387,32 @@ def _deterministic_parse(slides_text: str) -> list[SlideTopic]:
 
 
 def _extract_bullets(text: str) -> list[str]:
-    """Pull out bullet-point-like lines as key points."""
+    """Pull out bullet-point-like lines as key points.
+
+    NO hard cap — every formula, definition, and algorithm line must enter
+    the key_points list so the note-generation checklist is complete.
+    Long lines (formulas, LaTeX) are explicitly included.
+    """
     lines = text.split('\n')
     bullets = []
+    seen: set[str] = set()
     for line in lines:
         stripped = line.strip()
-        # Bullet markers or short meaningful lines
-        if stripped.startswith(('-', '-', '*', '-', '->')):
-            point = stripped.lstrip('--*--> ').strip()
-            if len(point) > 10:
+        if not stripped or stripped.startswith('---'):
+            continue
+        norm = stripped.lower()
+        if norm in seen:
+            continue
+        seen.add(norm)
+        # Bullet markers
+        if stripped.startswith(('-', '–', '*', '•', '->')):
+            point = stripped.lstrip('–-*•-> ').strip()
+            if len(point) > 8:
                 bullets.append(point)
-        elif 10 < len(stripped) < 120 and not stripped.startswith('---'):
+        # Any non-trivial content line (no upper length limit — formulas can be long)
+        elif len(stripped) > 8:
             bullets.append(stripped)
-    return bullets[:5]
+    return bullets  # NO :5 cap
 
 
 # -- Public API ----------------------------------------------------------------

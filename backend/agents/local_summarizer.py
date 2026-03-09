@@ -11,7 +11,7 @@ from agents.local_summarizer_utils import (
     _math_block, _raw_to_latex, _is_math_line,
 )
 
-__all__ = ["generate_local_note", "_PROF"]
+__all__ = ["generate_local_note", "_PROF", "_is_math_line"]
 
 
 # ─── Section builders ─────────────────────────────────────────────────────────

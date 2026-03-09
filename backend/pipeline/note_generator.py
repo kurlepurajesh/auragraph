@@ -115,8 +115,19 @@ every worked example, every edge case -- must be present in the generated notes.
 
 THE SLIDE TEXT IS THE CONTRACT:
 Read the SLIDE / LECTURE NOTES CONTENT section line by line.
-Every line that is not a boundary marker (--- Slide N ---) is content that MUST appear
-in your output. Think of each non-marker line as a separate, non-negotiable obligation.
+Every line that is not a boundary marker (--- Slide N --- / --- Page N ---) is content
+that MUST appear in your output. Think of each non-marker line as a separate obligation.
+
+METADATA FILTER (CRITICAL — applies before everything else):
+The following lines are ADMINISTRATIVE METADATA, not teaching content.
+They must NEVER appear anywhere in the generated notes:
+  • Course codes: anything matching "LETTERS-DIGITS: COURSE TITLE"
+    e.g. "CSL-373: PROBABILITY THEORY FOR COMPUTER ENGINEERS" → ignore
+  • Lecture/session headers: "Lecture N (date, time)" or "Lec N (...)"
+    e.g. "Lecture 10 (05/02/2026, 2 − 3 PM)" → ignore
+  • Professor names, institution names, department names
+  • Any line that is only a date, time, or room number
+These lines are infrastructure — treat them as invisible. They are NOT obligations.
 
 Proficiency level NEVER controls what is included. It only controls HOW things are explained.
 A concept present in the slides that is absent from the notes is always an error,
@@ -335,7 +346,11 @@ SLIDE / LECTURE NOTES CONTENT (primary source — every non-marker line is an ob
 
 ═════════════════════════════════════════════════════════════════
 LINE-BY-LINE OBLIGATION:
-Read every line of the SLIDE CONTENT above that is not a "--- Slide N ---" marker.
+First, IGNORE these metadata lines — they are NOT content obligations:
+  • Course code headers (e.g. "CSL-373: PROBABILITY THEORY FOR COMPUTER ENGINEERS")
+  • Lecture headers (e.g. "Lecture 10 (05/02/2026, 2 − 3 PM)")
+  • Professor names, institution names, dates, room numbers
+Then, for every remaining non-marker line:
 Each such line is a SEPARATE MANDATORY ITEM that must appear in your notes.
 If a line is a formula: the formula must appear.
 If a line is a definition: the definition must appear.
@@ -940,8 +955,15 @@ SLIDE CONTENT FOR THIS CHUNK (every non-marker line is a MANDATORY ITEM):
 {slide_text}
 
 LINE-BY-LINE OBLIGATION:
-Read every line of the SLIDE CONTENT above that is not a "--- Slide N ---" / "--- Page N ---" marker.
-Each such line is a SEPARATE MANDATORY ITEM:
+METADATA FILTER (apply first — before covering any content):
+The following types of lines are ADMINISTRATIVE METADATA, not teaching content.
+They must NEVER appear in your output:
+  • Course code headers: e.g. "CSL-373: PROBABILITY THEORY FOR COMPUTER ENGINEERS"
+  • Lecture/session headers: e.g. "Lecture 10 (05/02/2026, 2 − 3 PM)" or "Lec 12 (...)"
+  • Professor names, institution names, department names
+  • Dates, room numbers, times
+Treat these lines as invisible — they are NOT mandatory items.
+For every remaining non-marker line:
   • formula line → the formula MUST appear in your notes
   • definition line → the definition MUST appear
   • property/condition line → it MUST appear

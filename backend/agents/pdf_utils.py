@@ -464,16 +464,19 @@ def extract_text_from_pptx(file_bytes: bytes) -> str:
 
             body = _strip_metadata_lines("\n".join(body_parts)).strip()
 
-            # Skip cover/title slide: title-only or title + only metadata lines
-            if i == 1 and not body and title_text:
-                # First slide with no body is a title/cover slide
-                logger.info("Skipping cover slide 1: '%s'", title_text[:60])
-                continue
-
-            # Skip references/bibliography slides
+            # Skip references/bibliography slides entirely (no teaching content)
             combined = f"{title_text}\n{body}"
             if _is_references_page(combined):
                 logger.info("Skipping references slide %d", i)
+                continue
+
+            # Cover/title slides (slide 1 with no body after metadata strip):
+            # still emit the --- Slide N --- marker so that the downstream
+            # page-number tracking in slide_analyzer knows every page number.
+            # slide_analyzer's _META filter will handle skipping the content.
+            if i == 1 and not body and title_text:
+                logger.info("Cover slide 1 ('%s'): emitting marker only", title_text[:60])
+                slides_text.append(f"--- Slide {i}: {title_text} ---")
                 continue
 
             # Build slide block
