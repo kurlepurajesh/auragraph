@@ -579,7 +579,7 @@ async def _call_azure(
                 "temperature": 0.3,
             }
             for rate_attempt in range(2):
-                async with httpx.AsyncClient(timeout=120.0) as client:
+                async with httpx.AsyncClient(timeout=600.0) as client:
                     resp = await client.post(url, json=payload, headers=headers)
                 if resp.status_code == 429 and rate_attempt == 0:
                     wait = int(resp.headers.get("Retry-After", "10"))
@@ -635,7 +635,7 @@ async def _call_groq(
                 "temperature": 0.3,
             }
             for rate_attempt in range(2):
-                async with httpx.AsyncClient(timeout=120.0) as client:
+                async with httpx.AsyncClient(timeout=600.0) as client:
                     resp = await client.post(
                         "https://api.groq.com/openai/v1/chat/completions",
                         json=payload, headers=headers,
@@ -1502,7 +1502,7 @@ async def run_generation_pipeline_stream(
     merged = merge_sections(ordered_sections)
 
     # Refinement pass — emit heartbeats every 8 s so the frontend stall-detector
-    # (240 s) never fires while the LLM is working silently.
+    # never fires while the LLM is working silently.
     if _azure_available() or _groq_available():
         yield {"type": "status", "message": "Refining notes for depth and clarity…"}
         try:
@@ -1511,9 +1511,11 @@ async def run_generation_pipeline_stream(
                 await asyncio.sleep(8)
                 if not _refine_task.done():
                     yield {"type": "heartbeat"}
-            merged = await _refine_task
+            refined = _refine_task.result()   # .result() re-raises if task raised
+            if refined and len(refined.strip()) > 100:
+                merged = refined
         except Exception as e:
-            logger.warning("Stream refinement pass failed: %s", e)
+            logger.warning("Stream refinement pass failed (keeping original): %s", e)
 
     # Verification pass
     if _azure_available() or _groq_available():
@@ -1524,8 +1526,10 @@ async def run_generation_pipeline_stream(
                 await asyncio.sleep(8)
                 if not _verify_task.done():
                     yield {"type": "heartbeat"}
-            merged = await _verify_task
+            verified = _verify_task.result()
+            if verified and len(verified.strip()) > 100:
+                merged = verified
         except Exception as e:
-            logger.warning("Stream verification pass failed: %s", e)
+            logger.warning("Stream verification pass failed (keeping original): %s", e)
 
     yield {"type": "done", "note": merged, "source": last_source}

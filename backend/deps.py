@@ -22,10 +22,10 @@ _db_write_lock: asyncio.Lock | None = None   # serialises SQLite notebook writes
 
 # ── Env-driven constants ────────────────────────────────────────────────────────
 MAX_TOTAL_UPLOAD_BYTES = int(os.environ.get("MAX_TOTAL_UPLOAD_MB", "500")) * 1024 * 1024
-PIPELINE_TIMEOUT_S    = int(os.environ.get("PIPELINE_TIMEOUT_S",  "1200"))
-_LLM_TOTAL_TIMEOUT_S  = int(os.environ.get("LLM_TOTAL_TIMEOUT_S", "90"))
-_LLM_HOURLY_LIMIT     = int(os.environ.get("LLM_HOURLY_LIMIT",    "40"))
-_LLM_DAILY_LIMIT      = int(os.environ.get("LLM_DAILY_LIMIT",     "200"))
+PIPELINE_TIMEOUT_S    = int(os.environ.get("PIPELINE_TIMEOUT_S",  "86400"))  # 24 h — no hard kill
+_LLM_TOTAL_TIMEOUT_S  = int(os.environ.get("LLM_TOTAL_TIMEOUT_S", "6000"))  # 100 min per single call
+_LLM_HOURLY_LIMIT     = int(os.environ.get("LLM_HOURLY_LIMIT",    "99999"))  # no rate limit
+_LLM_DAILY_LIMIT      = int(os.environ.get("LLM_DAILY_LIMIT",     "99999"))  # no rate limit
 _COST_PER_1K          = {"azure": 0.01, "groq": 0.0001, "local": 0.0}
 _PROMPT_SLIDES_BUDGET   = 24_000
 _PROMPT_TEXTBOOK_BUDGET = 24_000
@@ -164,7 +164,7 @@ async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
 
     async def _do() -> str:
         for attempt in range(3):
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=600.0) as client:
                 resp = await client.post(
                     "https://api.groq.com/openai/v1/chat/completions",
                     json=payload, headers=req_headers,
@@ -199,7 +199,7 @@ async def _azure_chat(messages: list[dict], max_tokens: int = 4000) -> str:
 
     async def _do() -> str:
         for attempt in range(3):
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=600.0) as client:
                 resp = await client.post(url, json=payload, headers=req_headers)
             if resp.status_code == 429 and attempt < 2:
                 wait = int(resp.headers.get("Retry-After", str(3 * (attempt + 1))))

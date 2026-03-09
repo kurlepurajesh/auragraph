@@ -327,14 +327,7 @@ async def upload_fuse_stream(
     notebook_id:   Optional[str]    = Form(None),
     authorization: Optional[str]    = Header(None),
 ):
-    """SSE streaming version of upload-fuse-multi.
-
-    FIX: All heavy preprocessing (PDF extract, embed, analyse_slides, retrieve)
-    is now done INSIDE the async generator so keepalive status events are sent
-    continuously.  Previously the generator only started after all preprocessing
-    was complete, causing the frontend stall-check (90 s no-data → abort) to
-    fire on large PDFs.
-    """
+    """SSE streaming version of upload-fuse-multi."""
     import json as _json
     from agents.pdf_utils import extract_text_from_file, chunk_text
     from agents.knowledge_store import store_source_chunks, store_note_pages
@@ -349,160 +342,153 @@ async def upload_fuse_stream(
     from pipeline.topic_retriever import TopicRetriever
     from pipeline.note_generator import run_generation_pipeline_stream, _fix_tables
 
-    # Validate auth & ownership before streaming starts (HTTP-level errors only)
     user = get_current_user(authorization)
     _check_llm_rate_limit(user["id"])
     if notebook_id:
         _require_notebook_owner(notebook_id, user)
 
-    # Read all file bytes eagerly (network I/O must finish before we stream back)
-    slides_raw:   list[tuple[str, bytes]] = []
-    textbook_raw: list[tuple[str, bytes]] = []
-    _total_bytes = 0
+    all_slides_text, all_textbook_text = "", ""
+    _total_bytes, extraction_errors = 0, []
+
     for upload in slides_pdfs:
-        _validate_upload(upload)
+        _validate_upload(upload)          # FIX: reject non-PDF/image uploads
         raw = await upload.read()
+        fname = upload.filename or "slides.pdf"
         _total_bytes += len(raw)
         if _total_bytes > MAX_TOTAL_UPLOAD_BYTES:
             raise HTTPException(413, f"Upload exceeds {MAX_TOTAL_UPLOAD_BYTES//1024//1024} MB limit")
-        slides_raw.append((upload.filename or "slides.pdf", raw))
+        try:
+            marker    = f"\n\n{'='*60}\n=== FILE: {fname} ===\n{'='*60}\n\n"
+            extracted = (await asyncio.to_thread(extract_text_from_file, raw, fname)
+                         if is_image_file(fname)
+                         else extract_text_from_file(raw, fname))
+            all_slides_text += marker + extracted + "\n\n"
+        except Exception as e:
+            extraction_errors.append(f"{fname}: {e}")
+
     for upload in (textbook_pdfs or []):
-        _validate_upload(upload)
+        _validate_upload(upload)          # FIX: was missing in stream endpoint
         raw = await upload.read()
+        fname = upload.filename or "textbook.pdf"
         _total_bytes += len(raw)
         if _total_bytes > MAX_TOTAL_UPLOAD_BYTES:
             raise HTTPException(413, f"Upload exceeds {MAX_TOTAL_UPLOAD_BYTES//1024//1024} MB limit")
-        textbook_raw.append((upload.filename or "textbook.pdf", raw))
+        try:
+            extracted = (await asyncio.to_thread(extract_text_from_file, raw, fname)
+                         if is_image_file(fname)
+                         else extract_text_from_file(raw, fname))
+            all_textbook_text += extracted + "\n\n"
+        except Exception as e:
+            extraction_errors.append(f"{fname}: {e}")
+
+    if not all_slides_text.strip() and not all_textbook_text.strip():
+        raise HTTPException(422, "Could not extract text. " + "; ".join(extraction_errors))
+
+    slide_raw_chunks    = chunk_text(all_slides_text,   max_chars=4000)
+    textbook_raw_chunks = chunk_text(all_textbook_text, max_chars=4000)
+    textbook_hash       = hashlib.md5(all_textbook_text.encode()).hexdigest()[:16]
+    if notebook_id:
+        try:
+            store_source_chunks(nb_id=notebook_id, slide_chunks=slide_raw_chunks,
+                                textbook_chunks=textbook_raw_chunks, textbook_hash=textbook_hash)
+        except Exception as e:
+            logger.warning("Knowledge store write failed: %s", e)
+
+    textbook_semantic_chunks = []
+    if all_textbook_text.strip():
+        try:
+            textbook_semantic_chunks = chunk_textbook(all_textbook_text)
+        except Exception:
+            pass
+
+    embedder, vector_db = Embedder(), VectorDB()
+    if textbook_semantic_chunks:
+        try:
+            loaded = bool(notebook_id) and vector_db.load(notebook_id, expected_hash=textbook_hash)
+            if loaded:
+                embedder.rebuild_from_chunks(vector_db.chunks)
+            else:
+                embedder.embed_chunks(textbook_semantic_chunks)
+                vector_db.add_chunks(textbook_semantic_chunks)
+                if notebook_id: vector_db.add_to_azure(notebook_id, textbook_semantic_chunks)
+                if notebook_id:
+                    vector_db.save(notebook_id, textbook_hash=textbook_hash)
+        except Exception as e:
+            logger.warning("Embedding failed: %s", e)
+
+    topics = []
+    try:
+        topics = await analyse_slides(all_slides_text)
+    except Exception as e:
+        logger.warning("Slide analysis failed: %s", e)
+
+    topic_contexts: dict[str, str] = {}
+    if topics and vector_db.size > 0:
+        try:
+            retriever      = TopicRetriever(vector_db, embedder)
+            topic_contexts = retriever.retrieve_all_topics(topics, nb_id=notebook_id or "")
+        except Exception:
+            pass
 
     async def event_generator():
-        # ── Step 1: Extract text ─────────────────────────────────────────────
-        yield f"data: {_json.dumps({'type':'status','message':'Extracting text from files…'})}\n\n"
-        all_slides_text, all_textbook_text = "", ""
-        extraction_errors: list[str] = []
-
-        for fname, raw in slides_raw:
-            try:
-                marker    = f"\n\n{'='*60}\n=== FILE: {fname} ===\n{'='*60}\n\n"
-                extracted = (await asyncio.to_thread(extract_text_from_file, raw, fname)
-                             if is_image_file(fname)
-                             else await asyncio.to_thread(extract_text_from_file, raw, fname))
-                all_slides_text += marker + extracted + "\n\n"
-            except Exception as e:
-                extraction_errors.append(f"{fname}: {e}")
-
-        for fname, raw in textbook_raw:
-            try:
-                extracted = await asyncio.to_thread(extract_text_from_file, raw, fname)
-                all_textbook_text += extracted + "\n\n"
-            except Exception as e:
-                extraction_errors.append(f"{fname}: {e}")
-
-        if not all_slides_text.strip() and not all_textbook_text.strip():
-            err_msg = "Could not extract text. " + "; ".join(extraction_errors)
-            yield f"data: {_json.dumps({'type':'error','message':err_msg})}\n\n"
-            return
-
-        # ── Step 2: Chunk + store ────────────────────────────────────────────
-        yield f"data: {_json.dumps({'type':'status','message':'Chunking and indexing content…'})}\n\n"
-        slide_raw_chunks    = chunk_text(all_slides_text,   max_chars=4000)
-        textbook_raw_chunks = chunk_text(all_textbook_text, max_chars=4000)
-        textbook_hash       = hashlib.md5(all_textbook_text.encode()).hexdigest()[:16]
-        if notebook_id:
-            try:
-                store_source_chunks(nb_id=notebook_id, slide_chunks=slide_raw_chunks,
-                                    textbook_chunks=textbook_raw_chunks, textbook_hash=textbook_hash)
-            except Exception as e:
-                logger.warning("Knowledge store write failed: %s", e)
-
-        # ── Step 3: Embed ────────────────────────────────────────────────────
-        yield f"data: {_json.dumps({'type':'status','message':'Building semantic index…'})}\n\n"
-        textbook_semantic_chunks = []
-        if all_textbook_text.strip():
-            try:
-                textbook_semantic_chunks = await asyncio.to_thread(chunk_textbook, all_textbook_text)
-            except Exception:
-                pass
-
-        embedder, vector_db = Embedder(), VectorDB()
-        if textbook_semantic_chunks:
-            try:
-                loaded = bool(notebook_id) and vector_db.load(notebook_id, expected_hash=textbook_hash)
-                if loaded:
-                    embedder.rebuild_from_chunks(vector_db.chunks)
-                else:
-                    await asyncio.to_thread(embedder.embed_chunks, textbook_semantic_chunks)
-                    vector_db.add_chunks(textbook_semantic_chunks)
-                    if notebook_id:
-                        vector_db.add_to_azure(notebook_id, textbook_semantic_chunks)
-                        vector_db.save(notebook_id, textbook_hash=textbook_hash)
-            except Exception as e:
-                logger.warning("Embedding failed: %s", e)
-
-        # ── Step 4: Analyse slides ───────────────────────────────────────────
-        yield f"data: {_json.dumps({'type':'status','message':'Analysing lecture structure…'})}\n\n"
-        topics = []
-        try:
-            topics = await analyse_slides(all_slides_text)
-        except Exception as e:
-            logger.warning("Slide analysis failed: %s", e)
-
-        # ── Step 5: Retrieve context ─────────────────────────────────────────
-        topic_contexts: dict[str, str] = {}
-        if topics and vector_db.size > 0:
-            yield f"data: {_json.dumps({'type':'status','message':'Retrieving relevant textbook context…'})}\n\n"
-            try:
-                retriever      = TopicRetriever(vector_db, embedder)
-                topic_contexts = await asyncio.to_thread(
-                    retriever.retrieve_all_topics, topics, notebook_id or ""
-                )
-            except Exception:
-                pass
-
-        # ── Step 6–8: Generate, verify, persist ─────────────────────────────
         if not topics:
-            yield f"data: {_json.dumps({'type':'status','message':'Generating notes (offline summariser)…'})}\n\n"
-            fallback = await asyncio.to_thread(
-                generate_local_note, all_slides_text, all_textbook_text, proficiency
-            )
+            fallback = generate_local_note(all_slides_text, all_textbook_text, proficiency)
             fallback = fix_latex_delimiters(_fix_tables(fallback))
             if notebook_id:
                 try:
                     update_notebook_note(notebook_id, fallback, proficiency)
                 except Exception:
                     pass
-            yield f"data: {_json.dumps({'type':'done','note':fallback,'source':'local','corrections_made':0,'correction_summary':''})}\n\n"
+            yield f"data: {_json.dumps({'type':'done','note':fallback,'source':'local'})}\n\n"
             return
 
-        yield f"data: {_json.dumps({'type':'start','total':len(topics)})}\n\n"
+        yield f"data: {_json.dumps({'type':'status','message':'Starting note generation…'})}\n\n"
 
         final_note, final_source = "", "local"
-        async for event in run_generation_pipeline_stream(topics, topic_contexts, proficiency):
-            if event["type"] == "section":
-                event["content"] = fix_latex_delimiters(_fix_tables(event["content"]))
-            elif event["type"] == "done":
-                final_note   = fix_latex_delimiters(_fix_tables(event.get("note", "")))
-                final_source = event.get("source", "local")
-                was_corrected, corr_summary = False, ""
-                if final_note and final_source != "local":
-                    yield f"data: {_json.dumps({'type':'status','message':'Verifying accuracy against source material…'})}\n\n"
-                    try:
-                        final_note, was_corrected, corr_summary = await _verify_note(
-                            final_note, all_slides_text[:8000], all_textbook_text[:8000]
-                        )
-                    except Exception as ve:
-                        logger.warning("Streaming self-review error: %s", ve)
-                event.update({
-                    "note": final_note, "source": final_source, "verified": True,
-                    "corrections_made": 1 if was_corrected else 0,
-                    "correction_summary": corr_summary,
-                })
-                if notebook_id and final_note:
-                    try:
-                        store_note_pages(notebook_id, _note_to_pages(final_note))
-                        update_notebook_note(notebook_id, final_note, proficiency)
-                    except Exception as e:
-                        logger.warning("Stream persist failed: %s", e)
-            yield f"data: {_json.dumps(event)}\n\n"
+        try:
+            async for event in run_generation_pipeline_stream(topics, topic_contexts, proficiency):
+                if event["type"] == "section":
+                    event["content"] = fix_latex_delimiters(_fix_tables(event["content"]))
+                    final_note += ("\n\n" if final_note else "") + event["content"]
+                    final_source = "azure"
+                elif event["type"] == "done":
+                    final_note   = fix_latex_delimiters(_fix_tables(event.get("note", "") or final_note))
+                    final_source = event.get("source", "local")
+                    was_corrected, corr_summary = False, ""
+                    if final_note and final_source != "local":
+                        yield f"data: {_json.dumps({'type':'status','message':'Verifying accuracy against source material…'})}\n\n"
+                        try:
+                            final_note, was_corrected, corr_summary = await _verify_note(
+                                final_note, all_slides_text[:8000], all_textbook_text[:8000]
+                            )
+                        except Exception as ve:
+                            logger.warning("Streaming self-review error (skipping): %s", ve)
+                    event.update({
+                        "note": final_note, "source": final_source, "verified": True,
+                        "corrections_made": 1 if was_corrected else 0,
+                        "correction_summary": corr_summary,
+                    })
+                    if notebook_id and final_note:
+                        try:
+                            store_note_pages(notebook_id, _note_to_pages(final_note))
+                            update_notebook_note(notebook_id, final_note, proficiency)
+                        except Exception as e:
+                            logger.warning("Stream persist failed: %s", e)
+                yield f"data: {_json.dumps(event)}\n\n"
+        except Exception as gen_exc:
+            # Safety net: generator crashed — emit done with whatever was accumulated
+            logger.error("Stream generator crashed: %s", gen_exc, exc_info=True)
+            if not final_note:
+                final_note = generate_local_note(all_slides_text, all_textbook_text, proficiency)
+                final_source = "local"
+            final_note = fix_latex_delimiters(_fix_tables(final_note))
+            if notebook_id and final_note:
+                try:
+                    store_note_pages(notebook_id, _note_to_pages(final_note))
+                    update_notebook_note(notebook_id, final_note, proficiency)
+                except Exception:
+                    pass
+            yield f"data: {_json.dumps({'type':'done','note':final_note,'source':final_source,'verified':False,'corrections_made':0,'correction_summary':''})}\n\n"
 
     return StreamingResponse(
         event_generator(),

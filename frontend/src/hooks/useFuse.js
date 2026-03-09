@@ -63,6 +63,7 @@ export function useFuse(id, deps = {}) {
             let streamedNote = '';
             let streamSource = 'azure';
             let lastChunkAt = Date.now();
+            let receivedDone = false;
             // Per-chunk stall detection: 4 min with no data → abort
             // (refinement + verification passes can be 2-3 min — heartbeats keep connection alive)
             const stallCheck = setInterval(() => {
@@ -92,14 +93,16 @@ export function useFuse(id, deps = {}) {
                             if ((event.message || '').toLowerCase().includes('verif')) setVerifyingStep(5);
                         } else if (event.type === 'section') {
                             streamedNote += (streamedNote ? '\n\n' : '') + event.content;
+                            setNote?.(streamedNote);   // show partial notes live
                             setFuseProgress(`Building: ${event.topic}…`);
                         } else if (event.type === 'heartbeat') {
                             /* keep-alive ping during refine/verify — no UI change needed */
                         } else if (event.type === 'done') {
+                            receivedDone = true;
                             setVerifyingStep(null);
-                            streamedNote = event.note;
+                            streamedNote = event.note || streamedNote;
                             streamSource = event.source || 'azure';
-                            setNote?.(event.note);
+                            setNote?.(streamedNote);
                             if (event.corrections_made > 0) {
                                 setFallbackWarning(`✅ Accuracy check complete — ${event.correction_summary || 'minor corrections applied before showing notes.'}`);
                                 setTimeout(() => setFallbackWarning(''), 8000);
@@ -112,6 +115,12 @@ export function useFuse(id, deps = {}) {
             } finally {
                 clearTimeout(streamTimeout);
                 clearInterval(stallCheck);
+            }
+
+            // Safety net: if stream closed without a done event, show whatever was accumulated
+            if (!receivedDone && streamedNote) {
+                setNote?.(streamedNote);
+                setVerifyingStep(null);
             }
 
             setNoteSource(streamSource);
