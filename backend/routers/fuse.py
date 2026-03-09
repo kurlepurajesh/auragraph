@@ -41,6 +41,31 @@ def _validate_upload(upload: UploadFile) -> None:
         )
 
 
+def _renumber_pages(text: str, offset: int) -> tuple[str, int]:
+    """
+    Renumber every '--- Page N ---' marker in *text* so that page numbers are
+    globally unique across multiple uploaded files.
+
+    Without this, every PDF resets to '--- Page 1 ---'. The bipartite safety
+    union in slide_analyzer.py then compares source pages {1,2,3,4} against
+    LLM-covered pages {1,2,3,4} — collision hides the fact that 14 distinct
+    pages exist across 4 files, and nothing is ever rescued.
+
+    Returns (renumbered_text, number_of_pages_found_in_this_file).
+    """
+    max_local = 0
+
+    def _replace(m: re.Match) -> str:
+        nonlocal max_local
+        n = int(m.group(1))
+        if n > max_local:
+            max_local = n
+        return f"--- Page {offset + n} ---"
+
+    new_text = re.sub(r'--- Page (\d+) ---', _replace, text)
+    return new_text, max_local
+
+
 
 
 @router.post("/api/upload-fuse-multi", response_model=FusionResponse)
@@ -75,6 +100,7 @@ async def upload_fuse_multi(
     all_slide_images, all_textbook_images, textbook_figures_items = [], [], []
     extraction_errors: list[str] = []
     _total_bytes = 0
+    _global_page_offset = 0   # Global page counter across all uploaded slide files
 
     for upload in slides_pdfs:
         _validate_upload(upload)          # FIX: reject non-PDF/image uploads
@@ -88,6 +114,11 @@ async def upload_fuse_multi(
             extracted = (await asyncio.to_thread(extract_text_from_file, raw, fname)
                          if is_image_file(fname)
                          else extract_text_from_file(raw, fname))
+            # Renumber pages globally so each page has a unique number across all files.
+            # Without this, every PDF resets to Page 1 and the bipartite safety union
+            # is blind to inter-file coverage gaps.
+            extracted, pages_in_file = _renumber_pages(extracted, _global_page_offset)
+            _global_page_offset += pages_in_file
             all_slides_text += marker + extracted + "\n\n"
         except ValueError as e:
             extraction_errors.append(f"{fname}: {e}")
@@ -349,6 +380,7 @@ async def upload_fuse_stream(
 
     all_slides_text, all_textbook_text = "", ""
     _total_bytes, extraction_errors = 0, []
+    _global_page_offset = 0   # Global page counter across all uploaded slide files
 
     for upload in slides_pdfs:
         _validate_upload(upload)          # FIX: reject non-PDF/image uploads
@@ -362,6 +394,9 @@ async def upload_fuse_stream(
             extracted = (await asyncio.to_thread(extract_text_from_file, raw, fname)
                          if is_image_file(fname)
                          else extract_text_from_file(raw, fname))
+            # Renumber pages globally so each page has a unique number across all files.
+            extracted, pages_in_file = _renumber_pages(extracted, _global_page_offset)
+            _global_page_offset += pages_in_file
             all_slides_text += marker + extracted + "\n\n"
         except Exception as e:
             extraction_errors.append(f"{fname}: {e}")

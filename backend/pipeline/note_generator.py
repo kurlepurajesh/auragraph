@@ -356,6 +356,10 @@ If a line is a formula: the formula must appear.
 If a line is a definition: the definition must appear.
 If a line is a property or condition: it must appear.
 If a line is a worked step or example value: it must appear.
+If a line starts with "Exercise N." or "Example N.": it is TEACHING CONTENT.
+  These must appear in notes with the full statement and a worked solution / hint.
+  "Exercise" lines show students what skills to practice — they are obligations, not optional.
+  "Example" lines show concepts applied to concrete cases — they are obligations, not optional.
 There are NO exceptions. Depth and style are adjustable. Omission is not.
 ═════════════════════════════════════════════════════════════════
 
@@ -1109,12 +1113,30 @@ async def generate_topic_note(
         This guarantees EVERY slide's content appears in the final notes,
         regardless of how dense the topic is.
     """
-    # Numbered checklist format makes the LLM more likely to treat each item
-    # as a discrete obligation it must satisfy before finishing.
-    key_points_block = (
-        "\n".join(f"{i+1}. {kp}" for i, kp in enumerate(topic.key_points))
-        if topic.key_points else "(see slide content below — cover every formula, definition, and algorithm)"
-    )
+    # Build the mandatory coverage checklist.
+    # Filter out pure-noise key_points that are OCR artifacts (only digits/symbols,
+    # very short fragments, or lines that are just whitespace noise). These items
+    # can't be verified by the LLM and clutter the checklist with phantom obligations.
+    # The full slide_text (primary source) still contains the correct content.
+    def _is_meaningful_kp(kp: str) -> bool:
+        kp = kp.strip()
+        if len(kp) < 5:
+            return False  # too short to be a real concept
+        # pure math noise: all digits, spaces, operators, single letters
+        if re.fullmatch(r'[\d\s\+\-\*\/\=\.\,\(\)\[\]\{\}i=nij\^]*', kp):
+            return False
+        return True
+
+    clean_kps = [kp for kp in topic.key_points if _is_meaningful_kp(kp)]
+
+    if clean_kps:
+        key_points_block = (
+            "NOTE: Some items below may be OCR-reconstructed. If a formula looks "
+            "garbled, use your knowledge to interpret and correctly render it in LaTeX.\n"
+            + "\n".join(f"{i+1}. {kp}" for i, kp in enumerate(clean_kps))
+        )
+    else:
+        key_points_block = "(see slide content below — cover every formula, definition, algorithm, exercise, and example)"
 
     # ── Determine provider ────────────────────────────────────────────────────
     provider = "azure" if _azure_available() else ("groq" if _groq_available() else None)
@@ -1511,12 +1533,32 @@ async def run_generation_pipeline_stream(
     ordered_sections: list[str | None] = [None] * len(filtered)
     last_source = "local"
 
+    # Emit sections in LECTURE ORDER, not completion order.
+    # When topic at index i finishes, hold it in ordered_sections[i].
+    # Then flush any contiguous run from the front (next_emit pointer).
+    # This way the user always sees topics in the correct slide order,
+    # even though they are generated in parallel.
+    next_emit = 0  # next index that should be emitted
+
     for _ in range(len(filtered)):
         idx, topic_name, section, src = await queue.get()
         ordered_sections[idx] = section
         if src != "local":
             last_source = src
-        yield {"type": "section", "topic": topic_name, "content": section, "index": idx}
+
+        # Flush any contiguous ready sections from next_emit forward
+        while next_emit < len(filtered) and ordered_sections[next_emit] is not None:
+            emit_topic = filtered[next_emit].topic
+            emit_section = ordered_sections[next_emit]
+            yield {"type": "section", "topic": emit_topic, "content": emit_section, "index": next_emit}
+            next_emit += 1
+
+    # Flush any remaining (should be empty after the loop, but be safe)
+    while next_emit < len(filtered) and ordered_sections[next_emit] is not None:
+        emit_topic = filtered[next_emit].topic
+        emit_section = ordered_sections[next_emit]
+        yield {"type": "section", "topic": emit_topic, "content": emit_section, "index": next_emit}
+        next_emit += 1
 
     await asyncio.gather(*tasks, return_exceptions=True)  # ensure all done
 

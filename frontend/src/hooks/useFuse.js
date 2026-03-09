@@ -64,6 +64,18 @@ export function useFuse(id, deps = {}) {
             let streamSource = 'azure';
             let lastChunkAt = Date.now();
             let receivedDone = false;
+            // Section slots: backend now emits in lecture order, but keep
+            // an index-keyed map as a safety net for out-of-order arrivals.
+            const sectionSlots = {};  // index → content
+            let totalTopics = 0;
+
+            const _rebuildNote = () => {
+                // Reconstruct note from slots in index order, skipping gaps
+                const filled = Object.entries(sectionSlots)
+                    .sort((a, b) => Number(a[0]) - Number(b[0]))
+                    .map(([, content]) => content);
+                return filled.join('\n\n');
+            };
             // Per-chunk stall detection: 4 min with no data → abort
             // (refinement + verification passes can be 2-3 min — heartbeats keep connection alive)
             const stallCheck = setInterval(() => {
@@ -87,13 +99,18 @@ export function useFuse(id, deps = {}) {
                     try {
                         const event = JSON.parse(line.slice(6));
                         if (event.type === 'start') {
+                            totalTopics = event.total;
                             setFuseProgress(`Generating ${event.total} topic sections…`);
                         } else if (event.type === 'status') {
                             setFuseProgress(event.message || 'Processing…');
                             if ((event.message || '').toLowerCase().includes('verif')) setVerifyingStep(5);
                         } else if (event.type === 'section') {
-                            streamedNote += (streamedNote ? '\n\n' : '') + event.content;
-                            setNote?.(streamedNote);   // show partial notes live
+                            // Place section into its correct lecture-order slot
+                            const idx = typeof event.index === 'number' ? event.index : Object.keys(sectionSlots).length;
+                            sectionSlots[idx] = event.content;
+                            // Rebuild note in correct order and show it live
+                            streamedNote = _rebuildNote();
+                            setNote?.(streamedNote);
                             setFuseProgress(`Building: ${event.topic}…`);
                         } else if (event.type === 'heartbeat') {
                             /* keep-alive ping during refine/verify — no UI change needed */

@@ -104,7 +104,11 @@ Rules:
   8. PAGE COVERAGE (critical): Count the --- Page N --- and --- Slide N --- markers
      in the input. Every such page that is not pure metadata MUST appear in at least
      one topic's slide_text WITH its marker line preserved.
-  9. Output ONLY valid JSON in this exact format - a JSON object with a "topics" key containing the array.
+  9. EXERCISE AND EXAMPLE LINES (critical): Lines starting with "Exercise N." or
+     "Example N." are TEACHING CONTENT — they show students what to practice and
+     what the concept looks like in application. They MUST be included verbatim in
+     slide_text and listed in key_points. Never treat them as optional or student work.
+  10. Output ONLY valid JSON in this exact format - a JSON object with a "topics" key containing the array.
      No preamble, no markdown fences, no extra keys.
 
 Required output format:
@@ -665,10 +669,11 @@ def _topic_similarity(a: str, b: str) -> float:
     stop = {"the", "a", "an", "of", "and", "in", "to", "for", "on", "with",
             "is", "are", "its", "their", "this", "that", "by", "or", "at"}
     def words(s):
-        # Keep words of length >= 2 so abbreviations like 'Z' (from 'Z Transform')
-        # are NOT filtered out when they are the ONLY distinguishing word.
+        # Keep words of length >= 2 AND pure digit tokens (e.g. "1" in "Slide 1").
+        # Without digits, words("Slide 1") == words("Slide 2") == {'slide'},
+        # making Jaccard = 1.0 and collapsing ALL "Slide N" topics into one.
         return {w for w in s.lower().replace("-", " ").replace("_", " ").split()
-                if len(w) >= 2 and w not in stop}
+                if (len(w) >= 2 or w.isdigit()) and w not in stop}
     wa, wb = words(a), words(b)
     if not wa or not wb:
         return 0.0
