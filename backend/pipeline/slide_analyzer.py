@@ -82,12 +82,16 @@ For each topic output:
 
 Rules:
   1. Follow slide order exactly - do NOT reorder topics.
-  2. Create one topic entry for EACH slide/page that contains teaching content.
-     Only merge two consecutive slides into ONE topic when they are literally the
-     continuation of the exact same explanation (e.g. "Definition (continued)" or
-     "Proof — Part 2 of 2").  A new formula, a new definition, a new algorithm,
-     a new theorem, or a new sub-heading means a NEW topic entry — never fold it
-     into the previous topic.
+  2. ONE TOPIC PER SLIDE — this is the most important rule.
+     Count every --- Slide N --- or --- Page N --- marker in the input.
+     Each such marker MUST produce its own separate topic entry.
+     The ONLY exception: two consecutive slides that are an explicit
+     continuation (e.g. "Definition (cont.)" or "Proof — Part 2 of 2").
+     A new formula, a new definition, a new algorithm, a new theorem, a new
+     sub-heading, or ANY change in subject = a NEW topic entry.
+     If you are unsure: make separate entries. NEVER fold content into a previous topic.
+     If there are 4 slide markers → output at least 4 topic entries.
+     If there are 10 slide markers → output at least 10 topic entries.
   3. Ignore ONLY these metadata slide types: cover page, title slide, table of
      contents, references / bibliography, agenda, outline, "thank you", author page.
      EVERYTHING else — including introductory concept slides, motivation slides,
@@ -644,12 +648,90 @@ async def analyse_slides(slides_text: str) -> list[SlideTopic]:
             before_dedup, after_dedup, added, len(all_topics),
             [t.topic for t in all_topics],
         )
+        # ── Post-process: split any topic that the LLM collapsed multiple slides
+        # into. This is the final safety net: if the LLM returns 1 topic for 4
+        # slides (putting all markers inside that 1 slide_text), we forcibly split
+        # it into separate per-slide topics so the note generator covers each one.
+        all_topics = _enforce_one_topic_per_slide(all_topics)
+        logger.info(
+            "slide_analyzer: after per-slide enforcement: %d topics",
+            len(all_topics),
+        )
         return all_topics
 
     logger.info("slide_analyzer: using deterministic fallback parser")
     topics = _deterministic_parse(slides_text)
     logger.info("slide_analyzer: extracted %d topics via fallback", len(topics))
     return topics
+
+
+def _enforce_one_topic_per_slide(topics: list[SlideTopic]) -> list[SlideTopic]:
+    """
+    Split any topic whose slide_text contains more than one slide/page marker
+    into individual per-slide topics.
+
+    This is the final safety net for the case where the LLM collapses multiple
+    slides into a single topic entry, causing the note generator to produce
+    notes that seem to cover only 1 slide.
+
+    Split logic:
+    - Tokenise slide_text on --- Slide N --- / --- Page N --- boundaries.
+    - Each boundary block becomes its own SlideTopic.
+    - Topic name: use inline title from the marker if present, else "Slide N".
+    - key_points: distribute bullet lines from each block.
+    - Exception: if the block body is < 10 chars it is skipped (empty page).
+    - A topic with only 1 marker is returned as-is (no split needed).
+    """
+    _MARKER_RE = re.compile(r'^(---\s*(?:Slide|Page)\s+\d+(?::[^\-\n]*)?\s*---)', re.MULTILINE)
+    _NUM_RE    = re.compile(r'(?:Slide|Page)\s+(\d+)')
+
+    result: list[SlideTopic] = []
+
+    for t in topics:
+        markers = list(_MARKER_RE.finditer(t.slide_text))
+        if len(markers) <= 1:
+            result.append(t)
+            continue
+
+        # Split the slide_text at each marker boundary
+        blocks: list[tuple[str, str]] = []  # (marker_line, body)
+        for i, m in enumerate(markers):
+            marker_line = m.group(1)
+            body_start  = m.end()
+            body_end    = markers[i + 1].start() if i + 1 < len(markers) else len(t.slide_text)
+            body        = t.slide_text[body_start:body_end].strip()
+            blocks.append((marker_line, body))
+
+        split_count = 0
+        for marker_line, body in blocks:
+            if len(body) < 10:   # genuinely empty slide — skip
+                continue
+            # Derive topic name: use inline title if present, else "Slide N"
+            inline = re.search(r'---\s*(?:Slide|Page)\s+\d+\s*:\s*(.*?)\s*---', marker_line)
+            nm = _NUM_RE.search(marker_line)
+            if inline and inline.group(1).strip():
+                topic_name = inline.group(1).strip()
+            elif nm:
+                topic_name = f"Slide {nm.group(1)}"
+            else:
+                topic_name = t.topic
+            result.append(SlideTopic(
+                topic      = topic_name,
+                slide_text = marker_line + "\n" + body,
+                key_points = _extract_bullets(body),
+            ))
+            split_count += 1
+
+        if split_count > 1:
+            logger.info(
+                "slide_analyzer: split collapsed topic %r into %d per-slide topics",
+                t.topic, split_count,
+            )
+        elif split_count == 0:
+            # All blocks were empty — keep original to avoid data loss
+            result.append(t)
+
+    return result
 
 
 def _topic_similarity(a: str, b: str) -> float:

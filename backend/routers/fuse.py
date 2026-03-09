@@ -43,13 +43,14 @@ def _validate_upload(upload: UploadFile) -> None:
 
 def _renumber_pages(text: str, offset: int) -> tuple[str, int]:
     """
-    Renumber every '--- Page N ---' marker in *text* so that page numbers are
-    globally unique across multiple uploaded files.
+    Renumber every '--- Page N ---' and '--- Slide N ---' marker in *text* so
+    that page/slide numbers are globally unique across multiple uploaded files.
 
-    Without this, every PDF resets to '--- Page 1 ---'. The bipartite safety
-    union in slide_analyzer.py then compares source pages {1,2,3,4} against
-    LLM-covered pages {1,2,3,4} — collision hides the fact that 14 distinct
-    pages exist across 4 files, and nothing is ever rescued.
+    Without this, every PDF resets to '--- Page 1 ---' and every PPTX resets
+    to '--- Slide 1 ---'. The bipartite safety union in slide_analyzer.py then
+    compares source pages {1,2,3,4} against LLM-covered pages {1,2,3,4} —
+    collision hides the fact that 14 distinct pages exist across 4 files, and
+    nothing is ever rescued.
 
     Returns (renumbered_text, number_of_pages_found_in_this_file).
     """
@@ -57,12 +58,13 @@ def _renumber_pages(text: str, offset: int) -> tuple[str, int]:
 
     def _replace(m: re.Match) -> str:
         nonlocal max_local
-        n = int(m.group(1))
+        prefix = m.group(1)   # "Page" or "Slide"
+        n = int(m.group(2))
         if n > max_local:
             max_local = n
-        return f"--- Page {offset + n} ---"
+        return f"--- {prefix} {offset + n} ---"
 
-    new_text = re.sub(r'--- Page (\d+) ---', _replace, text)
+    new_text = re.sub(r'---\s*(Page|Slide)\s+(\d+)\s*---', _replace, text)
     return new_text, max_local
 
 
