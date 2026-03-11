@@ -214,6 +214,12 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
          handles multi-column layouts, preserving reading order.
       2. Fall back to PyPDF2 if pdfplumber fails (e.g. heavily encrypted PDFs).
     Returns one string with pages separated by '\\n\\n--- Page N ---\\n\\n'.
+
+    CRITICAL: _scrub_pdf_artifacts is applied to each page's CONTENT individually
+    before the '--- Page N ---' marker is prepended.  Applying the scrubber to the
+    already-joined string (markers + content) caused _PAGE_MARKER_RE to strip every
+    '--- Page N ---' marker we just inserted, leaving the pipeline with zero page
+    boundaries and collapsing all topics into one blob.
     """
     try:
         import pdfplumber
@@ -224,7 +230,8 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 text = page.extract_text(x_tolerance=3, y_tolerance=3)
                 if not text or not text.strip():
                     continue
-                page_text = text.strip()
+                # Scrub artifacts from the raw page content BEFORE attaching the marker
+                page_text = _scrub_pdf_artifacts(text.strip())
                 # Strip per-page metadata lines (author names, institutions, emails)
                 page_text = _strip_metadata_lines(page_text)
                 if not page_text.strip():
@@ -243,7 +250,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                     continue
                 pages_text.append(f"--- Page {i} ---\n{page_text}")
         if pages_text:
-            return _scrub_pdf_artifacts("\n\n".join(pages_text))
+            return "\n\n".join(pages_text)
     except Exception as e:
         logger.warning("pdfplumber failed (%s), falling back to PyPDF2", e)
 
@@ -257,7 +264,9 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
             text = page.extract_text()
             if not text or not text.strip():
                 continue
-            page_text = _strip_metadata_lines(text.strip())
+            # Scrub artifacts from the raw page content BEFORE attaching the marker
+            page_text = _scrub_pdf_artifacts(text.strip())
+            page_text = _strip_metadata_lines(page_text)
             if not page_text.strip():
                 continue
             if _is_front_matter_page(page_text, i):
@@ -269,7 +278,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 continue
             pages_text.append(f"--- Page {i} ---\n{page_text}")
         if pages_text:
-            return _scrub_pdf_artifacts("\n\n".join(pages_text))
+            return "\n\n".join(pages_text)
     except Exception as e:
         raise ValueError(f"Failed to parse PDF: {e}") from e
 

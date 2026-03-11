@@ -1,50 +1,18 @@
+
+# Environment files (contain secrets)
+.env
+*.env
+
+# Dependencies
+node_modules/
+
 # Python
-backend/venv/
-**/__pycache__/
-**/*.pyc
+__pycache__/
 *.pyc
 
-# Backend runtime data
-backend/.env
-backend/knowledge_store/
-backend/mock_db*.json
-backend/mock_db_*.tmp
-backend/notebooks.json
-backend/users.json
-
-# Node
-frontend/node_modules/
-frontend/dist/
+# IDE
+.vscode/
 
 # OS
 .DS_Store
-*.DS_Store
-
-# Logs
-*.log
-*.zip
-
-# SQLite databases — NEVER commit these (contain user password hashes & session tokens)
-*.db
-*.db-shm
-*.db-wal
-backend/auragraph.db
-
-# Scratch/leftover files
-auragraph_starter_code.txt
-index.jsx
-*.zip
-*.migrated
-frontends/
-
-# Build artifacts and logs
-frontend/vite.log
-frontend/vite_screen.log
-frontend/playwright-report/
-*.log
-
-# Test scaffolding artifacts
-lecture_notes_generator/
-
-# Root-level zip blobs (committed by mistake)
-*.zip
+Thumbs.db

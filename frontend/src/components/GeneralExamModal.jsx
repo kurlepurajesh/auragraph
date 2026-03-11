@@ -6,8 +6,8 @@ import rehypeKatex from 'rehype-katex';
 import { X, Loader2 } from 'lucide-react';
 import { API, authHeaders } from './utils';
 
-export default function SniperExamModal({ nodes, notebookId, onClose }) {
-    const redNodes = nodes.filter(n => n.status === 'struggling');
+export default function GeneralExamModal({ nodes, notebookId, onClose }) {
+    const allLabels = nodes.map(n => n.label);
     const [questions, setQuestions] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [qIdx, setQIdx] = React.useState(0);
@@ -19,11 +19,11 @@ export default function SniperExamModal({ nodes, notebookId, onClose }) {
     React.useEffect(() => {
         (async () => {
             try {
-                const res = await fetch(`${API}/api/sniper-exam`, {
+                const res = await fetch(`${API}/api/general-exam`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
-                        weak_concepts: redNodes.map(n => n.label),
+                        all_concepts: allLabels,
                         ...(notebookId ? { notebook_id: notebookId } : {}),
                     }),
                 });
@@ -61,10 +61,10 @@ export default function SniperExamModal({ nodes, notebookId, onClose }) {
             <div className="modal fade-in-scale" onClick={e => e.stopPropagation()} style={{ maxWidth: 560, width: '96vw' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ fontSize: 22 }}>🎯</div>
+                        <div style={{ fontSize: 22 }}>📝</div>
                         <div>
-                            <h3 style={{ marginBottom: 1 }}>Sniper Exam</h3>
-                            <p style={{ fontSize: 11, color: 'var(--text3)' }}>Targeted at your weak concepts</p>
+                            <h3 style={{ marginBottom: 1 }}>General Exam</h3>
+                            <p style={{ fontSize: 11, color: 'var(--text3)' }}>Test all your concepts</p>
                         </div>
                     </div>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)' }}><X size={18} /></button>
@@ -72,7 +72,7 @@ export default function SniperExamModal({ nodes, notebookId, onClose }) {
 
                 {loading && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '30px 0', justifyContent: 'center', color: 'var(--text3)', fontSize: 13 }}>
-                        <Loader2 className="spin" size={18} /> Generating targeted questions…
+                        <Loader2 className="spin" size={18} /> Generating exam questions…
                     </div>
                 )}
 
@@ -81,7 +81,7 @@ export default function SniperExamModal({ nodes, notebookId, onClose }) {
                         <div style={{ fontSize: 48, marginBottom: 12 }}>{pct >= 70 ? '🏆' : pct >= 40 ? '📈' : '💪'}</div>
                         <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{score}/{total} correct</div>
                         <div style={{ fontSize: 14, color: 'var(--text3)', marginBottom: 20 }}>
-                            {pct >= 70 ? 'Great job! Your weak areas are improving.' : pct >= 40 ? 'Good effort — keep practising these concepts.' : 'Keep going — revisit these topics in your notes.'}
+                            {pct >= 70 ? 'Excellent! You have a strong grasp of the material.' : pct >= 40 ? 'Good effort — review the topics you missed.' : 'Keep studying — revisit your notes and try again.'}
                         </div>
                         <div className="progress-bar-track" style={{ marginBottom: 20 }}>
                             <div className="progress-bar-fill" style={{ width: `${pct}%`, background: pct >= 70 ? 'linear-gradient(90deg,#10B981,#34D399)' : pct >= 40 ? 'linear-gradient(90deg,#F59E0B,#FCD34D)' : 'linear-gradient(90deg,#EF4444,#FCA5A5)' }} />
@@ -92,10 +92,10 @@ export default function SniperExamModal({ nodes, notebookId, onClose }) {
 
                 {!loading && !done && total === 0 && (
                     <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                        <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: 'var(--text)' }}>No red-zone topics!</div>
-                        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>All your concepts are on track. Keep it up!</div>
-                        <button className="btn btn-primary" onClick={onClose}>Nice!</button>
+                        <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6, color: 'var(--text)' }}>Could not generate questions</div>
+                        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>Please try again later.</div>
+                        <button className="btn btn-primary" onClick={onClose}>Close</button>
                     </div>
                 )}
 
@@ -107,13 +107,13 @@ export default function SniperExamModal({ nodes, notebookId, onClose }) {
                                 <span style={{ color: 'var(--ag-emerald)' }}>Score: {score}</span>
                             </div>
                             <div className="progress-bar-track">
-                                <div className="progress-bar-fill" style={{ width: `${((qIdx) / total) * 100}%`, background: 'linear-gradient(90deg,#7C3AED,#2563EB)' }} />
+                                <div className="progress-bar-fill" style={{ width: `${((qIdx) / total) * 100}%`, background: 'linear-gradient(90deg,#2563EB,#7C3AED)' }} />
                             </div>
                         </div>
 
                         {current.concept && (
                             <div style={{ marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--purple-light)', color: 'var(--purple)', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>
-                                🎯 {current.concept}
+                                📝 {current.concept}
                             </div>
                         )}
 

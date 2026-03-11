@@ -126,7 +126,7 @@ export function NoteSearch({ pages, onJumpToPage, onClose }) {
                         <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>No results for "{query}"</div>
                     )}
                     {results.map(r => (
-                        <button key={r.idx} onClick={() => { onJumpToPage(r.idx); onClose(); }}
+                        <button key={r.idx} onClick={() => { onJumpToPage(r.idx, query); onClose(); }}
                             style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid transparent', background: 'var(--surface)', marginBottom: 6, cursor: 'pointer', transition: 'all 0.12s' }}
                             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--purple)'; e.currentTarget.style.background = 'var(--purple-light)'; }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'var(--surface)'; }}>

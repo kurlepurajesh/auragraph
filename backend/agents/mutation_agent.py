@@ -8,6 +8,7 @@ from semantic_kernel.functions import KernelArguments
 from semantic_kernel.prompt_template import PromptTemplateConfig, InputVariable
 
 
+
 MUTATION_PROMPT = """\
 You are AuraGraph's Adaptive Mutation Agent.
 A student is confused about a specific concept in their study note.
@@ -22,14 +23,33 @@ STUDENT'S DOUBT:
 ---
 TASK:
 1. Diagnose the student's conceptual gap in one clear sentence.
-2. Rewrite the ORIGINAL NOTE SECTION so it directly resolves the doubt.
-   - Add an intuition block (💡) explaining WHY it works using an analogy or concrete example.
-   - Keep all original formulas. Use ONLY `$...$` for inline math and `$$` on its own line for display math. NEVER use \\( \\) or \\[ \\] delimiters.
-   - Preserve the Markdown heading if present.
-   - Add a `> 📝 **Exam Tip:**` if the doubt reveals a commonly tested misconception.
+2. Produce an ENHANCED version of the ORIGINAL NOTE SECTION that resolves the doubt.
+
+   ABSOLUTE RULE — ADDITIVE ONLY:
+   • Every sentence, formula, definition, example, and heading from the ORIGINAL
+     NOTE SECTION MUST appear in your output VERBATIM.
+   • You may ONLY ADD new content — never remove, rephrase, or omit anything.
+   • Your output MUST be strictly longer than the original.
+
+   What to ADD (insert at the most relevant location):
+   - An intuition block (💡) explaining WHY it works using an analogy or concrete example.
+   - Additional formulas or deeper explanations for the confusing concept.
+   - A `> 📝 **Exam Tip:**` if the doubt reveals a commonly tested misconception.
+   
+    INTUITION PLACEMENT RULE (VERY IMPORTANT):
+   - If the student's doubt refers to a specific sentence, formula, or line (an inline doubt),
+     place the 💡 Intuition Block immediately after or very close to that specific line.
+   - If the doubt refers to the concept in general and not a specific line,
+     place the 💡 Intuition Block at the END of the note section.
+
+   Formatting:
+   - Use ONLY `$...$` for inline math and `$$` on its own line for display math.
+     NEVER use \\( \\) or \\[ \\] delimiters.
+   - Preserve all Markdown headings (##, ###) exactly as they appear.
+
 3. Output exactly TWO sections separated by `|||` (three pipe characters, no spaces around):
 
-<Fully rewritten section that replaces the original>
+<Enhanced section with ALL original content preserved + new additions>
 |||
 <One sentence: the diagnosed conceptual gap>
 

@@ -9,9 +9,9 @@ import {
     AlertCircle, MinusCircle, RefreshCw, X, ChevronDown, ChevronUp,
     MessageCircle, GitBranch, Copy, Check, PanelRightClose, PanelRightOpen,
     Download, PenLine, Columns2, ScrollText, Moon, Sun, Search, Clock,
-    Keyboard, Printer, Undo2, Plus, Trash2, Zap, List
+    Keyboard, Printer, Undo2
 } from 'lucide-react';
-import { API, authHeaders, apiFetch, loadDoubts, saveDoubts } from '../components/utils';
+import { API, authHeaders, apiFetch, loadDoubts, saveDoubts, parseApiError } from '../components/utils';
 import { useDarkMode } from '../hooks/useDarkMode';
 import FuseProgressBar from '../components/FuseProgressBar';
 import FileDrop from '../components/FileDrop';
@@ -25,7 +25,6 @@ import NoteRenderer from '../components/NoteRenderer';
 import DoubtsPanel from '../components/DoubtsPanel';
 import { CopyNoteButton, DownloadNoteButton, PrintNoteButton, UndoToast } from '../components/NoteToolbar';
 import { useNotebookData } from '../hooks/useNotebookData';
-import { useSections } from '../hooks/useSections';
 import { useDoubtsLog } from '../hooks/useDoubtsLog';
 import { useKnowledgeGraph } from '../hooks/useKnowledgeGraph';
 import { usePagination } from '../hooks/usePagination';
@@ -47,6 +46,7 @@ export default function NotebookWorkspace() {
     const [pendingSelectionText, setPendingSelectionText] = useState('');
     const [showSearch, setShowSearch] = useState(false);
     const [showShortcuts, setShowShortcuts] = useState(false);
+    const [searchHighlight, setSearchHighlight] = useState('');
     const [editingPage, setEditingPage] = useState(false);
     const [pageInputVal, setPageInputVal] = useState('');
     const [regenLoadingPages, setRegenLoadingPages] = useState(new Set());
@@ -60,14 +60,6 @@ export default function NotebookWorkspace() {
         saveNote, extractAndSaveGraph, loadNotebook, reloadNote, autoExtractRef,
     } = useNotebookData(id, { setGraphNodes, setGraphEdges });
     const { doubtsLog, setDoubtsLog } = useDoubtsLog(id);
-    const {
-        sections, setSections,
-        sectionInput, setSectionInput,
-        sectionInputType, setSectionInputType,
-        generatingSection,
-        handleAddSection, handleDeleteSection, handleGenerateSection,
-        handleMoveSectionUp, handleMoveSectionDown, loadSections,
-    } = useSections(id, notebook?.proficiency || prof, reloadNote, (title) => setPendingNavSection(title));
     const {
         pages, currentPage, setCurrentPage, viewMode, setViewMode,
         fontSize, setFontSize, jumpHighlightSet, noteScrollRef, handleJumpToSection,
@@ -86,8 +78,6 @@ export default function NotebookWorkspace() {
         autoExtractRef.current = false;
         loadNotebook();
     }, [loadNotebook]);
-    useEffect(() => { loadSections(); }, [loadSections]);
-
     // ── Content fingerprint helpers — keyed by content, not index, so badges survive page shifts ──
     const getFingerprint = useCallback((content) => (content || '').trim().replace(/\s+/g, ' ').slice(0, 100), []);
     const isPageMutated  = useCallback((idx) => mutatedPages.has(getFingerprint(pages[idx] || '')), [mutatedPages, pages, getFingerprint]);
@@ -103,6 +93,47 @@ export default function NotebookWorkspace() {
             setPendingNavSection(null);
         }
     }, [pages, pendingNavSection, getFingerprint]);
+
+    // ── Scroll to & highlight search match after page jump ──────────────────
+    useEffect(() => {
+        if (!searchHighlight) return;
+        const timer = setTimeout(() => {
+            const container = noteScrollRef.current;
+            if (!container) return;
+            // Walk all text nodes inside the note body to find the match
+            const query = searchHighlight.toLowerCase();
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+            let node;
+            while ((node = walker.nextNode())) {
+                const idx = node.textContent.toLowerCase().indexOf(query);
+                if (idx === -1) continue;
+                // Found the match — wrap it in a <mark> and scroll to it
+                const range = document.createRange();
+                range.setStart(node, idx);
+                range.setEnd(node, idx + searchHighlight.length);
+                const mark = document.createElement('mark');
+                mark.className = 'search-highlight-match';
+                mark.style.background = 'rgba(250,204,21,0.6)';
+                mark.style.borderRadius = '2px';
+                mark.style.padding = '1px 2px';
+                mark.style.scrollMarginTop = '120px';
+                range.surroundContents(mark);
+                mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Remove highlight after 3s
+                setTimeout(() => {
+                    mark.style.transition = 'background 0.8s';
+                    mark.style.background = 'transparent';
+                    setTimeout(() => {
+                        const parent = mark.parentNode;
+                        if (parent) { parent.replaceChild(document.createTextNode(mark.textContent), mark); parent.normalize(); }
+                    }, 900);
+                }, 3000);
+                break;
+            }
+            setSearchHighlight('');
+        }, 200); // wait for page render
+        return () => clearTimeout(timer);
+    }, [searchHighlight, currentPage]);
 
     const handlePrint = useCallback(() => { window.print(); }, []);
 
@@ -159,8 +190,11 @@ export default function NotebookWorkspace() {
                 // Prefer data.answer (full explanation), fall back to concept_gap, then generic message.
                 // Never extract a 2-word 💡 snippet — the student needs a real answer.
                 const insight = data.answer || data.concept_gap || 'Your note was rewritten to address this doubt.';
-                const entry = { id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true, kind: 'mutated' };
-                setDoubtsLog(prev => [entry, ...prev]);
+                // Don't duplicate — if this doubt was already recorded as 'answered', skip
+                setDoubtsLog(prev => {
+                    if (prev.some(d => d.doubt === doubt && d.kind === 'answered')) return prev;
+                    return [{ id: lid, pageIdx: currentPage, doubt, insight, gap: data.concept_gap, source: data.source || 'azure', time: ts, success: true, kind: 'mutated' }, ...prev];
+                });
                 setRightTab('doubts');
             }
         } catch (err) {
@@ -192,7 +226,7 @@ export default function NotebookWorkspace() {
             });
             if (!res.ok) {
                 let detail = `Server error (${res.status})`;
-                try { const j = await res.json(); detail = j.detail || detail; } catch { }
+                try { const j = await res.json(); detail = parseApiError(j.detail, detail); } catch { }
                 throw new Error(detail);
             }
             const data = await res.json();
@@ -497,89 +531,13 @@ export default function NotebookWorkspace() {
                         {[
                             { key: 'map', label: 'Concept Map', icon: <Brain size={12} /> },
                             { key: 'doubts', label: (() => { const onPage = doubtsLog.filter(d => d.pageIdx === currentPage).length; const total = doubtsLog.length; if (!total) return 'Doubts'; if (onPage) return `Doubts (${onPage}/${total})`; return `Doubts (${total})`; })(), icon: <MessageCircle size={12} /> },
-                            { key: 'contents', label: `Contents${sections.length ? ` (${sections.length})` : ''}`, icon: <List size={12} /> },
                         ].map(tab => (
                             <button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setRightTab(tab.key)} style={{ flex: 1, padding: '10px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s', borderBottom: rightTab === tab.key ? '2px solid #7C3AED' : '2px solid transparent', background: 'transparent', color: rightTab === tab.key ? 'var(--ag-purple)' : 'var(--text3)' }}>
                                 {tab.icon} {tab.label}
                             </button>
                         ))}
                     </div>
-                    {rightTab === 'contents' ? (
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {/* Add section form */}
-                            <form onSubmit={handleAddSection} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px', background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 4 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 2 }}>Add Topic / Chapter</div>
-                                <input
-                                    className="input"
-                                    style={{ fontSize: 12, padding: '6px 8px' }}
-                                    placeholder="e.g. Fourier Transform"
-                                    value={sectionInput}
-                                    onChange={e => setSectionInput(e.target.value)}
-                                />
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                    <select
-                                        className="input"
-                                        style={{ fontSize: 11, padding: '4px 6px', flex: 1 }}
-                                        value={sectionInputType}
-                                        onChange={e => setSectionInputType(e.target.value)}
-                                    >
-                                        <option value="topic">Topic</option>
-                                        <option value="chapter">Chapter</option>
-                                    </select>
-                                    <button type="submit" className="btn btn-primary" style={{ fontSize: 11, padding: '4px 10px', gap: 4 }} disabled={!sectionInput.trim()}>
-                                        <Plus size={12} /> Add
-                                    </button>
-                                </div>
-                            </form>
-
-                            {sections.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text3)', fontSize: 12 }}>
-                                    No sections yet. Add a topic or chapter above.
-                                </div>
-                            ) : sections.map((sec, idx) => (
-                                <div key={sec.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                                        {/* Reorder arrows */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0, marginTop: 1 }}>
-                                            <button onClick={() => handleMoveSectionUp(idx)} disabled={idx === 0}
-                                                style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.25 : 0.7, padding: 1, lineHeight: 1 }}>
-                                                <ChevronUp size={12} color="var(--text3)" />
-                                            </button>
-                                            <button onClick={() => handleMoveSectionDown(idx)} disabled={idx === sections.length - 1}
-                                                style={{ background: 'none', border: 'none', cursor: idx === sections.length - 1 ? 'default' : 'pointer', opacity: idx === sections.length - 1 ? 0.25 : 0.7, padding: 1, lineHeight: 1 }}>
-                                                <ChevronDown size={12} color="var(--text3)" />
-                                            </button>
-                                        </div>
-                                        {/* Title + type */}
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', lineHeight: 1.35, wordBreak: 'break-word' }}>{sec.title}</div>
-                                            <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, textTransform: 'capitalize' }}>{sec.note_type} · {sec.content?.length ? `${sec.content.length} chars` : 'empty'}</div>
-                                        </div>
-                                        {/* Actions */}
-                                        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                                            <button
-                                                onClick={() => handleGenerateSection(sec)}
-                                                disabled={generatingSection === sec.id}
-                                                title="Generate note for this section"
-                                                style={{ background: 'none', border: '1px solid #7C3AED33', borderRadius: 5, cursor: 'pointer', padding: '3px 6px', color: 'var(--ag-purple)', opacity: generatingSection === sec.id ? 0.5 : 1 }}
-                                            >
-                                                {generatingSection === sec.id
-                                                    ? <Loader2 className="spin" size={11} />
-                                                    : <Zap size={11} />}
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteSection(sec.id)}
-                                                title="Delete section"
-                                                style={{ background: 'none', border: '1px solid #EF444433', borderRadius: 5, cursor: 'pointer', padding: '3px 6px', color: 'var(--ag-red)' }}
-                                            >
-                                                <Trash2 size={11} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : rightTab === 'map'
+                    {rightTab === 'map'
                         ? <KnowledgePanel nodes={graphNodes} edges={graphEdges} notebookId={id} onNodeStatusChange={handleNodeStatusChange} onJumpToSection={handleJumpToSection} />
                         : <DoubtsPanel doubts={doubtsLog} currentPage={currentPage} />}
                 </aside>
@@ -658,7 +616,7 @@ export default function NotebookWorkspace() {
                 </div>
             )}
             {mutating && pages.length > 0 && <MutateModal page={pages[currentPage]} notebookId={id} pageIdx={currentPage} onClose={() => { setMutating(false); setPendingSelectionText(''); }} onMutate={handleMutate} onDoubtAnswered={({ doubt: q, answer: a, source: s }) => { const entry = { id: Date.now(), pageIdx: currentPage, doubt: q, insight: a, gap: '', source: s || 'azure', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), success: true, kind: 'answered' }; setDoubtsLog(prev => [entry, ...prev]); setRightTab('doubts'); }} initialDoubt={pendingSelectionText} />}
-            {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx) => { setCurrentPage(idx); }} onClose={() => setShowSearch(false)} />}
+            {showSearch && pages.length > 0 && <NoteSearch pages={pages} onJumpToPage={(idx, query) => { setCurrentPage(idx); setSearchHighlight(query || ''); }} onClose={() => setShowSearch(false)} />}
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
         </div>
     );

@@ -19,12 +19,40 @@ from schemas import (
     MutationRequest, MutationResponse,
     RegenerateSectionRequest, RegenerateSectionResponse,
     SniperExamRequest, SniperExamResponse,
+    GeneralExamRequest, GeneralExamResponse,
     ExaminerRequest, ExaminerResponse,
     ConceptPracticeRequest, ConceptPracticeResponse,
 )
 
 logger = logging.getLogger("auragraph")
 router = APIRouter(tags=["learning"])
+
+
+# ── Robust LLM JSON parser (handles LaTeX backslashes) ────────────────────────
+
+def _parse_llm_json(text: str):
+    """Parse JSON from LLM output, fixing LaTeX backslash issues.
+
+    LLMs often produce unescaped LaTeX like \\theta which overlaps with JSON
+    escape sequences (\\t = tab).  Two-pass: try raw first, then fix backslashes.
+    """
+    # Pass 1: direct parse
+    try:
+        return _json.loads(text)
+    except _json.JSONDecodeError:
+        pass
+    # Pass 2: protect already-valid escapes, then double remaining backslashes
+    fixed = text
+    fixed = fixed.replace('\\\\', '\x00DBL\x00')    # protect \\
+    fixed = fixed.replace('\\"',  '\x00QT\x00')      # protect \"
+    fixed = fixed.replace('\\',   '\\\\')             # double all remaining
+    fixed = fixed.replace('\x00DBL\x00', '\\\\')     # restore \\
+    fixed = fixed.replace('\x00QT\x00',  '\\"')      # restore \"
+    try:
+        return _json.loads(fixed)
+    except _json.JSONDecodeError as exc:
+        logger.warning("LLM JSON parse failed after backslash fix: %s", exc)
+        return None
 
 
 # ── Doubt answering ────────────────────────────────────────────────────────────
@@ -132,6 +160,33 @@ async def mutate_note(
 
     can_mutate = llm_source in ("azure", "groq")
     mutated    = fix_latex_delimiters(_fix_tables(mutated))
+
+    # ── ADDITIVE-ONLY GUARD ──────────────────────────────────────────────────
+    # If the LLM shrank the page (deleted content), reject the rewrite and
+    # instead prepend the new additions above the original content.
+    if can_mutate and len(mutated.strip()) < len(note_page.strip()):
+        logger.warning(
+            "Mutation shrank page from %d → %d chars — falling back to additive prepend",
+            len(note_page), len(mutated),
+        )
+        # Extract the heading from the original to avoid duplication
+        import re as _re
+        heading_match = _re.match(r'^(##\s+[^\n]+)\n', note_page.strip())
+        heading = heading_match.group(1) if heading_match else None
+        # Build the addition: intuition block from the gap + answer
+        addition_parts = []
+        if gap and gap != "Student required additional clarification.":
+            addition_parts.append(f"> 💡 **Intuition (re: \"{req.doubt.strip()}\"):** {gap}")
+        if answer:
+            addition_parts.append(answer)
+        addition = "\n\n".join(addition_parts) if addition_parts else (
+            f"> 💡 **Clarification:** See below for the original content addressing: \"{req.doubt.strip()}\""
+        )
+        if heading:
+            body = note_page.strip()[len(heading):].strip()
+            mutated = f"{heading}\n\n{addition}\n\n{body}"
+        else:
+            mutated = f"{addition}\n\n{note_page.strip()}"
 
     if can_mutate and req.notebook_id:
         try:
@@ -264,7 +319,6 @@ async def sniper_exam(
     req: SniperExamRequest,
     authorization: Optional[str] = Header(None),
 ):
-    from agents.mastery_store import get_db
     from agents.knowledge_store import retrieve_relevant_chunks
     from agents.examiner_agent import SNIPER_EXAM_PROMPT
 
@@ -272,16 +326,14 @@ async def sniper_exam(
     _check_llm_rate_limit(user["id"])     # FIX: was missing
     if req.notebook_id:
         _require_notebook_owner(req.notebook_id, user)
-    username = user["id"]
 
-    db         = get_db(username)
-    nodes      = db.get("nodes", [])
-    struggling = [n["label"] for n in nodes if n.get("status") == "struggling"][:4]
-    partial    = [n["label"] for n in nodes if n.get("status") == "partial"][:3]
+    # Use weak_concepts from frontend (authoritative source of graph state)
+    struggling = (req.weak_concepts or [])[:5]
 
-    if not struggling and not partial:
-        all_labels = [n["label"] for n in nodes][:5]
-        struggling, partial = all_labels[:3], all_labels[3:]
+    if not struggling:
+        return SniperExamResponse(questions=[], concepts_tested=[])
+
+    partial: list[str] = []
 
     concepts_tested = (
         [{"label": l, "status": "struggling"} for l in struggling] +
@@ -306,16 +358,20 @@ async def sniper_exam(
         )
 
     raw = ""
+    logger.info("sniper-exam: struggling=%s partial=%s azure=%s groq=%s",
+                struggling, partial, deps._is_azure_available(), deps._is_groq_available())
     if deps._is_azure_available():
         try:
             raw = await deps._azure_chat([{"role": "user", "content": _build_prompt()}], max_tokens=4000)
+            logger.info("Azure sniper exam OK, len=%d", len(raw) if raw else 0)
         except Exception as e:
-            logger.warning("Azure sniper exam failed: %s", e)
+            logger.warning("Azure sniper exam failed: %s — %s", type(e).__name__, e)
     if not raw and deps._is_groq_available():
         try:
             raw = await deps._groq_chat([{"role": "user", "content": _build_prompt()}], max_tokens=2500)
+            logger.info("Groq sniper exam OK, len=%d", len(raw) if raw else 0)
         except Exception as e:
-            logger.warning("Groq sniper exam failed: %s", e)
+            logger.warning("Groq sniper exam failed: %s — %s", type(e).__name__, e)
 
     questions: list = []
     if raw:
@@ -326,10 +382,9 @@ async def sniper_exam(
                 m = re.search(r'\[[\s\S]+\]', clean)
                 if m:
                     clean = m.group(0)
-            clean     = re.sub(r'\\(?!["\\/nu])', r'\\\\', clean)
-            questions = _json.loads(clean)
-            if not isinstance(questions, list):
-                questions = []
+            parsed = _parse_llm_json(clean)
+            if isinstance(parsed, list):
+                questions = parsed
         except Exception as e:
             logger.warning("Sniper exam JSON parse failed: %s", e)
 
@@ -345,6 +400,81 @@ async def sniper_exam(
 
     return SniperExamResponse(questions=questions, concepts_tested=concepts_tested)
 
+# ── General exam ────────────────────────────────────────────────────────────────────
+
+@router.post("/api/general-exam", response_model=GeneralExamResponse)
+async def general_exam(
+    req: GeneralExamRequest,
+    authorization: Optional[str] = Header(None),
+):
+    from agents.knowledge_store import retrieve_relevant_chunks
+    from agents.examiner_agent import GENERAL_EXAM_PROMPT
+
+    user = get_current_user(authorization)
+    _check_llm_rate_limit(user["id"])
+    if req.notebook_id:
+        _require_notebook_owner(req.notebook_id, user)
+
+    all_concepts = (req.all_concepts or [])[:15]
+    if not all_concepts:
+        return GeneralExamResponse(questions=[], concepts_tested=[])
+
+    concepts_tested = [{"label": l, "status": "all"} for l in all_concepts]
+
+    nb_ctx = ""
+    if req.notebook_id:
+        q  = " ".join(all_concepts)
+        sh = retrieve_relevant_chunks(req.notebook_id, q, top_k=14, source_filter="slides")
+        th = retrieve_relevant_chunks(req.notebook_id, q, top_k=6,  source_filter="textbook")
+        sc = _format_chunks_for_prompt(sh, 6000)
+        tc = _format_chunks_for_prompt(th, 3000)
+        nb_ctx = f"[FROM SLIDES]\n{sc}\n\n[FROM TEXTBOOK]\n{tc}" if sc and tc else (sc or tc)
+
+    def _build_prompt():
+        return (
+            GENERAL_EXAM_PROMPT
+            .replace("{{$all_concepts}}", ", ".join(all_concepts))
+            .replace("{{$notebook_context}}", nb_ctx or "(no course context available)")
+        )
+
+    raw = ""
+    if deps._is_azure_available():
+        try:
+            raw = await deps._azure_chat([{"role": "user", "content": _build_prompt()}], max_tokens=6000)
+        except Exception as e:
+            logger.warning("Azure general exam failed: %s", e)
+    if not raw and deps._is_groq_available():
+        try:
+            raw = await deps._groq_chat([{"role": "user", "content": _build_prompt()}], max_tokens=4000)
+        except Exception as e:
+            logger.warning("Groq general exam failed: %s", e)
+
+    questions: list = []
+    if raw:
+        try:
+            clean = re.sub(r"^```[a-z]*\n?", "", raw.strip())
+            clean = re.sub(r"\n?```$", "", clean.strip())
+            if not clean.lstrip().startswith('['):
+                m = re.search(r'\[[\s\S]+\]', clean)
+                if m:
+                    clean = m.group(0)
+            parsed = _parse_llm_json(clean)
+            if isinstance(parsed, list):
+                questions = parsed
+        except Exception as e:
+            logger.warning("General exam JSON parse failed: %s", e)
+
+    if not questions:
+        for label in all_concepts[:10]:
+            questions.append({
+                "question":    f"Describe the key aspects of {label}.",
+                "options":     {"A": "Option A", "B": "Option B", "C": "Option C", "D": "Option D"},
+                "correct":     "A",
+                "explanation": "Backend offline — reconnect for AI-generated questions.",
+                "concept":     label,
+            })
+
+    return GeneralExamResponse(questions=questions, concepts_tested=concepts_tested)
 
 # ── Examiner ───────────────────────────────────────────────────────────────────
 
@@ -436,34 +566,35 @@ async def concept_practice_endpoint(
         )
 
     raw: str | None = None
+    logger.info("concept-practice: examiner=%s azure=%s groq=%s concept=%s level=%s",
+                bool(deps.examiner_agent), deps._is_azure_available(),
+                deps._is_groq_available(), req.concept_name, level)
     if deps.examiner_agent and deps._is_azure_available():
         try:
             raw = await deps.examiner_agent.concept_practice(
                 req.concept_name, level, notebook_context=nb_ctx, custom_instruction=ci
             )
+            logger.info("Azure concept-practice OK, len=%d", len(raw) if raw else 0)
         except Exception as e:
-            logger.warning("Azure concept-practice failed: %s", e)
+            logger.warning("Azure concept-practice failed: %s — %s", type(e).__name__, e)
 
     if raw is None and deps._is_groq_available():
         try:
             raw = await deps._groq_chat([{"role": "user", "content": _build_prompt()}], max_tokens=2000)
+            logger.info("Groq concept-practice OK, len=%d", len(raw) if raw else 0)
         except Exception as e:
-            logger.warning("Groq concept-practice failed: %s", e)
+            logger.warning("Groq concept-practice failed: %s — %s", type(e).__name__, e)
 
     if raw:
         stripped = re.sub(r'^```(?:json)?\s*', '', raw.strip())
         stripped = re.sub(r'\s*```$', '', stripped.strip())
-        stripped = re.sub(r'\\(?!["\\/nu])', r'\\\\', stripped)
         if not stripped.lstrip().startswith('['):
             m = re.search(r'\[[\s\S]+\]', stripped)
             if m:
                 stripped = m.group(0)
-        try:
-            parsed = _json.loads(stripped)
-            if isinstance(parsed, list) and parsed:
-                return ConceptPracticeResponse(questions=parsed)
-        except Exception as exc:
-            logger.warning("concept-practice JSON parse failed: %s", exc)
+        parsed = _parse_llm_json(stripped)
+        if isinstance(parsed, list) and parsed:
+            return ConceptPracticeResponse(questions=parsed)
 
     return ConceptPracticeResponse(questions=[{
         "question": f"Which of the following best describes '{req.concept_name}'?",

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '../store';
-import { API, apiFetch } from '../components/utils';
+import { API, apiFetch, parseApiError } from '../components/utils';
 
 /**
  * Manages the FUSE (file upload + note generation) workflow.
@@ -53,7 +53,7 @@ export function useFuse(id, deps = {}) {
             if (!res.ok) {
                 clearTimeout(streamTimeout);
                 let detail = `Server error (${res.status})`;
-                try { const j = await res.json(); detail = j.detail || detail; } catch { }
+                try { const j = await res.json(); detail = parseApiError(j.detail, detail); } catch { }
                 throw new Error(detail);
             }
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setUser } from '../store';
 import { Loader2, Sparkles, FlaskConical } from 'lucide-react';
+import { parseApiError } from '../components/utils';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -59,7 +60,7 @@ export default function LoginPage() {
                 body: JSON.stringify({ email, password })
             });
             const data = await res.json();
-            if (!res.ok) { setError(data.detail || 'Something went wrong.'); setLoading(false); return; }
+            if (!res.ok) { setError(parseApiError(data.detail, 'Something went wrong.')); setLoading(false); return; }
 
             dispatch(setUser(data));
             localStorage.setItem('ag_token', data.token);

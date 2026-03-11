@@ -491,19 +491,15 @@ async def upload_fuse_stream(
                 elif event["type"] == "done":
                     final_note   = fix_latex_delimiters(_fix_tables(event.get("note", "") or final_note))
                     final_source = event.get("source", "local")
-                    was_corrected, corr_summary = False, ""
-                    if final_note and final_source != "local":
-                        yield f"data: {_json.dumps({'type':'status','message':'Verifying accuracy against source material…'})}\n\n"
-                        try:
-                            final_note, was_corrected, corr_summary = await _verify_note(
-                                final_note, all_slides_text[:8000], all_textbook_text[:8000]
-                            )
-                        except Exception as ve:
-                            logger.warning("Streaming self-review error (skipping): %s", ve)
+                    # NOTE: _verify_note is intentionally skipped on the stream path.
+                    # Per-topic refine+verify already ran inside note_generator.py.
+                    # Running a second full-note verify pass here truncated multi-page
+                    # notes to 1 page because fusion_agent.self_review() defaults to
+                    # the semantic-kernel max_tokens cap (~4096 tokens ≈ 1 page).
                     event.update({
                         "note": final_note, "source": final_source, "verified": True,
-                        "corrections_made": 1 if was_corrected else 0,
-                        "correction_summary": corr_summary,
+                        "corrections_made": 0,
+                        "correction_summary": "",
                     })
                     if notebook_id and final_note:
                         try:

@@ -118,6 +118,40 @@ Each object MUST have EXACTLY these keys:
 Math: inline $...$, display $$...$$ on its own line. NEVER use \\( \\) or \\[ \\].
 """
 
+
+GENERAL_EXAM_PROMPT = """\
+You are AuraGraph's General Examiner — generating a comprehensive 10-question exam
+covering ALL the student's concepts.
+
+CONCEPTS TO TEST:
+{{$all_concepts}}
+
+COURSE MATERIAL — from the student's own slides, notes, and textbooks:
+{{$notebook_context}}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULES:
+• Distribute the 10 questions evenly across ALL listed concepts.
+  If there are fewer than 10 concepts, give more questions to harder topics.
+• Every question MUST be grounded in the COURSE MATERIAL — use the exact formulas,
+  definitions, and examples from the student's own slides and textbook.
+• No outside-field content — field is determined by the course material, not concept name.
+• Mix question types: definition, formula application, conceptual reasoning, common mistakes.
+• Make every question exam-ready: specific, unambiguous, with 3 plausible distractors.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Output ONLY a valid JSON array of exactly 10 objects. Raw JSON — no markdown fences.
+Each object MUST have EXACTLY these keys:
+  "question"    : full question text (string)
+  "options"     : object with keys A, B, C, D (all strings)
+  "correct"     : the correct option letter ("A", "B", "C", or "D")
+  "explanation" : 2–3 sentences explaining the answer and why wrong options fail
+  "concept"     : the concept this question tests
+
+Math: inline $...$, display $$...$$ on its own line. NEVER use \\( \\) or \\[ \\].
+"""
+
+
 class ExaminerAgent:
     def __init__(self, kernel: Kernel):
         self._kernel = kernel

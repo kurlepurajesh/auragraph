@@ -154,7 +154,7 @@ def _record_llm_call(user_id: str, source: str, est_tokens: int = 2000) -> None:
 
 # ── Async LLM call wrappers ────────────────────────────────────────────────────
 
-async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
+async def _groq_chat(messages: list[dict], max_tokens: int = 16000) -> str:
     import httpx
     api_key     = os.environ.get("GROQ_API_KEY", "")
     model       = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
@@ -187,7 +187,7 @@ async def _groq_chat(messages: list[dict], max_tokens: int = 4000) -> str:
         raise RuntimeError(f"Groq timed out after {_LLM_TOTAL_TIMEOUT_S}s")
 
 
-async def _azure_chat(messages: list[dict], max_tokens: int = 4000) -> str:
+async def _azure_chat(messages: list[dict], max_tokens: int = 16000) -> str:
     import httpx
     endpoint    = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
     api_key     = os.environ.get("AZURE_OPENAI_API_KEY", "")
@@ -287,6 +287,16 @@ async def _verify_note(note: str, slide_ctx: str, textbook_ctx: str) -> tuple[st
     verified, was_corrected, summary = parse_self_review_response(raw)
     if not verified or len(verified.strip()) < 100:
         return note, False, ""
+    # Shrink guard: if the LLM returned less than 60% of the original note it
+    # almost certainly hit a token cap and truncated.  Discard the truncated
+    # output rather than overwriting a long, correct note with a short one.
+    if len(verified.strip()) < 0.60 * len(note.strip()):
+        logger.warning(
+            "_verify_note: verified note shrank from %d → %d chars (>40%% loss) — "
+            "discarding and keeping original",
+            len(note), len(verified),
+        )
+        return note, False, ""
     return verified, was_corrected, summary
 
 
@@ -361,21 +371,12 @@ def _inject_figures_into_sections(note: str, topic_figures: dict) -> str:
 
 
 def _note_to_pages(note: str) -> list[str]:
-    """Split note into pages mirroring the frontend useMemo pagination (TARGET=3000 chars)."""
+    """Split note into pages mirroring the frontend useMemo pagination.
+    Each ## section is its own page — no merging across topic sections.
+    This ensures page count equals topic count, matching what the user sees.
+    """
     if not note.strip():
         return []
-    TARGET   = 3000
     sections = re.split(r'(?m)^(?=## )', note.strip())
-    parts    = [p.strip() for p in sections if p.strip()]
-    if not parts:
-        return [note.strip()]
-    merged, buf = [], ""
-    for s in parts:
-        if buf and len(buf) + len(s) + 2 > TARGET and len(buf) > 200:
-            merged.append(buf.strip())
-            buf = s
-        else:
-            buf = (buf + "\n\n" + s) if buf else s
-    if buf:
-        merged.append(buf.strip())
-    return [p for p in merged if p.strip()]
+    pages = [p.strip() for p in sections if p.strip()]
+    return pages if pages else [note.strip()]

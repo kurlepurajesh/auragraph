@@ -1,4 +1,4 @@
-"""routers/notebooks.py — /notebooks/* CRUD + sections."""
+"""routers/notebooks.py — /notebooks/* CRUD."""
 from __future__ import annotations
 
 import logging
@@ -10,7 +10,6 @@ import deps
 from deps import get_current_user, _require_notebook_owner, _is_azure_available, _is_groq_available, _azure_chat, _groq_chat, _check_llm_rate_limit, _record_llm_call
 from schemas import (
     NotebookCreateRequest, NotebookUpdateRequest,
-    SectionCreateRequest, SectionUpdateRequest, SectionReorderRequest, SectionGenerateRequest,
     NodeUpdateRequest,
 )
 
@@ -86,116 +85,6 @@ async def get_knowledge_stats(nb_id: str, authorization: Optional[str] = Header(
     return get_chunk_stats(nb_id)
 
 
-# ── Sections ───────────────────────────────────────────────────────────────────
-
-@router.get("/notebooks/{nb_id}/sections")
-async def list_sections(nb_id: str, authorization: Optional[str] = Header(None)):
-    from agents.notebook_store import get_sections
-    user = get_current_user(authorization)
-    _require_notebook_owner(nb_id, user)
-    return get_sections(nb_id)
-
-
-@router.post("/notebooks/{nb_id}/sections")
-async def add_section(
-    nb_id: str, req: SectionCreateRequest,
-    authorization: Optional[str] = Header(None),
-):
-    from agents.notebook_store import create_section
-    user = get_current_user(authorization)
-    _require_notebook_owner(nb_id, user)
-    return create_section(nb_id, req.title, req.note_type)
-
-
-@router.patch("/notebooks/{nb_id}/sections/{section_id}")
-async def edit_section(
-    nb_id: str, section_id: str, req: SectionUpdateRequest,
-    authorization: Optional[str] = Header(None),
-):
-    from agents.notebook_store import update_section
-    user = get_current_user(authorization)
-    _require_notebook_owner(nb_id, user)
-    updates = req.model_dump(exclude_none=True)
-    result  = update_section(section_id, **updates)
-    if not result:
-        raise HTTPException(404, "Section not found")
-    return result
-
-
-@router.delete("/notebooks/{nb_id}/sections/{section_id}")
-async def remove_section(
-    nb_id: str, section_id: str,
-    authorization: Optional[str] = Header(None),
-):
-    from agents.notebook_store import delete_section
-    user = get_current_user(authorization)
-    _require_notebook_owner(nb_id, user)
-    if not delete_section(section_id):
-        raise HTTPException(404, "Section not found")
-    return {"status": "deleted"}
-
-
-@router.put("/notebooks/{nb_id}/sections/reorder")
-async def reorder_notebook_sections(
-    nb_id: str, req: SectionReorderRequest,
-    authorization: Optional[str] = Header(None),
-):
-    from agents.notebook_store import reorder_sections
-    user = get_current_user(authorization)
-    _require_notebook_owner(nb_id, user)
-    return reorder_sections(nb_id, req.order)
-
-
-@router.post("/notebooks/{nb_id}/sections/{section_id}/generate")
-async def generate_section_note(
-    nb_id: str, section_id: str, req: SectionGenerateRequest,
-    authorization: Optional[str] = Header(None),
-):
-    """Generate LLM note content for a single section topic."""
-    from agents.notebook_store import get_section, update_section, rebuild_note_from_sections, update_notebook_note
-    from agents.latex_utils import fix_latex_delimiters
-    user = get_current_user(authorization)
-    _check_llm_rate_limit(user["id"])    # FIX: was missing — LLM call with no throttle
-    nb   = _require_notebook_owner(nb_id, user)
-    sec  = get_section(section_id)
-    if not sec or sec["notebook_id"] != nb_id:
-        raise HTTPException(404, "Section not found")
-
-    topic_prompt = (
-        f"You are generating a detailed study note for the topic: **{sec['title']}**\n"
-        f"Course context: {nb.get('name', '')} ({nb.get('course', '')})\n"
-        f"Student proficiency level: {req.proficiency}\n\n"
-        "Write a comprehensive yet focused note covering key concepts, examples, and "
-        "any important formulas or definitions. Use Markdown with ## headings, bullet lists, "
-        "and LaTeX math where appropriate (delimited by $...$ or $$...$$)."
-    )
-    messages = [
-        {"role": "system", "content": "You are an expert academic note writer. Produce well-structured Markdown notes."},
-        {"role": "user", "content": topic_prompt},
-    ]
-    content = ""
-    if _is_azure_available():
-        try:
-            content = await _azure_chat(messages, max_tokens=2048)
-        except Exception as e:
-            logger.warning("Azure section generate failed: %s", e)
-    if not content and _is_groq_available():
-        try:
-            content = await _groq_chat(messages, max_tokens=2048)
-        except Exception as e:
-            logger.warning("Groq section generate failed: %s", e)
-    if not content:
-        raise HTTPException(503, "LLM unavailable — cannot generate section note")
-
-    from pipeline.note_generator import _fix_tables
-    content = fix_latex_delimiters(_fix_tables(content))
-    _record_llm_call(user["id"], "azure" if _is_azure_available() else "groq", est_tokens=2048)
-    updated = update_section(section_id, content=content)
-    full_note = rebuild_note_from_sections(nb_id)
-    update_notebook_note(nb_id, full_note, req.proficiency or nb.get("proficiency"))
-    return updated
-
-
 # ── Notebook-scoped graph ──────────────────────────────────────────────────────
 
 @router.get("/notebooks/{nb_id}/graph")
@@ -229,14 +118,17 @@ from typing import List as _List
 from pydantic import BaseModel as _BaseModel
 
 class _DoubtEntry(_BaseModel):
-    id:      str
-    pageIdx: int = 0
-    doubt:   str
-    insight: str = ""
-    gap:     str = ""
-    source:  str = "local"
-    success: bool = False
-    time:    str = ""
+    model_config = {"extra": "ignore"}   # silently drop unknown frontend fields
+    id:         str
+    pageIdx:    int = 0
+    doubt:      str
+    insight:    str = ""
+    gap:        str = ""
+    source:     str = "local"
+    success:    bool = False
+    time:       str = ""
+    kind:       Optional[str] = None    # 'mutated' | 'doubt' | None
+    unresolved: Optional[bool] = None  # True while offline
 
 
 @router.get("/api/notebooks/{nb_id}/doubts")

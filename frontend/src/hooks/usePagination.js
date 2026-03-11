@@ -24,18 +24,10 @@ export function usePagination(note, { mutating = false, setMutating, setShowSear
         clean = clean.replace(/\n\s*```+\s*$/g, '');
         const byH2 = clean.split(/(?=^## )/m).map(s => s.trim()).filter(Boolean);
         if (byH2.length > 0) {
-            const TARGET = 3000;
-            const merged = []; let buf = '';
-            for (const s of byH2) {
-                if (buf && buf.length + s.length + 2 > TARGET && buf.length > 200) {
-                    merged.push(buf.trim());
-                    buf = s;
-                } else {
-                    buf = buf ? buf + '\n\n' + s : s;
-                }
-            }
-            if (buf) merged.push(buf.trim());
-            return merged.filter(Boolean);
+            // Each ## section is its own page — no merging.
+            // Study notes are organised by topic; merging sections across topics
+            // causes "4 pages" even when 20+ topics were generated.
+            return byH2.filter(Boolean);
         }
         const byH3 = clean.split(/(?=^### )/m).map(s => s.trim()).filter(Boolean);
         if (byH3.length > 1) return byH3;

@@ -388,10 +388,15 @@ COVERAGE RULES (absolute — apply at ALL proficiency levels)
 
 STRUCTURE
 =========
-  - Start with: ## {{topic}}
-  - Use ### sub-headings whenever the topic has genuinely distinct sub-topics.
+  - Start with: ## {topic}
+  - Use ### sub-headings for distinct sub-topics within the section.
+  - NEVER use # (h1) headings anywhere in your output.
+  - For EXERCISES and EXAMPLES: use a blockquote callout, NOT a heading:
+      > **Exercise N:** [full problem statement]
+      > *Hint / Solution:* [worked answer or clear hint]
+    Never write "# Exercise", "## Exercise", or "### Exercise" — always blockquote.
   - End the section with:
-      > Exam Tip: [the single most-tested fact or most common exam mistake for this topic]
+      > 📝 **Exam Tip:** [the single most-tested fact or most common exam mistake for this topic]
 
 MATHEMATICS
 ===========
@@ -402,6 +407,9 @@ MATHEMATICS
     $$
   - NEVER use \\\\( \\\\) or \\\\[ \\\\]. Only $ and $$.
   - OCR garbled math: reconstruct the correct LaTeX from your knowledge.
+  - ^ is ALWAYS superscript (power/exponent). _ is ALWAYS subscript (index/element).
+    NEVER swap them. $p^j$ = p raised to the power j. $p_j$ = the j-th element of p.
+    Common errors to avoid: $e_{j\\omega}$ → must be $e^{j\\omega}$; $z_{-1}$ → must be $z^{-1}$.
 
 TABLES
 ======
@@ -570,13 +578,13 @@ def _groq_available() -> bool:
 async def _call_azure(
     system: str,
     user:   str,
-    max_tokens: int = 3000,
+    max_tokens: int = 16000,
 ) -> Optional[str]:
     """
     Azure OpenAI call via httpx async client (true async — no thread pool).
     FIX C1: was asyncio.to_thread(_sync) which blocked thread pool under load.
     Includes one 429 retry with Retry-After back-off.
-    If finish_reason=length (output truncated), retries once with the hard ceiling (14,000).
+    If finish_reason=length (output truncated), retries once with the hard ceiling (16,000).
     """
     if not _azure_available():
         return None
@@ -590,7 +598,8 @@ async def _call_azure(
         headers = {"api-key": api_key, "Content-Type": "application/json"}
 
         # First attempt with requested budget; second attempt (if truncated) with hard ceiling
-        for attempt_tokens in [max_tokens, 14_000]:
+        _AZURE_HARD_CEILING = 16_000   # GPT-4o supports 16,384 output tokens
+        for attempt_tokens in [max_tokens, _AZURE_HARD_CEILING]:
             payload = {
                 "messages":   [{"role": "system", "content": system},
                                {"role": "user",   "content": user}],
@@ -609,16 +618,16 @@ async def _call_azure(
                 data   = resp.json()
                 choice = data["choices"][0]
                 if choice.get("finish_reason") == "length":
-                    if attempt_tokens < 14_000:
+                    if attempt_tokens < _AZURE_HARD_CEILING:
                         logger.warning(
                             "note_generator Azure: output truncated at %d tokens — "
-                            "retrying with hard ceiling 14,000", attempt_tokens
+                            "retrying with hard ceiling %d", attempt_tokens, _AZURE_HARD_CEILING
                         )
                         break   # break inner rate-retry loop → outer loop increases tokens
                     else:
                         logger.warning(
                             "note_generator Azure: output still truncated at hard ceiling "
-                            "14,000 tokens — returning partial result"
+                            "%d tokens — returning partial result", _AZURE_HARD_CEILING
                         )
                 return choice["message"]["content"].strip()
     except Exception as e:
@@ -629,13 +638,13 @@ async def _call_azure(
 async def _call_groq(
     system: str,
     user:   str,
-    max_tokens: int = 2500,
+    max_tokens: int = 16000,
 ) -> Optional[str]:
     """
     Groq call via httpx async client (true async — no thread pool).
     FIX C1: was asyncio.to_thread(_sync) which blocked thread pool under load.
     Includes one 429 retry with Retry-After back-off.
-    If finish_reason=length (output truncated), retries once with hard ceiling (7,500).
+    If finish_reason=length (output truncated), retries once with hard ceiling (16,000).
     """
     if not _groq_available():
         return None
@@ -645,7 +654,8 @@ async def _call_groq(
         model   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-        for attempt_tokens in [max_tokens, 7_500]:
+        _GROQ_HARD_CEILING = 16_000   # llama-3.3-70b supports 32k output; 16k is safe
+        for attempt_tokens in [max_tokens, _GROQ_HARD_CEILING]:
             payload = {
                 "model":       model,
                 "messages":    [{"role": "system", "content": system},
@@ -668,16 +678,16 @@ async def _call_groq(
                 data   = resp.json()
                 choice = data["choices"][0]
                 if choice.get("finish_reason") == "length":
-                    if attempt_tokens < 7_500:
+                    if attempt_tokens < _GROQ_HARD_CEILING:
                         logger.warning(
                             "note_generator Groq: output truncated at %d tokens — "
-                            "retrying with hard ceiling 7,500", attempt_tokens
+                            "retrying with hard ceiling %d", attempt_tokens, _GROQ_HARD_CEILING
                         )
                         break   # break inner rate-retry loop → outer loop increases tokens
                     else:
                         logger.warning(
                             "note_generator Groq: output still truncated at hard ceiling "
-                            "7,500 tokens — returning partial result"
+                            "%d tokens — returning partial result", _GROQ_HARD_CEILING
                         )
                 return choice["message"]["content"].strip()
     except Exception as e:
@@ -724,12 +734,16 @@ def _coverage_check(key_points: list[str], generated_text: str) -> list[str]:
     """
     gen_lower = generated_text.lower()
     missing: list[str] = []
+    # ONLY true function words — never domain/engineering terms.
+    # Previous list included "function", "value", "system", "signal" which are
+    # the primary distinguishing words in engineering key_points ("transfer function",
+    # "unit step signal", etc.) and caused them to have 0 signal words → always
+    # treated as "covered" even when completely absent from the generated text.
     _STOP = {
         "which", "where", "there", "their", "these", "those",
-        "function", "value", "given", "since", "using",
-        "system", "signal", "defined", "called", "with", "from",
-        "that", "this", "have", "been", "when", "into", "each",
-        "for", "the", "and", "are", "its", "not",
+        "given", "since", "using", "defined", "called",
+        "with", "from", "that", "this", "have", "been",
+        "when", "into", "each", "for", "the", "and", "are", "its", "not",
     }
     for kp in key_points:
         # Use words of length >= 3 so short domain terms (DFT, FFT, ROC, etc.)
@@ -782,14 +796,28 @@ def _extract_slide_lines(slide_text: str) -> list[str]:
     """
     Extract every meaningful content line from raw slide_text as coverage obligations.
     This supplements key_points (which are LLM-extracted and may be incomplete).
-    Skips slide boundary markers and trivially short lines.
+    Skips slide boundary markers, trivially short lines, and administrative metadata
+    lines (course codes, lecture headers, professor names) that are explicitly filtered
+    from the generated notes by the prompts — including them would create phantom
+    obligations that force the coverage-patch LLM to re-insert administrative text.
     """
+    # Pre-compiled metadata patterns — mirror what the prompts filter out.
+    _META_LINE = re.compile(
+        r'^[A-Z]{2,6}-\d{3,4}[:\s]'           # course code: CSL-373:
+        r'|^Lec(?:ture)?\s+\d+'                # Lecture 10 / Lec 10
+        r'|^\d{2}/\d{2}/\d{4}'                 # date: 05/02/2026
+        r'|^\d{1,2}\s*[-–]\s*\d{1,2}\s*(am|pm|AM|PM)'  # time: 2 - 3 PM
+        r'|^(Dr|Prof|Professor|Department|Institute|IIT|NIT|BITS)\b',  # institution
+        re.IGNORECASE,
+    )
     lines = []
     seen: set[str] = set()
     for line in slide_text.split('\n'):
         stripped = line.strip()
-        # Skip blank lines, boundary markers, and very short lines
+        # Skip blank lines, boundary markers, very short lines, and metadata
         if not stripped or stripped.startswith('---') or len(stripped) < 10:
+            continue
+        if _META_LINE.match(stripped):
             continue
         norm = stripped.lower()
         if norm in seen:
@@ -857,48 +885,32 @@ def _budget_for_topic(slide_text: str, provider: str, proficiency: str = "Practi
     Return the token budget for a single topic LLM call.
 
     Single-user quality mode: always use the MAXIMUM available ceiling.
-    Beginner notes are the longest (7× expansion), Advanced the most terse (2×),
-    Intermediate in between (5×). But we always prefer the ceiling over the floor
-    because for one user waiting for their notes, quality beats speed.
+    No limits — give every topic the full output window.
 
     Hard ceilings:
-      Azure GPT-4o  — 16,384 output tokens  (we use 14,000 to leave headroom)
-      Groq llama-3  —  8,192 output tokens  (we use  7,500 to leave headroom)
+      Azure GPT-4o  — 16,384 output tokens  (we use 16,000)
+      Groq llama-3  — 32,768 output tokens  (we use 16,000)
     """
-    p = proficiency.strip().lower()
-
+    # Always return the maximum — no per-proficiency throttling.
+    # More tokens = longer, more thorough notes. Truncation is the enemy.
     if provider == "azure":
-        # Single-user mode: always give maximum budget
-        # Beginner gets the hard ceiling; others slightly below to leave merge headroom
-        if p in ("beginner", "foundations", "foundation", "basic"):
-            return 14_000
-        elif p in ("advanced", "expert"):
-            return 10_000   # Advanced is terse — 10k is more than enough
-        else:
-            return 14_000   # Intermediate: full budget, notes are comprehensive
+        return 16_000
     else:
-        # Groq
-        if p in ("beginner", "foundations", "foundation", "basic"):
-            return 7_500
-        elif p in ("advanced", "expert"):
-            return 6_000
-        else:
-            return 7_500
+        return 16_000
 
 
 # ── Sub-chunk sizes (chars of slide_text per LLM call) ───────────────────────
-# Single-user quality mode: use SMALLER sub-chunks so each call is well within
-# the output token ceiling. Better to have 4 thorough sub-chunk calls than 1
-# truncated mega-call. The merge step ensures everything is unified.
-_SUBCHUNK_AZURE = 2_000   # ~500 tokens input → leaves full 14k output budget
-_SUBCHUNK_GROQ  = 1_500   # Groq is tighter; keep chunks small for full coverage
+# Single-user quality mode: use LARGER sub-chunks so that the final merge call
+# receives fewer drafts and can include everything without truncation.
+# With 16k output tokens available, even 6 000 chars (~1 500 tokens input)
+# leaves a 10:1 expansion ratio — more than enough for Beginner (7×).
+_SUBCHUNK_AZURE = 6_000   # ~1500 tokens input → 16k output budget = 10× headroom
+_SUBCHUNK_GROQ  = 5_000   # Groq now has 16k output budget too
 
-# Split threshold: split aggressively so every sub-chunk is small enough to be
-# fully covered within the token ceiling at any proficiency level.
-# Beginner expands 7×, so 1000 chars → ~7000 tokens output (safe under 14k)
-# Intermediate expands 5×, so 1500 chars → ~7500 tokens (safe)
-# Advanced expands 3×, so 2500 chars → ~7500 tokens (safe)
-_SPLIT_THRESHOLD = 1_500   # almost all topics will go through the split→merge path
+# Split threshold: topics shorter than this go through a SINGLE LLM call
+# (no splitting needed). Only truly large topics need split→merge.
+# 6 000 chars ≈ 1 500 input tokens — well within the 16k output ceiling.
+_SPLIT_THRESHOLD = 6_000
 
 
 def _split_slide_text(slide_text: str, chunk_size: int) -> list[str]:
@@ -947,6 +959,8 @@ Laws you NEVER break:
 - Every formula, definition, and algorithm from this chunk MUST appear.
 - All math in LaTeX ($...$ inline, $$...$$ display). Never write "integral", "sigma" as English.
 - If the source has OCR artifacts or garbled math, reconstruct the correct LaTeX.
+- ^ is ALWAYS superscript (power/exponent). _ is ALWAYS subscript (index/element).
+  Never swap them: $e^{j\\omega}$ NOT $e_{j\\omega}$; $z^{-1}$ NOT $z_{-1}$.
 - Write in clear prose with ### sub-headings where the chunk has distinct sub-topics.
 - No preamble ("Here are the notes..."). Start immediately with content.
 """
@@ -1218,15 +1232,44 @@ async def generate_topic_note(
         result = fix_latex_delimiters(_fix_tables(result))
         return await _ensure_full_coverage(result, provider, topic, proficiency, api_sem)
 
-    # Merge all drafts into one polished section
+    # Merge all drafts into one polished section.
+    # KEY INSIGHT: If total draft text is very large, the merge LLM call will
+    # inevitably truncate/summarize because 16k output tokens ≈ 48k-64k chars.
+    # When drafts are larger than what the merge can plausibly output, we
+    # concatenate them directly (they're already in slide order and coherent).
+    total_draft_chars = sum(len(d) for d in drafts)
+
+    # Heuristic: 16k tokens ≈ ~48k chars of output. If drafts exceed this,
+    # skip the merge — concatenation preserves more content than a truncating merge.
+    _MERGE_OUTPUT_CHARS_LIMIT = 45_000
+
+    if total_draft_chars > _MERGE_OUTPUT_CHARS_LIMIT:
+        logger.info(
+            "generate_topic_note: '%s' — %d draft chars > %d limit, skipping merge (concatenating drafts)",
+            topic.topic, total_draft_chars, _MERGE_OUTPUT_CHARS_LIMIT,
+        )
+        combined = f"## {topic.topic}\n\n" + "\n\n".join(drafts)
+        combined = _post_process_section(combined, topic.topic)
+        combined = fix_latex_delimiters(_fix_tables(combined))
+        return await _ensure_full_coverage(combined, provider, topic, proficiency, api_sem)
+
+    # Acceptance rule: merged result must be at least 40% of total draft chars
+    # (previously accepted anything > 100 chars, allowing the LLM to silently
+    # summarize 15k chars of drafts into 200 chars and have it go undetected).
     merged = await _merge_drafts(topic.topic, drafts, textbook_context, proficiency, provider, api_sem=api_sem)
-    if merged and len(merged.strip()) > 100:
+    if merged and len(merged.strip()) >= max(100, int(total_draft_chars * 0.40)):
         merged = _post_process_section(merged, topic.topic)
         merged = fix_latex_delimiters(_fix_tables(merged))
         return await _ensure_full_coverage(merged, provider, topic, proficiency, api_sem)
 
-    # Merge failed — concatenate drafts directly and post-process
-    logger.warning("generate_topic_note: merge failed for '%s' — concatenating drafts", topic.topic)
+    # Merge failed or produced a suspiciously short result — concatenate drafts directly.
+    if merged:
+        logger.warning(
+            "generate_topic_note: merge for '%s' shrank from %d → %d chars (<40%%) — concatenating drafts",
+            topic.topic, total_draft_chars, len(merged),
+        )
+    else:
+        logger.warning("generate_topic_note: merge failed for '%s' — concatenating drafts", topic.topic)
     combined = f"## {topic.topic}\n\n" + "\n\n".join(drafts)
     combined = _post_process_section(combined, topic.topic)
     combined = fix_latex_delimiters(_fix_tables(combined))
@@ -1274,7 +1317,7 @@ def merge_sections(sections: list[str]) -> str:
 # (170k chars for 25 topics) are processed section-by-section instead of
 # being silently truncated at 28 000 chars.
 
-_CHUNK_BUDGET = 25_000   # chars per batch — well within Azure 128k context
+_CHUNK_BUDGET = 50_000   # chars per batch — well within Azure 128k context; larger batches = fewer LLM calls = less truncation risk
 
 
 def _split_into_section_batches(notes: str, budget: int = _CHUNK_BUDGET) -> list[str]:
@@ -1295,18 +1338,35 @@ def _split_into_section_batches(notes: str, budget: int = _CHUNK_BUDGET) -> list
 def _sections_ok(result: str, batch: str, batch_section_count: int, label: str, batch_num: int, total_batches: int) -> bool:
     """
     Validate that an LLM result for a batch is acceptable:
-    - not shorter than 30% of the original batch
+    - not shorter than 50% of the original batch  (was 30% — too permissive)
     - contains at least as many ## headings as the original batch
+    - contains at least 75% as many ### sub-headings as the original batch
+      (catches silent subsection drops that the ## check misses)
     """
-    if len(result) < len(batch) * 0.3:
+    if len(result) < len(batch) * 0.50:
+        logger.warning(
+            "%s batch %d/%d: result (%d chars) is less than 50%% of original (%d chars) — keeping original",
+            label, batch_num, total_batches, len(result), len(batch),
+        )
         return False
     if batch_section_count > 0:
         result_sections = len(re.findall(r'^## ', result, re.MULTILINE))
         if result_sections < batch_section_count:
             logger.warning(
-                "%s batch %d/%d: LLM dropped %d/%d sections — keeping original",
+                "%s batch %d/%d: LLM dropped %d/%d ## sections — keeping original",
                 label, batch_num, total_batches,
                 batch_section_count - result_sections, batch_section_count,
+            )
+            return False
+    # Also guard against subsection (###) drops — a sign the LLM compressed content.
+    batch_subsections = len(re.findall(r'^### ', batch, re.MULTILINE))
+    if batch_subsections >= 3:   # only enforce when there are enough to be meaningful
+        result_subsections = len(re.findall(r'^### ', result, re.MULTILINE))
+        if result_subsections < int(batch_subsections * 0.75):
+            logger.warning(
+                "%s batch %d/%d: LLM dropped too many ### sub-sections (%d → %d, need ≥ %d) — keeping original",
+                label, batch_num, total_batches,
+                batch_subsections, result_subsections, int(batch_subsections * 0.75),
             )
             return False
     return True

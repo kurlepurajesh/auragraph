@@ -6,6 +6,7 @@ import rehypeKatex from 'rehype-katex';
 import { Brain, CheckCircle2, AlertCircle, MinusCircle, X, ChevronRight, Loader2 } from 'lucide-react';
 import { ExaminerModal } from './ExaminerModals';
 import SniperExamModal from './SniperExamModal';
+import GeneralExamModal from './GeneralExamModal';
 import { KnowledgeGraph, SC } from './Graph';
 import { authHeaders, API } from './utils';
 
@@ -102,9 +103,9 @@ export function ConceptDetailPanel({ node, notebookId, onClose, onStatusChange, 
     const [customInstruction, setCustomInstruction] = useState('');
 
     const LEVELS = [
-        { key: 'struggling', label: 'Easy',   color: 'var(--ag-emerald)', icon: <CheckCircle2 size={11} />, desc: 'Definitions & recall' },
-        { key: 'partial',   label: 'Medium',  color: 'var(--ag-gold)', icon: <MinusCircle size={11} />,  desc: 'Exam-style problems' },
-        { key: 'mastered',  label: 'Hard',    color: 'var(--ag-red)', icon: <AlertCircle size={11} />,  desc: 'Derivations & edge cases' },
+        { key: 'struggling', label: 'Beginner',      color: 'var(--ag-red)', icon: <AlertCircle size={11} />, desc: 'Definitions & recall' },
+        { key: 'partial',   label: 'Intermediate',  color: 'var(--ag-gold)', icon: <MinusCircle size={11} />,  desc: 'Exam-style problems' },
+        { key: 'mastered',  label: 'Expert',         color: 'var(--ag-emerald)', icon: <CheckCircle2 size={11} />,  desc: 'Derivations & edge cases' },
     ];
     const statusColors = { mastered: 'var(--ag-emerald)', partial: 'var(--ag-gold)', struggling: 'var(--ag-red)' };
 
@@ -196,9 +197,6 @@ export function ConceptDetailPanel({ node, notebookId, onClose, onStatusChange, 
                         <CheckCircle2 size={12} /> {promotion === 'top' ? '🏆 Already at peak mastery — well done!' : `⬆️ Level upgraded to ${promotion}! Graph updated.`}
                     </div>
                 )}
-                <button onClick={() => onFullPractice(node.label)} style={{ width: '100%', marginTop: 14, padding: '8px 0', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 5 }}>
-                    <Brain size={12} /> Full Practice Paper (5 Qs)
-                </button>
             </div>
         </div>
     );
@@ -209,6 +207,7 @@ export default function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusC
     const [selectedNode, setSelectedNode] = useState(null);
     const [examinerConcept, setExaminerConcept] = useState(null);
     const [sniperOpen, setSniperOpen] = useState(false);
+    const [generalOpen, setGeneralOpen] = useState(false);
     const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
     const handleNodeClick = n => setSelectedNode(p => p?.id === n.id ? null : n);
@@ -224,18 +223,17 @@ export default function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusC
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-            {weakCount > 0 && !nudgeDismissed && nodes.length > 0 && (
-                <div style={{ margin: '10px 12px 0', padding: '10px 12px', borderRadius: 9, background: sc > 0 ? '#FEF2F2' : '#FFFBEB', border: `1px solid ${sc > 0 ? '#FECACA' : '#FDE68A'}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {sc > 0 && nodes.length > 0 && (
+                <div style={{ margin: '10px 12px 0', padding: '10px 12px', borderRadius: 9, background: '#FEF2F2', border: '1px solid #FECACA', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 18, flexShrink: 0 }}>🎯</span>
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: sc > 0 ? '#991B1B' : '#92400E' }}>
-                            {sc > 0 ? `${sc} concept${sc > 1 ? 's' : ''} in the red zone` : `${pc} concept${pc > 1 ? 's' : ''} need practice`}
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#991B1B' }}>
+                            {sc} concept{sc > 1 ? 's' : ''} in the red zone
                         </div>
-                        <button onClick={() => setSniperOpen(true)} style={{ fontSize: 11, fontWeight: 600, color: sc > 0 ? '#DC2626' : '#D97706', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', marginTop: 1 }}>
+                        <button onClick={() => setSniperOpen(true)} style={{ fontSize: 11, fontWeight: 600, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', marginTop: 1 }}>
                             Take Sniper Exam →
                         </button>
                     </div>
-                    <button onClick={() => setNudgeDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 2, flexShrink: 0 }}><X size={12} /></button>
                 </div>
             )}
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -288,14 +286,20 @@ export default function KnowledgePanel({ nodes, edges, notebookId, onNodeStatusC
                         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text3)' }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: c }} /> {k}</div>
                     ))}
                 </div>
-                {(sc > 0 || pc > 0) && (
-                    <button onClick={() => setSniperOpen(true)} style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none', background: sc > 0 ? 'linear-gradient(90deg,#EF4444,#F59E0B)' : 'var(--ag-gold)', color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 8px rgba(239,68,68,0.25)', letterSpacing: 0.2 }}>
+                {sc > 0 && (
+                    <button onClick={() => setSniperOpen(true)} style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(90deg,#EF4444,#F59E0B)', color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 8px rgba(239,68,68,0.25)', letterSpacing: 0.2, marginBottom: 6 }}>
                         🎯 Sniper Test — {sc} red zone{sc !== 1 ? 's' : ''} targeted
+                    </button>
+                )}
+                {nodes.length > 0 && (
+                    <button onClick={() => setGeneralOpen(true)} style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(90deg,#2563EB,#7C3AED)', color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 8px rgba(37,99,235,0.25)', letterSpacing: 0.2 }}>
+                        📝 General Test — {nodes.length} concept{nodes.length !== 1 ? 's' : ''}
                     </button>
                 )}
             </div>
             {examinerConcept && <ExaminerModal concept={examinerConcept} notebookId={notebookId} onClose={() => setExaminerConcept(null)} />}
             {sniperOpen && <SniperExamModal nodes={nodes} notebookId={notebookId} onClose={() => setSniperOpen(false)} />}
+            {generalOpen && <GeneralExamModal nodes={nodes} notebookId={notebookId} onClose={() => setGeneralOpen(false)} />}
         </div>
     );
 }

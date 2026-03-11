@@ -96,9 +96,20 @@ class ConceptPracticeResponse(BaseModel):
 
 class SniperExamRequest(BaseModel):
     notebook_id: Optional[str] = None
+    weak_concepts: Optional[list[str]] = None
 
 
 class SniperExamResponse(BaseModel):
+    questions:       list
+    concepts_tested: list
+
+
+class GeneralExamRequest(BaseModel):
+    notebook_id: Optional[str] = None
+    all_concepts: Optional[list[str]] = None
+
+
+class GeneralExamResponse(BaseModel):
     questions:       list
     concepts_tested: list
 
@@ -121,26 +132,6 @@ class NotebookCreateRequest(BaseModel):
 class NotebookUpdateRequest(BaseModel):
     note:        str
     proficiency: Optional[str] = None
-
-
-class SectionCreateRequest(BaseModel):
-    title:     str
-    note_type: str = "topic"
-
-
-class SectionUpdateRequest(BaseModel):
-    title:     Optional[str] = None
-    content:   Optional[str] = None
-    note_type: Optional[str] = None
-    order_idx: Optional[int] = None
-
-
-class SectionReorderRequest(BaseModel):
-    order: List[dict]
-
-
-class SectionGenerateRequest(BaseModel):
-    proficiency: Optional[str] = "Intermediate"
 
 
 class FusionRequest(BaseModel):

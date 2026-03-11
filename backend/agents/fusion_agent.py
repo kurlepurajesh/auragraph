@@ -14,6 +14,7 @@ v3 Changes vs v2
 from semantic_kernel import Kernel
 from semantic_kernel.functions import KernelArguments
 from semantic_kernel.prompt_template import PromptTemplateConfig, InputVariable
+from semantic_kernel.connectors.ai.open_ai import AzureChatPromptExecutionSettings
 
 
 FUSION_PROMPT = r"""\
@@ -112,10 +113,10 @@ from agents.verifier_agent import NOTE_SELF_REVIEW_PROMPT                       
 
 MUTATION_PROMPT = r"""\
 You are AuraGraph's Note Mutation Engine.
-A student is confused about something. Permanently rewrite the note page to resolve it.
+A student is confused about something. You must ENHANCE the note page to resolve the doubt.
 
 ════════════════════════════════
-CURRENT NOTE PAGE (exactly what the student is reading — you will rewrite this):
+CURRENT NOTE PAGE (exactly what the student is reading):
 {{$note_page}}
 
 ════════════════════════════════
@@ -133,17 +134,33 @@ SOURCE MATERIAL — TEXTBOOK (deeper reference for this topic):
 ════════════════════════════════
 TASK:
 1. Diagnose the student's conceptual gap in ONE sentence.
-2. Rewrite the ENTIRE NOTE PAGE so it directly resolves the doubt.
-   Rules for the rewrite:
-   - Add a 💡 intuition block explaining WHY it works using the source material.
-   - Keep ALL original formulas. Use source material to add any missing ones.
-   - Preserve the `##` heading.
-   - Add `> 📝 **Exam Tip:**` if the doubt reveals a common misconception.
+2. Produce the ENHANCED NOTE PAGE following these ABSOLUTE RULES:
+
+   ╔══════════════════════════════════════════════════════════════╗
+   ║  ADDITIVE-ONLY MUTATION — ZERO DELETIONS ALLOWED            ║
+   ║                                                              ║
+   ║  • Every sentence, formula, definition, example, exam tip,   ║
+   ║    and heading from the CURRENT NOTE PAGE MUST appear in     ║
+   ║    your output VERBATIM. Do NOT rephrase, summarize, or      ║
+   ║    omit ANY existing content.                                 ║
+   ║  • You may ONLY ADD new content — never remove or replace.   ║
+   ║  • Your output must be STRICTLY LONGER than the original.    ║
+   ╚══════════════════════════════════════════════════════════════╝
+
+   What to ADD (insert at the most relevant location in the existing text):
+   - A 💡 intuition block explaining WHY it works, using the source material.
+   - Additional formulas from source material that help resolve the doubt.
+   - Deeper explanation of the confusing concept with a concrete example.
+   - `> 📝 **Exam Tip:**` if the doubt reveals a common misconception.
+
+   Formatting rules:
+   - Preserve the `##` heading and all `###` sub-headings exactly.
    - Use display LaTeX for all math (`$$\n...\n$$`). NEVER use `\[` or `\(`.
-   - The rewrite should be more complete than the original, not shorter.
+   - The output MUST be longer than the input. If it is not, you have failed.
+
 3. Output EXACTLY THREE sections separated by `|||`:
 
-<Fully rewritten note page>
+<Enhanced note page with ALL original content preserved + new additions>
 |||
 <One sentence: the diagnosed conceptual gap>
 |||
@@ -157,13 +174,16 @@ class FusionAgent:
     def __init__(self, kernel: Kernel):
         self._kernel = kernel
 
-        def _make_fn(name: str, prompt: str, vars: list[str]):
+        def _make_fn(name: str, prompt: str, vars: list[str], max_tokens: int = 16000):
             config = PromptTemplateConfig(
                 template=prompt,
                 template_format="semantic-kernel",
                 input_variables=[
                     InputVariable(name=v, description=v) for v in vars
                 ],
+                execution_settings={
+                    "gpt4o": AzureChatPromptExecutionSettings(max_tokens=max_tokens)
+                },
             )
             return kernel.add_function(
                 function_name=name,
@@ -174,7 +194,8 @@ class FusionAgent:
         self._fuse_fn   = _make_fn("fuse",   FUSION_PROMPT,            ["slide_content", "textbook_content", "proficiency"])
         self._doubt_fn  = _make_fn("doubt",  DOUBT_ANSWER_PROMPT,      ["doubt", "note_page", "slide_context", "textbook_context"])
         self._mutate_fn = _make_fn("mutate", MUTATION_PROMPT,           ["note_page", "doubt", "slide_context", "textbook_context"])
-        self._review_fn = _make_fn("review", NOTE_SELF_REVIEW_PROMPT,   ["note", "slide_context", "textbook_context"])
+        # review gets a higher token cap — multi-page notes can easily exceed 8k tokens
+        self._review_fn = _make_fn("review", NOTE_SELF_REVIEW_PROMPT,   ["note", "slide_context", "textbook_context"], max_tokens=16000)
 
     async def fuse(
         self,

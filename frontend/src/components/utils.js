@@ -38,6 +38,40 @@ export async function apiFetch(url, options = {}) {
     return res;
 }
 
+/**
+ * Safely extract a human-readable error string from a FastAPI/Pydantic response detail.
+ *
+ * FastAPI returns validation errors as:
+ *   { "detail": [ { "type": "...", "loc": [...], "msg": "...", "input": ..., "ctx": ... } ] }
+ *
+ * Rendering that array directly as a React child crashes with
+ * "Objects are not valid as a React child".
+ * Always pass API detail through this function before storing in state or toasts.
+ *
+ * @param {*}      rawDetail  The value of response.detail (string, array, or object)
+ * @param {string} fallback   Returned when rawDetail is falsy
+ * @returns {string}
+ */
+export function parseApiError(rawDetail, fallback = 'An unexpected error occurred.') {
+    if (!rawDetail) return fallback;
+    if (typeof rawDetail === 'string') return rawDetail;
+    if (Array.isArray(rawDetail)) {
+        return rawDetail.map(e => {
+            if (typeof e === 'string') return e;
+            if (e && typeof e === 'object') {
+                const loc  = Array.isArray(e.loc) ? e.loc.join(' → ') : '';
+                const msg  = e.msg || e.message || JSON.stringify(e);
+                return loc ? `${loc}: ${msg}` : msg;
+            }
+            return String(e);
+        }).join(' · ');
+    }
+    if (typeof rawDetail === 'object') {
+        return rawDetail.msg || rawDetail.message || JSON.stringify(rawDetail);
+    }
+    return String(rawDetail);
+}
+
 export function loadDoubts(notebookId) {
     try { return JSON.parse(localStorage.getItem(`ag_doubts_${notebookId}`) || '[]'); }
     catch { return []; }
