@@ -1,0 +1,251 @@
+AuraGraph MVP Starter Code
+Team Wowffulls, IIT Roorkee
+
+
+FILE 1: backend/main.py
+========================
+
+import os
+from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import semantic_kernel as sk
+from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+from agents.fusion_agent import FusionAgent
+from agents.mutation_agent import MutationAgent
+
+load_dotenv()
+
+kernel = None
+fusion_agent = None
+mutation_agent = None
+
+@asynccontextmanager
+async def lifespan(app):
+    global kernel, fusion_agent, mutation_agent
+    kernel = sk.Kernel()
+    kernel.add_service(
+        AzureChatCompletion(
+            service_id="gpt4o",
+            deployment_name=os.environ["AZURE_OPENAI_DEPLOYMENT"],
+            endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+            api_key=os.environ["AZURE_OPENAI_API_KEY"],
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+        )
+    )
+    fusion_agent = FusionAgent(kernel)
+    mutation_agent = MutationAgent(kernel)
+    print("AuraGraph kernel ready")
+    yield
+
+app = FastAPI(title="AuraGraph API", version="0.1.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class FusionRequest(BaseModel):
+    slide_summary: str
+    textbook_paragraph: str
+    proficiency: str = "Intermediate"
+
+class FusionResponse(BaseModel):
+    fused_note: str
+
+class MutationRequest(BaseModel):
+    original_paragraph: str
+    student_doubt: str
+
+class MutationResponse(BaseModel):
+    mutated_paragraph: str
+    concept_gap: str
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "AuraGraph"}
+
+@app.post("/api/fuse", response_model=FusionResponse)
+async def fuse_knowledge(req: FusionRequest):
+    if not fusion_agent:
+        raise HTTPException(503, "Kernel not initialised")
+    fused = await fusion_agent.fuse(req.slide_summary, req.textbook_paragraph, req.proficiency)
+    return FusionResponse(fused_note=fused)
+
+@app.post("/api/mutate", response_model=MutationResponse)
+async def mutate_note(req: MutationRequest):
+    if not mutation_agent:
+        raise HTTPException(503, "Kernel not initialised")
+    mutated, gap = await mutation_agent.mutate(req.original_paragraph, req.student_doubt)
+    return MutationResponse(mutated_paragraph=mutated, concept_gap=gap)
+
+
+FILE 2: backend/agents/fusion_agent.py
+========================================
+
+from semantic_kernel import Kernel
+from semantic_kernel.functions import KernelArguments
+from semantic_kernel.prompt_template import PromptTemplateConfig
+
+FUSION_PROMPT = """
+You are AuraGraph's Knowledge Fusion Engine.
+
+SLIDE SUMMARY (exam scope):
+{{$slide_summary}}
+
+TEXTBOOK PARAGRAPH (conceptual depth):
+{{$textbook_paragraph}}
+
+TARGET PROFICIENCY: {{$proficiency}}
+  - Beginner    => plain language, concrete analogies, no jargon
+  - Intermediate => balanced with key terms defined inline
+  - Advanced    => rigorous, full mathematical/conceptual depth
+
+TASK: Write ONE unified study paragraph (150-250 words) that:
+1. Covers all slide summary points (no exam content omitted).
+2. Adds conceptual depth from the textbook paragraph.
+3. Is calibrated to {{$proficiency}} level.
+4. Flows as natural prose, no bullet points.
+
+Output ONLY the fused note. No preamble. No labels.
+"""
+
+class FusionAgent:
+    def __init__(self, kernel: Kernel):
+        self._kernel = kernel
+        self._fn = kernel.add_function(
+            function_name="fuse",
+            plugin_name="FusionAgent",
+            prompt=FUSION_PROMPT,
+            prompt_template_settings=PromptTemplateConfig(template_format="semantic-kernel"),
+        )
+
+    async def fuse(self, slide_summary: str, textbook_paragraph: str, proficiency: str = "Intermediate") -> str:
+        args = KernelArguments(
+            slide_summary=slide_summary,
+            textbook_paragraph=textbook_paragraph,
+            proficiency=proficiency,
+        )
+        result = await self._kernel.invoke(self._fn, args)
+        return str(result).strip()
+
+
+FILE 3: backend/agents/mutation_agent.py
+==========================================
+
+import json
+from semantic_kernel import Kernel
+from semantic_kernel.functions import KernelArguments
+from semantic_kernel.prompt_template import PromptTemplateConfig
+
+MUTATION_PROMPT = """
+You are AuraGraph's Mutation Agent.
+A student flagged a paragraph as confusing and described their doubt.
+
+ORIGINAL PARAGRAPH:
+{{$original_paragraph}}
+
+STUDENT DOUBT:
+{{$student_doubt}}
+
+TASK:
+1. Identify the CORE CONCEPT GAP (one sentence diagnosis).
+2. Rewrite the paragraph to pre-empt the confusion on every future reading.
+   - Keep all factually correct content.
+   - Add a concrete analogy or worked example addressing the doubt directly.
+   - Prose only, no bullet points.
+
+Respond ONLY as valid JSON (no markdown fences, no extra text):
+{"concept_gap": "<one-sentence diagnosis>", "mutated_paragraph": "<rewritten paragraph>"}
+"""
+
+class MutationAgent:
+    def __init__(self, kernel: Kernel):
+        self._kernel = kernel
+        self._fn = kernel.add_function(
+            function_name="mutate",
+            plugin_name="MutationAgent",
+            prompt=MUTATION_PROMPT,
+            prompt_template_settings=PromptTemplateConfig(template_format="semantic-kernel"),
+        )
+
+    async def mutate(self, original_paragraph: str, student_doubt: str):
+        args = KernelArguments(original_paragraph=original_paragraph, student_doubt=student_doubt)
+        raw = str(await self._kernel.invoke(self._fn, args)).strip()
+        try:
+            data = json.loads(raw)
+            return data["mutated_paragraph"], data["concept_gap"]
+        except (json.JSONDecodeError, KeyError):
+            return raw, "Could not parse concept gap."
+
+
+FILE 4: backend/requirements.txt
+===================================
+
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-dotenv>=1.0.0
+semantic-kernel>=1.3.0
+pydantic>=2.0.0
+httpx>=0.27.0
+
+
+FILE 5: .env.example
+======================
+
+# Azure OpenAI (required)
+AZURE_OPENAI_ENDPOINT=https://YOUR-RESOURCE.openai.azure.com/
+AZURE_OPENAI_API_KEY=YOUR-32-CHAR-API-KEY
+AZURE_OPENAI_DEPLOYMENT=gpt-4o
+AZURE_OPENAI_API_VERSION=2024-02-01
+
+# Azure Cosmos DB - Graph API (Cognitive Knowledge Map)
+COSMOS_ENDPOINT=https://YOUR-ACCOUNT.documents.azure.com:443/
+COSMOS_KEY=YOUR-COSMOS-PRIMARY-KEY
+COSMOS_DATABASE=auragraph
+COSMOS_GRAPH=knowledge_graph
+
+# Azure AI Search (RAG over textbooks)
+AZURE_SEARCH_ENDPOINT=https://YOUR-SEARCH.search.windows.net
+AZURE_SEARCH_KEY=YOUR-SEARCH-ADMIN-KEY
+AZURE_SEARCH_INDEX=auragraph-notes
+
+
+FILE 6: frontend/src/App.jsx
+==============================
+(See the React artifact rendered in the chat window above for the full interactive UI)
+
+Run with:
+  cd frontend && npm create vite@latest . -- --template react
+  npm install
+  npm run dev
+
+
+QUICK START
+============
+
+1. cd backend
+2. pip install -r requirements.txt
+3. cp ../.env.example .env    # fill in your Azure credentials
+4. uvicorn main:app --reload --port 8000
+
+5. Open http://localhost:8000/docs  (FastAPI Swagger UI)
+
+6. Test fusion:
+   POST /api/fuse
+   {
+     "slide_summary": "Convolution Theorem: time-domain convolution = frequency-domain multiplication",
+     "textbook_paragraph": "The convolution of two signals x(t) and h(t)...",
+     "proficiency": "Intermediate"
+   }
+
+7. Test mutation:
+   POST /api/mutate
+   {
+     "original_paragraph": "The Convolution Theorem states...",
+     "student_doubt": "I don't understand why multiplying spectra equals convolution"
+   }

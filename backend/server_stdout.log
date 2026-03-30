@@ -1,0 +1,140 @@
+INFO:     127.0.0.1:65211 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65214 - "POST /api/concept-practice HTTP/1.1" 200 OK
+  INFO:     127.0.0.1:59069 - "POST /auth/login HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:59072 - "POST /api/concept-practice HTTP/1.1" 200 OK
+       INFO:     127.0.0.1:59189 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59189 - "POST /api/concept-practice HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59195 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59195 - "POST /api/concept-practice HTTP/1.1" 200 OK
+  INFO:     127.0.0.1:49699 - "OPTIONS /auth/refresh HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59333 - "OPTIONS /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65390 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49212 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60662 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62202 - "OPTIONS /auth/refresh HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49699 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59333 - "POST /auth/refresh HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62202 - "GET /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59333 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867 HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:62202 - "POST /auth/refresh HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59333 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:62202 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867 HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59333 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59333 - "OPTIONS /api/extract-concepts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59333 - "POST /api/extract-concepts HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:59333 - "OPTIONS /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59333 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59333 - "OPTIONS /notebooks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62202 - "OPTIONS /notebooks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62202 - "GET /notebooks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59333 - "GET /notebooks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59333 - "POST /auth/refresh HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62202 - "POST /auth/refresh HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:62202 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62202 - "GET /notebooks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59333 - "GET /notebooks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56649 - "GET /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61757 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50121 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56649 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59226 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54376 - "OPTIONS /api/concept-practice HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54376 - "POST /api/concept-practice HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51141 - "POST /api/concept-practice HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62928 - "POST /api/concept-practice HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57195 - "OPTIONS /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49679 - "OPTIONS /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49679 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54949 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62194 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54949 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51183 - "OPTIONS /api/doubt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51183 - "POST /api/doubt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64701 - "OPTIONS /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64701 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:55022 - "OPTIONS /api/mutate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55022 - "POST /api/mutate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55022 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55022 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55022 - "OPTIONS /api/extract-concepts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61822 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:52465 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:55022 - "POST /api/extract-concepts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62275 - "OPTIONS /api/doubt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62275 - "POST /api/doubt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62275 - "OPTIONS /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62275 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:55268 - "OPTIONS /api/mutate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55268 - "POST /api/mutate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55268 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55268 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55268 - "OPTIONS /api/extract-concepts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58773 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:52321 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:55268 - "POST /api/extract-concepts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64573 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:54304 - "POST /api/doubt HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:64019 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:61618 - "POST /api/mutate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61618 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56366 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:60231 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:61618 - "POST /api/extract-concepts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55577 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55577 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+  INFO:     127.0.0.1:60903 - "OPTIONS /api/doubt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60903 - "POST /api/doubt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60903 - "OPTIONS /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60903 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:54562 - "OPTIONS /api/mutate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54562 - "POST /api/mutate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54562 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54562 - "OPTIONS /api/extract-concepts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54058 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:50471 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:54562 - "POST /api/extract-concepts HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:62325 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52157 - "POST /api/mutate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52157 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50583 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:59012 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:52157 - "POST /api/extract-concepts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50061 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61993 - "POST /api/doubt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62213 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:52932 - "POST /api/mutate HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:55371 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57302 - "POST /api/notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/doubts HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:53515 - "PATCH /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/note HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55371 - "POST /api/extract-concepts HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:63031 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections/12d2a67b-0f58-4399-90bd-61da0d714da3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63031 - "DELETE /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections/12d2a67b-0f58-4399-90bd-61da0d714da3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58390 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections/c3b80f82-9f19-424e-9097-1d5cfc2d7d4c/generate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58390 - "POST /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/sections/c3b80f82-9f19-424e-9097-1d5cfc2d7d4c/generate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58390 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58390 - "GET /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59188 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59188 - "POST /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57096 - "POST /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49679 - "OPTIONS /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62918 - "OPTIONS /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49679 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62918 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62191 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55085 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+  INFO:     127.0.0.1:51004 - "POST /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51004 - "POST /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49679 - "POST /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:52780 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60973 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:62096 - "OPTIONS /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62096 - "POST /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56927 - "POST /notebooks/1c279fe5-0f8c-4509-a9da-2ecaba41c867/graph/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62284 - "GET /health HTTP/1.1" 200 OK
+  INFO:     127.0.0.1:62299 - "POST /auth/login HTTP/1.1" 200 OK
+ INFO:     127.0.0.1:62302 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+   INFO:     127.0.0.1:61638 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61638 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61645 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61645 - "POST /api/sniper-exam HTTP/1.1" 200 OK
+ 

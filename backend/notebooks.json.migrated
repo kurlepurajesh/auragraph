@@ -1,0 +1,963 @@
+[
+  {
+    "id": "3ba1c86b-66ed-49d6-9f37-515327accfe4",
+    "user_id": "40b0f450-2fe3-4f69-bda5-c0c5ca613c07",
+    "name": "Digital Signal Processing",
+    "course": "EC301",
+    "note": "",
+    "proficiency": "Intermediate",
+    "graph": {
+      "nodes": [],
+      "edges": []
+    },
+    "created_at": "2026-03-03T21:32:38.905945",
+    "updated_at": "2026-03-03T21:32:38.905953"
+  },
+  {
+    "id": "7eab3e82-b829-4f09-a059-a81526b11b3a",
+    "user_id": "demo",
+    "name": "prob",
+    "course": "cse",
+    "note": "# AuraGraph Study Notes\n\n*Proficiency: **Beginner** — Conceptual focus — core ideas, zero math*\n\n> ⚠️ **Note:** These notes are generated using the `local_summarizer` fallback engine. Add your Azure OpenAI keys to `backend/.env` for true AI-fused notes.\n\n\n---\n\n## Let Xbe A Random Variable Such That\n\n🔰 **Core Concept:** 1ifω=success 0ifω=failure Let the success probability denoted by pand failure probability by q= 1−pwith 0< p < 1.\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## The Pmf Of Xis Defined As\n\n🔰 **Core Concept:** If Xfollows the above PMF, we say Xfollows Bernoulli distribution and denote it by X∼Ber(p).\n\n💡 **Intuition:** Moment generating function. =q+pet 4 Binomial Distribution Idea.\n\nConsider nindependent and identical Bernoulli trials each with success probability p.\n\nLet Xbe a random variable denoting the number of success.\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Csl-373: Probability Theory For Computer Engineers\n\n🔰 **Core Concept:** 1 Geometric Distribution Idea.\n\n💡 **Intuition:** Consider independent and identical (IID) Bernoulli trials (each with success probability p,0< p < 1) till the first success is achieved.\n\nLet Xbe a random variable denoting the number of trials needed for the first success.\n\nThen Xtakes values 1,2,···\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## The Pmf Of Xis Given By\n\n🔰 **Core Concept:** If Xhas the above PMF, we say Xfollows Geometric distribution and denote it by X∼Geo(p).\n\n💡 **Intuition:** Show that V ar(X) =q p2.\n\nMoment generating function. i=1eitqi−1p =pet∞X =pet Memoryless property of Geometric distribution.\n\nStarting point does not matter in Geometric distribution.\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## We Have\n\n🔰 **Core Concept:** =qmp∞X =qmp1 P(X > m +n|X > n ) =P({X > m +n} ∩ {X > n }) P(X > n ) P(X > n ) =qn+m 2 Negative Binomial Distribution Idea.\n\n💡 **Intuition:** Consider independent and identical Bernoulli trials (each with success probability p,0< p < 1) till the r-th success is achieved where r≥1.\n\nAlso let q=p−1 Let Xbe a random variable denoting the number of trials needed for the r-th success.\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## We Use The Above Result To Show That\n\n🔰 **Core Concept:** Probability of a single occurrence during a small time interval is proportional to the length of the interval. [Also called as rate of occurrence] 3.\n\n💡 **Intuition:** Probability of more than one occurrence during a small time interval is negligible.\n\nAssumption 2 means P1(h) =pX(X(h) = 1) = λh.\n\nAssumption 3 means =ϵ(h) (ϵ(h)is a negligible function ) Definition 1 (Negligible function) .\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## We Use Induction To Prove That\n\n🔰 **Core Concept:** Replace tbyt+hand divide into two disjoint intervals (0, t]and(t, t+h].\n\n💡 **Intuition:** Replace tbyt+hand divide into two disjoint intervals (0, t]and(t, t+h].\n\nReplace tbyt+hand divide into two disjoint intervals (0, t]and(t, t+h].\n\nThen X∼Poisson (1 3·3)60 60!.\n\n> 📝 **Exam Tip:** Reproduce the derivation step-by-step — partial credit is given for correct intermediate steps.\n\n---\n\n## Hence The Pdf Is Given By\n\n🔰 **Core Concept:** Validity of PDF. 0λe−λtdt 0λe−udu λsetting λt=u 0e−udu k-th order expectation. 0tkλe−λtdt 0tke−λtdt λke−udu λsetting λt=u λkZ∞ 0uke−udu λkZ∞ λk(Gamma function) λk(since kis a positive integer) Setting k= 1, we get Gamma function.\n\n💡 **Intuition:** Then the integral 0xα−1e−xdx , is called the Gamma function.\n\nIn particular, if α=nis a positive integer then Γ(n) = (n−1)!.\n\nMoment generating function. 0etuλe−λtdt 0e−t(λ−u)dt 0e−zdz λ−usetting t(λ−u) =z λ−uZ∞ 0e−zdz λ−u,foru < λ Memoryless property of Exponential distribution.\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## Thus,\n\n🔰 **Core Concept:** 1.4 Function of a random variable: Continuous case Let Xbe a continuous random variable defined over (Ω,F,P).\n\n💡 **Intuition:** Let Xbe a continuous random variable over (Ω,F,P).\n\nSuppose f(x)is a strictly monotonic (increasing or decreasing), differentiable (and thus continuous) function of x.\n\nThen the random variable Y defined by Y=f(X)has a probability density function given by fX(f−1(y))\f\f\f\fdf−1(y) 0, o.w.\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## Differentiation Gives\n\n🔰 **Core Concept:** Let Xbe a continuous random variable defined by 1,0< x < 1 0, o.w. λln(1−X)forλ > 0.\n\n💡 **Intuition:** Also, it is strictly increasing and differentiable.\n\nSo Theorem 3 can be applied to compute the PDF of Y. fX(f−1(y))\f\f\f\fdf−1(y) 0, o.w. 1.\f\f\f\fd(1−e−λy) 0, o.w. λe−λy,0< y < ∞ 0, o.w.\n\nCorollary of Theorem 3.\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## And Statistics For Engineers *(Textbook)*\n\n🔰 **Core Concept:** Soong State University of New York at Buffalo, Buffalo, New York, USA TLFeBOOK TLFeBOOK\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## West Sussex Po19 8Sq, England *(Textbook)*\n\n🔰 **Core Concept:** Telephone ( 44) 1243 779777 Email (for orders and customer service enquiries): cs-books@wiley.co.uk Visit our Home Page on www.wileye urope.com or www.wiley.com All Rights Reserved.\n\n💡 **Intuition:** No part of this publication may be reproduced, stored in a retrievalsystem or transmitted in any form or by any means, electronic, mechanical, photocopying, recording, scanning or otherwise, except under the terms of the Copyright, Designs and Patents Act 1988 or under the terms of a licence issued by the Copyright Licensing Agency Ltd, 90 Tottenham Court Road, London W1T 4LP, UK, without the permission in writing of the Publisher.\n\nIt is sold on the understanding that the Publisher is not engaged inrendering professional services.\n\nIf professional advice or other expert assistance is required, the services of a competent professional should be sought.\n\n> 📝 **Exam Tip:** Know and state the conditions/constraints — often 1–2 marks in exams.",
+    "proficiency": "Beginner",
+    "graph": {
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Random Variables",
+          "status": "partial",
+          "x": 40,
+          "y": 10
+        },
+        {
+          "id": 2,
+          "label": "Independence",
+          "status": "partial",
+          "x": 70,
+          "y": 40
+        },
+        {
+          "id": 3,
+          "label": "Binomial Dist.",
+          "status": "partial",
+          "x": 25,
+          "y": 55
+        },
+        {
+          "id": 4,
+          "label": "MGF",
+          "status": "partial",
+          "x": 35,
+          "y": 70
+        },
+        {
+          "id": 5,
+          "label": "PDF",
+          "status": "partial",
+          "x": 50,
+          "y": 85
+        },
+        {
+          "id": 6,
+          "label": "Derivatives",
+          "status": "partial",
+          "x": 45,
+          "y": 40
+        },
+        {
+          "id": 7,
+          "label": "Integration",
+          "status": "partial",
+          "x": 55,
+          "y": 40
+        },
+        {
+          "id": 8,
+          "label": "Fluid Mechanics",
+          "status": "partial",
+          "x": 30,
+          "y": 70
+        }
+      ],
+      "edges": [
+        [
+          1,
+          4
+        ]
+      ]
+    },
+    "created_at": "2026-03-04T14:42:00.918072",
+    "updated_at": "2026-03-04T14:42:24.584435"
+  },
+  {
+    "id": "cc910885-cb1d-45ff-a865-8fd12504a8fa",
+    "user_id": "demo",
+    "name": "prob2",
+    "course": "cse2",
+    "note": "# AuraGraph Study Notes\n\n*Proficiency: **Advanced** — Full depth — derivations, formulas, edge-case conditions*\n\n> ⚠️ **Note:** These notes are generated using the `local_summarizer` fallback engine. Add your Azure OpenAI keys to `backend/.env` for true AI-fused notes.\n\n\n---\n\n## Let Xbe A Random Variable Such That\n\n1ifω=success 0ifω=failure Let the success probability denoted by pand failure probability by q= 1−pwith 0< p < 1.\n\n$$\nX(ω) =(\n$$\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## The Pmf Of Xis Defined As\n\nIf Xfollows the above PMF, we say Xfollows Bernoulli distribution and denote it by X∼Ber(p).\n\nMoment generating function. =q+pet 4 Binomial Distribution Idea.\n\nConsider nindependent and identical Bernoulli trials each with success probability p.\n\nLet Xbe a random variable denoting the number of success.\n\nThen Xcan take values 0,1, . . . , n.\n\n$$\npX(x) =(\n$$\n\n$$\npifx= 1\n$$\n\n$$\n1−pifx= 0\n$$\n\n$$\nE(X) = 0·(1−p) + 1·p\n$$\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Csl-373: Probability Theory For Computer Engineers\n\n1 Geometric Distribution Idea.\n\nConsider independent and identical (IID) Bernoulli trials (each with success probability p,0< p < 1) till the first success is achieved.\n\nLet Xbe a random variable denoting the number of trials needed for the first success.\n\nThen Xtakes values 1,2,···\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## The Pmf Of Xis Given By\n\nIf Xhas the above PMF, we say Xfollows Geometric distribution and denote it by X∼Geo(p).\n\nShow that V ar(X) =q p2.\n\nUse the identity1 xifor|x|<1.\n\nMoment generating function. i=1eitqi−1p =pet∞X =pet Memoryless property of Geometric distribution.\n\nStarting point does not matter in Geometric distribution.\n\n$$\npX(X=i) =(\n$$\n\n$$\n(1−p)i−1pifi= 1,2, . . .\n$$\n\n$$\nE(X) =∞X\n$$\n\n$$\ni=1iqi−1p\n$$\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## We Have\n\n=qmp∞X =qmp1 P(X > m +n|X > n ) =P({X > m +n} ∩ {X > n }) P(X > n ) P(X > n ) =qn+m 2 Negative Binomial Distribution Idea.\n\nConsider independent and identical Bernoulli trials (each with success probability p,0< p < 1) till the r-th success is achieved where r≥1.\n\nAlso let q=p−1 Let Xbe a random variable denoting the number of trials needed for the r-th success.\n\n$$\nP(X > m ) =∞X\n$$\n\n$$\ni=m+1qi−1p\n$$\n\n$$\ni=1qi−1\n$$\n\n$$\n=qmp(1 +q+q2+···)\n$$\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## We Use The Above Result To Show That\n\n> 💡 **Intuition (re: \"_prove it_\"):** To build intuition: try to identify a real-world analogy or work through the smallest possible concrete example first. Focus specifically on what 'prove' means in this context. _The student requires a derivation or proof of the stated result._\n\nFor example, (1) number of students coming to class in the first 10 minutes; (2) number of accidents in a day; (3) number of calls during 1 hour period.\n\nWe define occurrences in a given time interval as a Poisson proces s provided the following assump- tions hold. 1.\n\nNumber of occurrences during the disjoint time intervals are independent. 2.\n\nProbability of a single occurrence during a small time interval is proportional to the length of the interval. [Also called as rate of occurrence] 3.\n\nProbability of more than one occurrence during a small time interval is negligible.\n\nAssumption 2 means P1(h) =pX(X(h) = 1) = λh.\n\nAssumption 3 means =ϵ(h) (ϵ(h)is a negligible function ) Definition 1 (Negligible function) .\n\nWe say fis negligible if for all (positive) polynomials p, there exists n0∈Nsuch that for all n≥n0, Definition 1 says fis asymptotically smaller than the inverse of any polynomial.\n\n$$\nx=0\u0000k\n$$\n\n$$\nE(X) =nX\n$$\n\n$$\nx=0x·\u0000k\n$$\n\n$$\nx=1x·\u0000k\n$$\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## We Use Induction To Prove That\n\nWe need to show that P0(t) =e−λtfor some t >0.\n\nReplace tbyt+hand divide into two disjoint intervals (0, t]and(t, t+h].\n\nThen we have, hP0(t) h= lim h→0\u0010 −λP0(t)−ϵ(h) hP0(t)\u0011 dP0(t) Case n= 1.\n\nWe need to show that P1(t) =e−λtλtfor some t >0.\n\nReplace tbyt+hand divide into two disjoint intervals (0, t]and(t, t+h].\n\nReplace tbyt+hand divide into two disjoint intervals (0, t]and(t, t+h].\n\nThen we have, k!+kX k!+kX h= lim h→0\u0010 dt=e−λt(λt)k Example 2.\n\nThen X∼Poisson (1 3·3)60 60!.\n\n$$\npX(X(t) =n) =e−λt(λt)n\n$$\n\n$$\nn!, λ > 0;n= 0,1, . . . ,\n$$\n\n$$\nP0(t+h) =P(0occurence in (0, t+h])\n$$\n\n$$\n=P({0occurence in (0, t]} ∩ { 0occurence in (t, t+h]})\n$$\n\n> 📝 **Exam Tip:** Reproduce the derivation step-by-step — partial credit is given for correct intermediate steps.\n\n---\n\n## Hence The Pdf Is Given By\n\nλe−λt, t > 0 0, t ≤0 If a random variable Tfollows the above PDF, we say Thas exponential distribution with parameter λ, and denote it by T∼Exp(λ).\n\nValidity of PDF. 0λe−λtdt 0λe−udu λsetting λt=u 0e−udu k-th order expectation. 0tkλe−λtdt 0tke−λtdt λke−udu λsetting λt=u λkZ∞ 0uke−udu λkZ∞ λk(Gamma function) λk(since kis a positive integer) Setting k= 1, we get Gamma function.\n\nThen the integral 0xα−1e−xdx , is called the Gamma function.\n\nIn particular, if α=nis a positive integer then Γ(n) = (n−1)!.\n\nMoment generating function. 0etuλe−λtdt 0e−t(λ−u)dt 0e−zdz λ−usetting t(λ−u) =z λ−uZ∞ 0e−zdz λ−u,foru < λ Memoryless property of Exponential distribution.\n\nLet a, b > 0.\n\nWe have P(T > b ) e−λb =e−λa Indian Institute of Technology (IIT) Roorkee\n\n$$\nfT(t) =(\n$$\n\n$$\n0fT(t)dt=Z∞\n$$\n\n$$\nE(Tk) =Z∞\n$$\n\n$$\n0tkfT(t)dt\n$$\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## Thus,\n\n> 💡 **Intuition (re: \"_explain in detail_\"):** To build intuition: try to identify a real-world analogy or work through the smallest possible concrete example first. Focus specifically on what 'explain' means in this context. _The student requires additional context and an intuitive explanation of this concept._\n\n1.4 Function of a random variable: Continuous case Let Xbe a continuous random variable defined over (Ω,F,P).\n\nSuppose f:R→Ris a measurable function (with respect to σ-fields BRandBR).\n\nLet Xbe a continuous random variable over (Ω,F,P).\n\nSuppose f(x)is a strictly monotonic (increasing or decreasing), differentiable (and thus continuous) function of x.\n\nThen the random variable Y defined by Y=f(X)has a probability density function given by fX(f−1(y))\f\f\f\fdf−1(y) 0, o.w.\n\nLetfbe strictly increasing, sodf(x) dx>0for all x.\n\nSince fis strictly increasing, so is f−1which implies df−1(y) dy>0for all y.\n\n$$\nP(Y=y) =\n$$\n\n$$\nP(X= 0), y = 0\n$$\n\n$$\nP(X=−1) +P(X= 1), y = 1\n$$\n\n$$\nP(X=−2) +P(X= 2), y = 4\n$$\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## Differentiation Gives\n\nFor strictly decreasing function f, the proof is similar and hence omitted.\n\nLet Xbe a continuous random variable defined by 1,0< x < 1 0, o.w. λln(1−X)forλ > 0.\n\nSince Yis a continuous function, so it is a random variable.\n\nAlso, it is strictly increasing and differentiable.\n\nSo Theorem 3 can be applied to compute the PDF of Y. fX(f−1(y))\f\f\f\fdf−1(y) 0, o.w. 1.\f\f\f\fd(1−e−λy) 0, o.w. λe−λy,0< y < ∞ 0, o.w.\n\nCorollary of Theorem 3.\n\nLetfbe a piece-wise strictly monotonic (increasing or decreasing), differentiable (and thus continuous) function of xin intervals I1, I2,···, In.\n\nThen the PDF of Y=f(X)is given by Pn k(y))\f\f\f\f\fdf−1 k(y) 0, o.w. where fkisfrestricted on interval Ik.\n\n$$\nfY(y) =\n$$\n\n$$\nfX(x) =(\n$$\n\n$$\nLetY=−1\n$$\n\n$$\nLetf(x) =y=−1\n$$\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## And Statistics For Engineers *(Textbook)*\n\nSoong State University of New York at Buffalo, Buffalo, New York, USA TLFeBOOK TLFeBOOK\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## West Sussex Po19 8Sq, England *(Textbook)*\n\nTelephone ( 44) 1243 779777 Email (for orders and customer service enquiries): cs-books@wiley.co.uk Visit our Home Page on www.wileye urope.com or www.wiley.com All Rights Reserved.\n\nNo part of this publication may be reproduced, stored in a retrievalsystem or transmitted in any form or by any means, electronic, mechanical, photocopying, recording, scanning or otherwise, except under the terms of the Copyright, Designs and Patents Act 1988 or under the terms of a licence issued by the Copyright Licensing Agency Ltd, 90 Tottenham Court Road, London W1T 4LP, UK, without the permission in writing of the Publisher.\n\nRequests to the Publisher should be addressed to the Permissions Department, John Wiley & Sons Ltd, The Atrium, Southern Gate, Chichester, West Sussex PO19 8SQ,England, or emailed to permreq@wiley.co.uk, or faxed to ( 44) 1243 770620.\n\nThis publication is designed to provide accurate and authoritative information in regard to the subject matter covered.\n\nIt is sold on the understanding that the Publisher is not engaged inrendering professional services.\n\nIf professional advice or other expert assistance is required, the services of a competent professional should be sought.\n\n> 📝 **Exam Tip:** Know and state the conditions/constraints — often 1–2 marks in exams.\n\n---\n\n## Other Wiley Editorial Offices *(Textbook)*\n\nJohn Wiley & Sons Inc., 111 River Street, Hoboken, NJ 07030, USA Jossey-Bass, 989 Market Street, San Francisco, CA 94103-1741, USA Wiley-VCH Verlag GmbH, Boschstr. 12, D-69469 Weinheim, Germany John Wiley & Sons Australia Ltd, 33 Park Road, Milton, Queensland 4064, Australia John Wiley & Sons (Asia) Pte Ltd, 2 Clementi Loop #02-01, Jin Xing Distripark,\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Singapore 129809 *(Textbook)*\n\nJohn Wiley & Sons Canada Ltd, 22 Worcester Road, Etobicoke, Ontario, Canada M9W 1L1 Wiley also publishes its books in a variety of electronic formats.\n\nSome content that appears in print may not be available in electronic books.\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## British Library Cataloguing In Publication Data *(Textbook)*\n\nA catalogue record for this book is available from the British Library Typeset in 10/12pt Times from La TeX files supplied by the author, processed by Integra Software Services, Pvt.\n\nLtd, Pondicherry, India Printed and bound in Great Britain by Biddles Ltd, Guildford, Surrey This book is printed on acid-free paper responsibly manufactured from sustainable forestry in which at least two trees are planted for each one used for paper production.\n\n$$\nISBN 0-470-86813-9 (Cloth)\n$$\n\n$$\nISBN 0-470-86814-7 (Paper)\n$$\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Contents *(Textbook)*\n\nPREFACE xiii 1 INTRODUCTION 1 1.1 Organization of Text 2 1.2 Probab ility Tables and Computer Software 3 1.3 Prerequisites 3\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Part A: Probability And Random Variables 5 *(Textbook)*\n\n2 BASIC PROBABILITY CONCEPTS 7 2.1 Elements of Set Theory 8 2.1.1 Set Operations 9 2.2 Sample Space and Probab ility Measure 12 2.2.1 Axioms of Probability 13 2.2.2 Assignment of Probab ility 16 2.3 Statistical Independence 172.4 Conditional Probability 20Reference 28Further Reading 28Problems 28 3 RANDOM VARIABLES AND PROBABILITY\n\n> 📝 **Exam Tip:** Know and state the conditions/constraints — often 1–2 marks in exams.\n\n---\n\n## Distributions 37 *(Textbook)*\n\n3.1 Random Variables 37 3.2 Probab ility Distributions 39 3.2.1 Probability Distribution Function 393.2.2 Probability Mass Function for Discrete Ra ndom\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Variables 41 *(Textbook)*\n\nTLFeBOOK 3.2.3 Probab ility Density Function for Conti nuous Random\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Variables 44 *(Textbook)*\n\n3.2.4 Mixed-Type Distribution 46 3.3 Two or More Random Variables 49 3.3.1 Joint Probability Distribution Function 49 3.3.2 Joint Probability Mass Function 513.3.3 Joint Probability Density Function 55 3.4 Conditional Distribution and Independence 61Further Reading and Comments 66Problems 67 4 EXPECTATIONS AND MOMENTS 75 4.1 Moments of a Single Random Variable 76 4.1.1 Mean, Median, and Mode 764.1.2 Central Moments, Variance, and Standard Deviation 794.1.3 Conditional Expectation 83 4.2 Chebyshev Inequality 864.3 Moments of Two or More Random Variables 87 4.3.1 Covariance and Correlation Coefficient 88 4.3.2 Schwarz Inequality 924.3.3 The Case of Three or More Random Variables 92 4.4 Moments of Sums of Random Variables 93 4.5 Characteristic Functions 98 4.5.1 Generation of Moments 994.5.2 Inversion Formulae 1014.5.3 Joint Characteristic Functions 108\n\n> 📝 **Exam Tip:** Memorise the formula with all variable definitions — numerical problems are very common.\n\n---\n\n## Problems 112 *(Textbook)*\n\n5 FUNCTIONS OF RANDOM VARIABLES 119 5.1 Functions of One Random Variable 119 5.1.1 Probab ility Distribution 120 5.1.2 Moments 134 5.2 Functions of Two or More Random Variables 137 5.2.1 Sums of Random Variables 145 5.3 m Functions of n Random Variables 147\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Problems 154 *(Textbook)*\n\n6 SOME IMPORTANT DISCRETE DISTRIBUTIONS 161 6.1 Bernoulli Trials 161 6.1.1 Binomial Distribution 162viii\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.\n\n---\n\n## Problems 185 *(Textbook)*\n\n7 SOME IMPORTANT CONTINUOUS DISTRIBUTIONS 191 7.1 Uniform Distribution 191 7.1.1 Bivariate Uniform Distribution 193 7.2 Gaussian or Normal Distribution 196 7.2.1 The Central Limit Theorem 1997.2.2 Probability Tabulations 201 7.2.3 Multivariate Normal Distribution 205 7.2.4 Sums of Normal Random Variables 207 7.3 Lognormal Distribution 209 7.3.1 Probability Tabulations 211 7.4 Gamma and Related Distributions 212 7.4.1 Exponential Distribution 2157.4.2 Chi-Squared Distribution 219 7.5 Beta and Related Distributions 221 7.5.1 Probability Tabulations 2237.5.2 Generalized Beta Distribution 225 7.6 Extreme-Value Distributions 226 7.6.1 Type-I Asymptotic Distributions of Extreme Values 2287.6.2 Type-II Asymptotic Distributions of Extreme Values 2337.6.3 Type-III Asymptotic Distributions of Extreme Values 234 7.7 Summary 238References 238Further Reading and Comments 238Problems 239 PART B: STATISTICAL INFERENCE, PARAMETERESTIMATION, AND MODEL VERIFICATION 245 8 OBSERVED DATA AND GRAPHICAL REPRESENTATION 247 8.1 Histogram and Frequency Diagrams 248\n\n> 📝 **Exam Tip:** State the theorem/definition precisely — examiners award marks for exact wording.\n\n---\n\n## References 252Problems 253Contents Ix *(Textbook)*\n\nTLFeBOOK 9 PARAMETER ESTIMATION 259 9.1 Samples and Statistics 259 9.1.1 Sample Mean 261 9.1.2 Sample Variance 262 9.1.3 Sample Moments 2639.1.4 Order Statistics 264 9.2 Quality Criteria for Estimates 264 9.2.1 Unbiasedness 2659.2.2 Minimum Variance 266 9.2.3 Consistency 2749.2.4 Sufficiency 275 9.3 Methods of Estimation 277 9.3.1 Point Estimation 277 9.3.2 Interval Estimation 294\n\n> 📝 **Exam Tip:** Write the definition first, then explain with an example for full marks.",
+    "proficiency": "Advanced",
+    "graph": {
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Random Variables",
+          "status": "partial",
+          "x": 40,
+          "y": 10
+        },
+        {
+          "id": 2,
+          "label": "Probability Dist.",
+          "status": "partial",
+          "x": 60,
+          "y": 10
+        },
+        {
+          "id": 3,
+          "label": "Variance",
+          "status": "partial",
+          "x": 60,
+          "y": 25
+        },
+        {
+          "id": 4,
+          "label": "Std Deviation",
+          "status": "partial",
+          "x": 80,
+          "y": 20
+        },
+        {
+          "id": 5,
+          "label": "Conditional Prob.",
+          "status": "partial",
+          "x": 30,
+          "y": 40
+        },
+        {
+          "id": 6,
+          "label": "Independence",
+          "status": "partial",
+          "x": 70,
+          "y": 40
+        },
+        {
+          "id": 7,
+          "label": "Normal Distribution",
+          "status": "partial",
+          "x": 50,
+          "y": 55
+        },
+        {
+          "id": 8,
+          "label": "Binomial Dist.",
+          "status": "partial",
+          "x": 25,
+          "y": 55
+        },
+        {
+          "id": 9,
+          "label": "Central Limit Theorem",
+          "status": "partial",
+          "x": 50,
+          "y": 70
+        },
+        {
+          "id": 10,
+          "label": "MGF",
+          "status": "partial",
+          "x": 35,
+          "y": 70
+        },
+        {
+          "id": 11,
+          "label": "PDF",
+          "status": "partial",
+          "x": 50,
+          "y": 85
+        },
+        {
+          "id": 12,
+          "label": "Derivatives",
+          "status": "partial",
+          "x": 45,
+          "y": 40
+        },
+        {
+          "id": 13,
+          "label": "Integration",
+          "status": "partial",
+          "x": 55,
+          "y": 40
+        },
+        {
+          "id": 14,
+          "label": "Fluid Mechanics",
+          "status": "partial",
+          "x": 30,
+          "y": 70
+        }
+      ],
+      "edges": [
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          2,
+          7
+        ],
+        [
+          2,
+          8
+        ],
+        [
+          1,
+          10
+        ],
+        [
+          7,
+          9
+        ]
+      ]
+    },
+    "created_at": "2026-03-04T16:21:45.092282",
+    "updated_at": "2026-03-05T14:13:33.738260"
+  },
+  {
+    "id": "ded3bf19-3d81-4dc6-a542-b2cd814ba38b",
+    "user_id": "e19a19be-6e6a-431f-b788-b7beb94c9e9a",
+    "name": "Smoke Test",
+    "course": "Test 101",
+    "note": "",
+    "proficiency": "Intermediate",
+    "graph": {
+      "nodes": [],
+      "edges": []
+    },
+    "created_at": "2026-03-06T16:14:24.124029",
+    "updated_at": "2026-03-06T16:14:24.124038"
+  },
+  {
+    "id": "f9a91aca-c1d7-4da6-ab5d-fbec03ccc91c",
+    "user_id": "32f0b08b-5f63-4643-89bb-5aff81a34863",
+    "name": "Manual Test NB",
+    "course": "CS101",
+    "note": "",
+    "proficiency": "Intermediate",
+    "graph": {
+      "nodes": [],
+      "edges": []
+    },
+    "created_at": "2026-03-07T08:13:26.305051",
+    "updated_at": "2026-03-07T08:13:26.305058"
+  },
+  {
+    "id": "13e5dade-e5d3-4ce2-ad35-2694984144ff",
+    "user_id": "f4452e08-7b0c-4bfd-abe9-4d9a945c2c04",
+    "name": "Maths",
+    "course": "Prob",
+    "note": "## Degenerate Distribution\n\n![The diagram is a block diagram or flowchart illustrating a function composition. Key components include a circle labeled $(\\Omega, \\mathcal{F}, \\mathcal{P})$, functions $X(\\cdot)$, $f(\\cdot)$, and $f \\circ X(\\cdot)$, and a mapping $f: \\mathbb{R} \\to \\mathbb{R}$. It illustrates the concept of a random variable $X$ composed with a function $f$.](/api/images/13e5dade-e5d3-4ce2-ad35-2694984144ff/img_001.png)\n*The diagram is a block diagram or flowchart illustrating a function composition. Key components include a circle labeled $(\\Omega, \\mathcal{F}, \\mathcal{P})$, functions $X(\\cdot)$, $f(\\cdot)$, and $f \\circ X(\\cdot)$, and a mapping $f: \\mathbb{R} \\to \\mathbb{R}$. It illustrates the concept of a random variable $X$ composed with a function $f$.*\n\n![The image shows a 3D surface plot of a bivariate probability distribution. \nThe key component visible is a pink 3D mesh plot labeled 'fxy(x,y)' and a smaller inset of the same plot. \nThe concept illustrated appears to be a joint probability distribution function of two random variables, likely used to represent probability and statistics concepts.](/api/images/13e5dade-e5d3-4ce2-ad35-2694984144ff/tb_img_001.jpg)\n*The image shows a 3D surface plot of a bivariate probability distribution. \nThe key component visible is a pink 3D mesh plot labeled 'fxy(x,y)' and a smaller inset of the same plot. \nThe concept illustrated appears to be a joint probability distribution function of two random variables, likely used to represent probability and statistics concepts.*\n\n\n### What is a Degenerate Distribution?\n\nSimply put, a degenerate distribution describes a situation where a random variable always takes the same value. This means there is no uncertainty or variability in the outcome.\n\n> Imagine rolling a die where every side is replaced with the number 5. No matter how many times you roll, the result is always 5. This is an example of a degenerate distribution because the outcome is fixed.\n\nFormally, if $X$ is a discrete random variable and $P(X = a) = 1$ for some $a \\in \\mathbb{R}$, then $X$ is said to follow a degenerate distribution.\n\n---\n\n### Probability Mass Function (PMF)\n\nThe probability mass function (PMF) of a degenerate distribution is defined as:\n\n$$\np(x) = \n\\begin{cases} \n1 & \\text{if } x = a, \\\\\n0 & \\text{otherwise}.\n\\end{cases}\n$$\n\n| Symbol | What it means                     | Typical units/range |\n|--------|-----------------------------------|---------------------|\n| $p(x)$ | Probability of $X$ taking value $x$ | $[0, 1]$ |\n| $x$ | Possible value of the random variable $X$ | Real numbers |\n| $a$ | Fixed value that $X$ always takes | Real numbers |\n\nThis formula states that the random variable $X$ has a probability of 1 for the value $a$, and 0 for all other values.\n\n---\n\n### Expectation of $X$\n\nThe expectation (mean) of a degenerate random variable $X$ is:\n\n$$\nE(X) = a\n$$\n\n| Symbol | What it means                     | Typical units/range |\n|--------|-----------------------------------|---------------------|\n| $E(X)$ | Expected value (mean) of $X$ | Real numbers |\n| $a$ | Fixed value that $X$ always takes | Real numbers |\n\nExplanation: Since $X$ always takes the value $a$, the average (expected value) is simply $a$.\n\n---\n\n### Moments of $X$\n\nThe $n$-th moment of $X$ is given by:\n\n$$\nE(X^n) = a^n \\quad \\text{for } n = 2, 3, \\dots\n$$\n\n| Symbol   | What it means                     | Typical units/range |\n|----------|-----------------------------------|---------------------|\n| $E(X^n)$ | $n$-th moment of $X$ | Real numbers |\n| $a$ | Fixed value that $X$ always takes | Real numbers |\n| $n$ | Order of the moment | Positive integers |\n\nExplanation: Since $X$ always equals $a$, raising $X$ to any power $n$ simply results in $a^n$. The expectation of $X^n$ is therefore $a^n$.\n\n---\n\n### Moment Generating Function (MGF)\n\nThe moment generating function (MGF) of $X$ is:\n\n$$\nM_X(t) = E(e^{tX}) = e^{ta}\n$$\n\n| Symbol   | What it means                     | Typical units/range |\n|----------|-----------------------------------|---------------------|\n| $M_X(t)$ | Moment generating function of $X$ | Real numbers |\n| $t$ | Parameter of the MGF | Real numbers |\n| $a$ | Fixed value that $X$ always takes | Real numbers |\n\nExplanation: The MGF is calculated as the expectation of $e^{tX}$. Since $X$ always equals $a$, this simplifies to $e^{ta}$.\n\n---\n\n### Worked Example\n\n#### Problem:\nLet $X$ be a degenerate random variable such that $P(X = 3) = 1$. Find:\n1. The PMF of $X$.\n2. $E(X)$.\n3. $E(X^2)$.\n4. The MGF $M_X(t)$.\n\n#### Solution:\n\n1. **PMF**:\n   Using the formula for the PMF:\n\n   $$\n   p(x) = \n   \\begin{cases} \n   1 & \\text{if } x = 3, \\\\\n   0 & \\text{otherwise}.\n   \\end{cases}\n   $$\n\n2. **Expectation**:\n\n   $$\n   E(X) = 3\n   $$\n\n3. **Second Moment**:\n\n   $$\n   E(X^2) = 3^2 = 9\n   $$\n\n4. **MGF**:\n\n   $$\n   M_X(t) = e^{3t}\n   $$\n\n---\n\n> **Exam Tip:** The most common exam mistake is forgetting that a degenerate distribution has zero variability. Always remember that $P(X = a) = 1$ means $X$ is fixed at $a$.\n\n## Discrete Uniform Distribution\n\n### Introduction\nSimply put, a discrete uniform distribution is a type of probability distribution where all outcomes of an experiment are equally likely. \n\n> Imagine rolling a fair six-sided die. Each face (1, 2, 3, 4, 5, 6) has the same chance of appearing, which is $\\frac{1}{6}$. This is an example of a discrete uniform distribution.\n\n### Formal Definition\nA discrete uniform distribution assigns equal probabilities to each outcome of an experiment. Let $X$ be a discrete random variable that can take values $1, 2, \\dots, n$. The probability mass function (PMF) is:\n\n$$\np(i) = \n\\begin{cases} \n\\frac{1}{n}, & i = 1, 2, \\dots, n \\\\\n0, & \\text{otherwise}\n\\end{cases}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $p(i)$ | Probability of outcome $i$ | Unitless, $0 \\leq p(i) \\leq 1$ |\n| $n$ | Total number of outcomes | Positive integer |\n| $i$ | Specific outcome | $1, 2, \\dots, n$ |\n\nThis formula says that the probability of each outcome $i$ is $\\frac{1}{n}$, provided $i$ is within the range of possible outcomes ($1$ to $n$). If $i$ is outside this range, the probability is $0$.\n\n#### Example\nSuppose you roll a fair six-sided die. Here, $n = 6$, and each outcome ($i = 1, 2, 3, 4, 5, 6$) has the same probability:\n\n$$\np(i) = \\frac{1}{6}, \\quad \\text{for } i = 1, 2, 3, 4, 5, 6\n$$\n\nFor any other value of $i$, such as $i = 7$, $p(i) = 0$.\n\n---\n\n### Non-Central Moments\n\n#### Expectation\nThe expectation (mean) of $X$ is given by:\n\n$$\nE(X) = \\frac{n + 1}{2}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $E(X)$ | Expected value of $X$ | Unitless |\n| $n$ | Total number of outcomes | Positive integer |\n\nThis formula calculates the average value of $X$ when all outcomes are equally likely.\n\n#### Example\nIf $n = 6$ (rolling a six-sided die), the expectation is:\n\n$$\nE(X) = \\frac{6 + 1}{2} = \\frac{7}{2} = 3.5\n$$\n\nSo, the average value of a roll is $3.5$.\n\n---\n\n#### Second Moment\nThe second moment of $X$ is:\n\n$$\nE(X^2) = \\frac{n(n + 1)(2n + 1)}{6}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $E(X^2)$ | Second moment of $X$ | Unitless |\n| $n$ | Total number of outcomes | Positive integer |\n\nThis formula calculates the average of the squared values of $X$.\n\n#### Example\nFor $n = 6$ (rolling a six-sided die):\n\n$$\nE(X^2) = \\frac{6(6 + 1)(2 \\cdot 6 + 1)}{6} = \\frac{6 \\cdot 7 \\cdot 13}{6} = 91\n$$\n\nSo, the second moment is $91$.\n\n---\n\n### Variance\nThe variance of $X$ is:\n\n$$\n\\text{Var}(X) = \\frac{n^2 - 1}{12}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $\\text{Var}(X)$ | Variance of $X$ | Unitless |\n| $n$ | Total number of outcomes | Positive integer |\n\nVariance measures the spread of the values of $X$ around the mean.\n\n#### Example\nFor $n = 6$ (rolling a six-sided die):\n\n$$\n\\text{Var}(X) = \\frac{6^2 - 1}{12} = \\frac{36 - 1}{12} = \\frac{35}{12} \\approx 2.9167\n$$\n\nThe variance is approximately $2.92$.\n\n---\n\n### Moment Generating Function (MGF)\nThe moment generating function (MGF) of $X$ is:\n\n$$\nM_X(t) = \n\\begin{cases} \n\\frac{e^t(e^{nt} - 1)}{n(e^t - 1)}, & t \\neq 0 \\\\\n1, & t = 0\n\\end{cases}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $M_X(t)$ | Moment generating function of $X$ | Unitless |\n| $t$ | Parameter for MGF | Real number |\n\nThis formula generates the moments of $X$. For $t = 0$, $M_X(0) = 1$, which aligns with the definition of an MGF.\n\n#### Example\nFor $n = 6$ and $t = 1$:\n\n$$\nM_X(1) = \\frac{e^1(e^{6} - 1)}{6(e^1 - 1)} = \\frac{e(e^6 - 1)}{6(e - 1)}\n$$\n\nThis simplifies numerically to:\n\n$$\nM_X(1) \\approx \\frac{2.718(403.429 - 1)}{6(2.718 - 1)} \\approx \\frac{2.718 \\cdot 402.429}{6 \\cdot 1.718} \\approx 106.49\n$$\n\nSo, $M_X(1) \\approx 106.49$.\n\n---\n\n### Exam Tip\nThe most common exam mistake for discrete uniform distributions is forgetting that the PMF assigns zero probability to outcomes outside the range $1, 2, \\dots, n$. Always check the range of $i$ before applying the formulas.\n\n## Bernoulli Distribution\n\n### What is a Bernoulli Trial?\n\nSimply put, a Bernoulli trial is a type of experiment where there are only two possible outcomes: success or failure.\n\n> Think of flipping a coin. If you call heads a \"success\" and tails a \"failure,\" then each flip is a Bernoulli trial.\n\nFormally, a Bernoulli trial is an experiment with two outcomes, denoted as \"success\" (1) and \"failure\" (0). Let $X$ be a random variable such that:\n\n$$\nX(\\omega) = \n\\begin{cases} \n1 & \\text{if } \\omega = \\text{success}, \\\\\n0 & \\text{if } \\omega = \\text{failure}.\n\\end{cases}\n$$\n\nThe probability of success is denoted by $p$, and the probability of failure is denoted by $q = 1 - p$, where $0 < p < 1$.\n\n---\n\n### Probability Mass Function (PMF)\n\nSimply put, the PMF describes the probability of each possible outcome of a Bernoulli trial.\n\n> Imagine rolling a die where only two faces matter: \"success\" (say rolling a 6) and \"failure\" (any other number). The PMF tells us the likelihood of rolling a 6 versus not rolling a 6.\n\nThe PMF of a Bernoulli random variable $X$ is defined as:\n\n$$\np(x) = \n\\begin{cases} \np & \\text{if } x = 1, \\\\\n1 - p & \\text{if } x = 0.\n\\end{cases}\n$$\n\n| Symbol | What it means                | Typical units/range |\n|--------|------------------------------|---------------------|\n| $p$ | Probability of success | $0 < p < 1$ |\n| $x$ | Outcome of the trial | $x = 0$ or $x = 1$ |\n| $1-p$ | Probability of failure | $0 < 1-p < 1$ |\n\nThis formula says:\n- If the outcome is success ($x = 1$), the probability is $p$.\n- If the outcome is failure ($x = 0$), the probability is $1 - p$.\n\n---\n\n### Expectation (Mean)\n\nSimply put, the expectation (mean) of a Bernoulli random variable tells us the average value we would expect over many trials.\n\n> If you flip a coin 100 times and it lands heads (success) 60 times, the expectation would be 0.6.\n\nThe expectation of $X$ is given by:\n\n$$\nE(X) = 0 \\cdot (1 - p) + 1 \\cdot p = p\n$$\n\n| Symbol | What it means                | Typical units/range |\n|--------|------------------------------|---------------------|\n| $E(X)$ | Expected value of $X$ | $0 < E(X) < 1$ |\n| $p$ | Probability of success | $0 < p < 1$ |\n\nThis formula says the mean value of $X$ is equal to the probability of success, $p$.\n\n**Example:**\nIf $p = 0.7$, then:\n\n$$\nE(X) = p = 0.7\n$$\n\nSo, over many trials, we expect the average outcome to be 0.7.\n\n---\n\n### Variance\n\nSimply put, variance measures how much the outcomes of a Bernoulli trial differ from the expectation.\n\n> If you flip a coin many times, the variance tells you how much the outcomes (heads or tails) fluctuate around the average.\n\nThe variance of $X$ is given by:\n\n$$\n\\text{Var}(X) = E(X^2) - (E(X))^2 = p - p^2 = p(1 - p) = pq\n$$\n\n| Symbol       | What it means                | Typical units/range |\n|--------------|------------------------------|---------------------|\n| $\\text{Var}(X)$ | Variance of $X$ | $0 < \\text{Var}(X) < 0.25$ |\n| $p$ | Probability of success | $0 < p < 1$ |\n| $q = 1-p$ | Probability of failure | $0 < q < 1$ |\n\nThis formula says:\n- Variance depends on both $p$ (success probability) and $q$ (failure probability).\n- The maximum variance occurs when $p = 0.5$.\n\n**Example:**\nIf $p = 0.7$, then $q = 1 - p = 0.3$. The variance is:\n\n$$\n\\text{Var}(X) = p(1 - p) = 0.7 \\cdot 0.3 = 0.21\n$$\n\n---\n\n### Moment Generating Function (MGF)\n\nSimply put, the MGF is a mathematical tool that helps us find moments (like mean and variance) of a random variable.\n\n> Think of the MGF as a \"shortcut\" for calculating moments without directly using probabilities.\n\nThe moment generating function of $X$ is:\n\n$$\nM_X(t) = E(e^{tX}) = e^{0 \\cdot t}(1 - p) + e^{1 \\cdot t}p = (1 - p) + pe^t = q + pe^t\n$$\n\n| Symbol       | What it means                | Typical units/range |\n|--------------|------------------------------|---------------------|\n| $M_X(t)$ | Moment generating function | Function of $t$ |\n| $t$ | Real number (parameter) | $t \\in \\mathbb{R}$ |\n| $p$ | Probability of success | $0 < p < 1$ |\n| $q = 1-p$ | Probability of failure | $0 < q < 1$ |\n\nThis formula says:\n- The MGF combines probabilities $p$ and $q$ with the exponential function $e^t$.\n- It can be used to derive moments like $E(X)$ and $\\text{Var}(X)$.\n\n**Example:**\nIf $p = 0.6$ and $t = 2$, then $q = 1 - p = 0.4$. The MGF is:\n\n$$\nM_X(t) = q + pe^t = 0.4 + 0.6e^2\n$$\n\nUsing $e^2 \\approx 7.389$, we calculate:\n\n$$\nM_X(t) = 0.4 + 0.6 \\cdot 7.389 = 0.4 + 4.4334 = 4.8334\n$$\n\n---\n\n### Bernoulli Distribution Notation\n\nIf $X$ follows the Bernoulli distribution, we write:\n\n$$\nX \\sim \\text{Ber}(p)\n$$\n\nThis means $X$ is a Bernoulli random variable with success probability $p$.\n\n---\n\n> **Exam Tip:** The most common mistake is confusing $p$ and $q$. Remember: $q = 1 - p$. Always check that $p + q = 1$.\n\n## Binomial Distribution\n\n### What is the Binomial Distribution?\n\nSimply put, the binomial distribution is a way to model the number of successes in a fixed number of independent experiments (called Bernoulli trials), where each experiment has only two outcomes: success or failure.\n\n> Imagine flipping a coin 10 times and counting how many times it lands heads. If the coin is fair, the probability of heads (success) is 0.5. The binomial distribution helps us calculate the probabilities of getting 0, 1, 2, ..., or 10 heads.\n\n### Formal Definition\n\nThe binomial distribution models the number of successes $X$ in $n$ independent Bernoulli trials, each with success probability $p$. The random variable $X$ can take values $0, 1, 2, ..., n$. If $X$ follows a binomial distribution, we write:\n\n$$\nX \\sim \\text{Bin}(n, p)\n$$\n\n### Probability Mass Function (PMF)\n\nThe probability mass function (PMF) of $X$ is given by:\n\n$$\np(x) = \\binom{n}{x} p^x (1 - p)^{n - x}, \\quad x = 0, 1, 2, ..., n\n$$\n\nwhere $\\binom{n}{x}$ is the binomial coefficient:\n\n$$\n\\binom{n}{x} = \\frac{n!}{x!(n - x)!}\n$$\n\n| Symbol        | What it means                           | Typical units/range       |\n|---------------|-----------------------------------------|---------------------------|\n| $p(x)$ | Probability of exactly $x$ successes | A number between 0 and 1 |\n| $n$ | Number of trials | Positive integer |\n| $x$ | Number of successes | Integer, $0 \\leq x \\leq n$ |\n| $p$ | Probability of success in one trial | A number between 0 and 1 |\n| $1 - p$ | Probability of failure in one trial | A number between 0 and 1 |\n\nThis formula says that the probability of getting exactly $x$ successes is determined by:\n1. The number of ways to choose $x$ successes out of $n$ trials ($\\binom{n}{x}$).\n2. The probability of success raised to the power of $x$ ($p^x$).\n3. The probability of failure raised to the power of the remaining trials ($(1 - p)^{n - x}$).\n\n#### Example: Tossing a Coin\n\nSuppose you toss a fair coin ($p = 0.5$) 4 times ($n = 4$). What is the probability of getting exactly 2 heads ($x = 2$)?\n\nStep 1: Plug values into the PMF formula:\n\n$$\np(2) = \\binom{4}{2} (0.5)^2 (1 - 0.5)^{4 - 2}\n$$\n\nStep 2: Compute the binomial coefficient:\n\n$$\n\\binom{4}{2} = \\frac{4!}{2!(4 - 2)!} = \\frac{4 \\cdot 3}{2 \\cdot 1} = 6\n$$\n\nStep 3: Compute the probabilities:\n\n$$\np(2) = 6 \\cdot (0.5)^2 \\cdot (0.5)^2 = 6 \\cdot 0.25 \\cdot 0.25 = 6 \\cdot 0.0625 = 0.375\n$$\n\nSo, the probability of getting exactly 2 heads is $0.375$.\n\n---\n\n### Expectation and Variance\n\n#### Expectation\nThe expected value (mean) of $X$ is:\n\n$$\nE(X) = np\n$$\n\n| Symbol        | What it means                           | Typical units/range       |\n|---------------|-----------------------------------------|---------------------------|\n| $E(X)$ | Expected number of successes | Real number |\n| $n$ | Number of trials | Positive integer |\n| $p$ | Probability of success in one trial | A number between 0 and 1 |\n\nThis means that if you repeat the experiment many times, the average number of successes will be $n \\cdot p$.\n\n#### Variance\nThe variance of $X$ is:\n\n$$\n\\text{Var}(X) = np(1 - p) = npq\n$$\n\n| Symbol        | What it means                           | Typical units/range       |\n|---------------|-----------------------------------------|---------------------------|\n| $\\text{Var}(X)$ | Variance of the number of successes | Real number |\n| $q$ | Probability of failure ($1 - p$) | A number between 0 and 1 |\n\nThis formula shows how much the number of successes is expected to vary around the mean.\n\n#### Example: Expectation and Variance\n\nIf you toss a coin 10 times ($n = 10$) and the probability of heads is $p = 0.5$, calculate the expectation and variance.\n\n1. Expectation:\n\n$$\nE(X) = np = 10 \\cdot 0.5 = 5\n$$\n\n2. Variance:\n\n$$\n\\text{Var}(X) = np(1 - p) = 10 \\cdot 0.5 \\cdot (1 - 0.5) = 10 \\cdot 0.5 \\cdot 0.5 = 2.5\n$$\n\nSo, the expected number of heads is 5, and the variance is 2.5.\n\n---\n\n### Moment Generating Function (MGF)\n\nThe moment generating function (MGF) of $X$ is:\n\n$$\nM_X(t) = E(e^{tX}) = (pe^t + q)^n, \\quad \\text{where } q = 1 - p\n$$\n\n| Symbol        | What it means                           | Typical units/range       |\n|---------------|-----------------------------------------|---------------------------|\n| $M_X(t)$ | Moment generating function | Function of $t$ |\n| $t$ | Parameter for the MGF | Real number |\n| $p$ | Probability of success in one trial | A number between 0 and 1 |\n| $q$ | Probability of failure ($1 - p$) | A number between 0 and 1 |\n\nThis formula helps us calculate the moments of the binomial distribution. For example:\n- The first derivative of $M_X(t)$ at $t = 0$ gives $E(X)$.\n- The second derivative of $M_X(t)$ at $t = 0$ gives $\\text{Var}(X)$.\n\n#### Example: MGF for $n = 3$, $p = 0.5$\n\nLet $n = 3$ and $p = 0.5$. The MGF is:\n\n$$\nM_X(t) = (0.5e^t + 0.5)^3\n$$\n\nExpanding this:\n\n$$\nM_X(t) = (0.5e^t + 0.5)(0.5e^t + 0.5)(0.5e^t + 0.5)\n$$\n\nYou can use this to compute moments as needed.\n\n---\n\n### Key Properties of the Binomial Distribution\n\n1. **Discrete Distribution**: The binomial distribution is discrete, meaning $X$ can only take integer values from $0$ to $n$.\n2. **Two Parameters**: The distribution is fully defined by $n$ (number of trials) and $p$ (probability of success).\n3. **Shape**: The shape of the distribution depends on $p$:\n   - If $p = 0.5$, the distribution is symmetric.\n   - If $p < 0.5$, the distribution is skewed to the right.\n   - If $p > 0.5$, the distribution is skewed to the left.\n\n---\n\n> **Exam Tip**: The most common mistake is forgetting the binomial coefficient $\\binom{n}{x}$ in the PMF formula. Always include it when calculating probabilities!\n\n## Geometric Distribution\n\n### Introduction to Geometric Distribution\nSimply put, the geometric distribution models how many attempts you need to succeed for the first time when each attempt is independent and has the same probability of success.\n\n> Imagine flipping a coin repeatedly until you get heads. If the coin has a 50% chance of landing heads (success), the geometric distribution tells you the probability of needing 1 flip, 2 flips, 3 flips, and so on to get heads for the first time.\n\n#### Formal Definition\nThe geometric distribution arises from independent and identical Bernoulli trials, where each trial has a success probability $p$ (with $0 < p < 1$). The random variable $X$ represents the number of trials needed to achieve the first success. \n\nThe probability mass function (PMF) of $X$ is:\n\n$$\nP(X = i) = \n\\begin{cases} \n(1 - p)^{i - 1} p & \\text{if } i = 1, 2, \\dots \\\\\n0 & \\text{otherwise}\n\\end{cases}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $X$ | Number of trials until first success | Positive integers ($1, 2, \\dots$) |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n| $i$ | Number of trials | Positive integers ($1, 2, \\dots$) |\n\nThis formula shows that the probability of needing $i$ trials to succeed is proportional to the probability of failing $(i-1)$ times and then succeeding on the $i$th trial.\n\n#### Numerical Example\nSuppose the probability of success in each trial is $p = 0.3$. What is the probability that the first success occurs on the 4th trial?\n\nUsing the PMF formula:\n\n$$\nP(X = 4) = (1 - 0.3)^{4 - 1} \\cdot 0.3 = (0.7)^3 \\cdot 0.3\n$$\n\nStep-by-step:\n1. Compute $(1 - 0.3) = 0.7$.\n2. Raise $0.7$ to the power of $3$: $0.7^3 = 0.343$.\n3. Multiply $0.343$ by $0.3$: $0.343 \\cdot 0.3 = 0.1029$.\n\nSo, $P(X = 4) = 0.1029$. This means there is about a 10.29% chance that the first success occurs on the 4th trial.\n\n---\n\n### Expectation and Variance\n#### Expectation\nThe expected number of trials to achieve the first success is given by:\n\n$$\nE(X) = \\frac{1}{p}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $E(X)$ | Expected number of trials | Positive real numbers |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n\nThis formula means that if the probability of success is small, you will need more trials on average to achieve the first success.\n\n#### Numerical Example\nIf $p = 0.2$, the expected number of trials is:\n\n$$\nE(X) = \\frac{1}{0.2} = 5\n$$\n\nSo, on average, you would need 5 trials to achieve the first success.\n\n#### Variance\nThe variance of $X$ is:\n\n$$\n\\text{Var}(X) = \\frac{1 - p}{p^2}\n$$\n\n| Symbol         | What it means                | Typical units/range |\n|----------------|------------------------------|---------------------|\n| $\\text{Var}(X)$ | Variance of the number of trials | Positive real numbers |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n\nThis formula tells us how spread out the possible values of $X$ are around the mean.\n\n#### Numerical Example\nIf $p = 0.2$, the variance is:\n\n$$\n\\text{Var}(X) = \\frac{1 - 0.2}{0.2^2} = \\frac{0.8}{0.04} = 20\n$$\n\nSo, the variance of $X$ is 20.\n\n---\n\n### Moment Generating Function (MGF)\nThe moment generating function (MGF) of $X$ is:\n\n$$\nM_X(t) = \\frac{pe^t}{1 - (1 - p)e^t}, \\quad \\text{for } t < -\\log(1 - p)\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $M_X(t)$ | Moment generating function | Function of $t$ |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n| $t$ | Real number parameter | $t < -\\log(1 - p)$ |\n\nThis formula is used to calculate moments (like mean and variance) of the geometric distribution. The condition $t < -\\log(1 - p)$ ensures that the denominator does not become zero.\n\n---\n\n### Memoryless Property\nThe geometric distribution has a special property called the memoryless property. Simply put, the past does not affect the future in this distribution.\n\n> Imagine rolling a die until you get a \"6.\" If you’ve already rolled 5 times without success, the probability of needing 3 more rolls is the same as if you were starting fresh and needed 3 rolls to get a \"6.\"\n\n#### Formal Statement\nThe memoryless property states:\n\n$$\nP(X > m + n \\mid X > n) = P(X > m)\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $X$ | Number of trials until first success | Positive integers ($1, 2, \\dots$) |\n| $m, n$ | Number of additional trials | Positive integers |\n\nThis property means that the probability of needing more trials does not depend on how many trials have already occurred.\n\n#### Numerical Example\nLet $p = 0.5$. What is $P(X > 5 + 3 \\mid X > 3)$?\n\nUsing the memoryless property:\n\n$$\nP(X > 5 + 3 \\mid X > 3) = P(X > 5)\n$$\n\nNow calculate $P(X > 5)$:\n\n$$\nP(X > 5) = (1 - 0.5)^5 = 0.5^5 = 0.03125\n$$\n\nSo, $P(X > 8 \\mid X > 3) = 0.03125$.\n\n---\n\n### Worked Examples\n#### Example 1: Parking Space Problem\nA driver is waiting for a parking space. There are 5 cars ahead, each with a $0.2$ chance of taking the space. What is the probability that the car immediately ahead will take the space?\n\nThis is a geometric distribution problem with $p = 0.2$. The probability that the first car takes the space is:\n\n$$\nP(X = 1) = (1 - 0.2)^0 \\cdot 0.2 = 0.2\n$$\n\nSo, there is a 20% chance that the first car takes the space.\n\n#### Example 2: Specimen Survival\nA specimen has a $0.9$ chance of surviving an experiment. What is the probability that it will take more than 3 specimens to find one that survives?\n\nHere, $p = 0.9$. The probability is:\n\n$$\nP(X > 3) = (1 - 0.9)^3 = 0.1^3 = 0.001\n$$\n\nSo, there is a 0.1% chance that more than 3 specimens are needed.\n\n---\n\n> **Exam Tip:** The memoryless property is a common exam question. Be prepared to explain why $P(X > m + n \\mid X > n) = P(X > m)$ holds true for the geometric distribution.\n\n## PDF of Transformed Random Variables\n\n### Transforming Random Variables: The Basics\nTransforming a random variable involves applying a mathematical function to it, resulting in a new random variable. For example, if you have a random variable $X$ and apply a function $f(X)$, the result is a new random variable $Y = f(X)$.\n\n> Think of it like baking cookies: $X$ is the dough, and $f(X)$ is the cookie cutter. The shape of the cookie depends on the cutter (function), but the dough (randomness) remains the same.\n\nFormally, if $Y = f(X)$, where $f$ is a continuous, strictly monotonic (always increasing or decreasing), and differentiable function, then $Y$ is also a random variable.\n\n> 📝 **Exam Tip:** Always confirm that the function $f(x)$ is continuous, strictly monotonic, and differentiable before proceeding with transformations.\n\n---\n\n### Theorem 3: PDF of Transformed Random Variables\nTheorem 3 provides a method to compute the probability density function (PDF) of the transformed random variable $Y$. It states:\n\nIf $f$ is strictly monotonic (either strictly increasing or strictly decreasing), the PDF of $Y$ is given by:\n\n$$\nf_Y(y) = f_X(f^{-1}(y)) \\cdot \\left| \\frac{d f^{-1}(y)}{dy} \\right|, \\quad \\text{for } y \\text{ in the range of } f(X),\n$$\n\nand:\n\n$$\nf_Y(y) = 0, \\quad \\text{otherwise}.\n$$\n\n| Symbol         | Meaning                                     | Typical Units/Range          |\n|----------------|--------------------------------------------|------------------------------|\n| $f_Y(y)$ | PDF of the transformed random variable $Y$ | Probability density |\n| $f_X(x)$ | PDF of the original random variable $X$ | Probability density |\n| $f^{-1}(y)$ | Inverse function of $f(x)$ | Depends on $f(x)$ |\n| $\\frac{d f^{-1}(y)}{dy}$ | Derivative of the inverse function | Rate of change (slope) |\n\nThis formula indicates that the PDF of $Y$ depends on two factors:\n1. The value of the original PDF $f_X(x)$ at the point $x = f^{-1}(y)$.\n2. The rate of change (derivative) of the inverse function $f^{-1}(y)$.\n\n> 📝 **Exam Tip:** Pay close attention to the domain of $f(X)$ when applying this formula. Ensure that $y$ lies within the range of $f(X)$.\n\n---\n\n### Example: Transforming $X$ Using $f(x) = -\\frac{1}{\\lambda} \\ln(1-x)$\nConsider the function $f(x) = -\\frac{1}{\\lambda} \\ln(1-x)$, where $\\lambda > 0$. This function is strictly increasing and differentiable, so Theorem 3 applies.\n\n#### Step 1: Find the inverse function\nTo find $f^{-1}(y)$, solve $y = -\\frac{1}{\\lambda} \\ln(1-x)$ for $x$. Rearranging:\n\n$$\nx = 1 - e^{-\\lambda y}.\n$$\n\nThus:\n\n$$\nf^{-1}(y) = 1 - e^{-\\lambda y}.\n$$\n\n#### Step 2: Compute the derivative of the inverse function\nDifferentiate $f^{-1}(y)$ with respect to $y$:\n\n$$\n\\frac{d f^{-1}(y)}{dy} = \\lambda e^{-\\lambda y}.\n$$\n\n#### Step 3: Apply Theorem 3\nSubstitute into the formula for $f_Y(y)$:\n\n$$\nf_Y(y) = f_X(f^{-1}(y)) \\cdot \\left| \\frac{d f^{-1}(y)}{dy} \\right|.\n$$\n\nIf $X$ is uniformly distributed on $[0, 1]$, its PDF is:\n\n$$\nf_X(x) = 1, \\quad 0 \\leq x \\leq 1.\n$$\n\nFor $y > 0$, $f^{-1}(y) = 1 - e^{-\\lambda y}$ satisfies $0 \\leq f^{-1}(y) \\leq 1$. Substituting:\n\n$$\nf_Y(y) = 1 \\cdot \\lambda e^{-\\lambda y} = \\lambda e^{-\\lambda y}, \\quad 0 < y < \\infty.\n$$\n\nFor $y \\leq 0$, $f_Y(y) = 0$.\n\n#### Final PDF of $Y$\n\n$$\nf_Y(y) =\n\\begin{cases} \n\\lambda e^{-\\lambda y}, & 0 < y < \\infty, \\\\\n0, & \\text{otherwise}.\n\\end{cases}\n$$\n\n> 📝 **Exam Tip:** When working with uniform distributions, remember that the PDF $f_X(x)$ is constant over the interval $[0, 1]$ and zero elsewhere. This simplifies calculations significantly.\n\n---\n\n### Corollary of Theorem 3: Piecewise Strictly Monotonic Functions\nIf $f(x)$ is piecewise strictly monotonic (increasing or decreasing), differentiable, and continuous over intervals $I_1, I_2, \\dots, I_n$, then the PDF of $Y = f(X)$ is given by:\n\n$$\nf_Y(y) = \\sum_{k=1}^n f_X(f_k^{-1}(y)) \\cdot \\left| \\frac{d f_k^{-1}(y)}{dy} \\right|, \\quad \\text{for } y \\text{ in the range of } f(X),\n$$\n\nand:\n\n$$\nf_Y(y) = 0, \\quad \\text{otherwise}.\n$$\n\n| Symbol         | Meaning                                     | Typical Units/Range          |\n|----------------|--------------------------------------------|------------------------------|\n| $f_k^{-1}(y)$ | Inverse of $f(x)$ restricted to interval $I_k$ | Depends on $f(x)$ |\n| $\\frac{d f_k^{-1}(y)}{dy}$ | Derivative of the inverse function | Rate of change (slope) |\n\nThis corollary accounts for functions that change direction (e.g., increasing in one interval and decreasing in another). The PDF is computed by summing contributions from all intervals where $y = f(x)$.\n\n> 📝 **Exam Tip:** For piecewise monotonic functions, carefully identify the intervals of monotonicity and compute the inverse function and derivative for each interval separately.\n\n---\n\n### Worked Numerical Example\nLet $f(x) = -\\frac{1}{2} \\ln(1-x)$ and $\\lambda = 2$. Compute the PDF of $Y$ for $y = 1$.\n\n1. **Find $f^{-1}(y)$**:\n\n   $$\n   f^{-1}(y) = 1 - e^{-2y}.\n   $$\n\n   Substituting $y = 1$:\n\n   $$\n   f^{-1}(1) = 1 - e^{-2 \\cdot 1} = 1 - e^{-2}.\n   $$\n\n2. **Compute $\\frac{d f^{-1}(y)}{dy}$**:\n\n   $$\n   \\frac{d f^{-1}(y)}{dy} = 2e^{-2y}.\n   $$\n\n   Substituting $y = 1$:\n\n   $$\n   \\frac{d f^{-1}(1)}{dy} = 2e^{-2}.\n   $$\n\n3. **Apply Theorem 3**:\n\n   $$\n   f_Y(1) = f_X(f^{-1}(1)) \\cdot \\left| \\frac{d f^{-1}(1)}{dy} \\right|.\n   $$\n\n   Since $f_X(x) = 1$ for $0 \\leq x \\leq 1$:\n\n   $$\n   f_Y(1) = 1 \\cdot 2e^{-2} = 2e^{-2}.\n   $$\n\nThus, the PDF of $Y$ at $y = 1$ is $2e^{-2}$.\n\n> 📝 **Exam Tip:** Always substitute carefully into the formulas and verify that the inverse function and its derivative are correctly computed. Double-check calculations for specific values of $y$.",
+    "proficiency": "Foundations",
+    "graph": {
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Degenerate Dist.",
+          "x": 10,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Degenerate Dist."
+        },
+        {
+          "id": 2,
+          "label": "Random Variable",
+          "x": 30,
+          "y": 50,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Random Variable"
+        },
+        {
+          "id": 3,
+          "label": "Probability Mass",
+          "x": 50,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Probability Mass"
+        },
+        {
+          "id": 4,
+          "label": "Expectation",
+          "x": 70,
+          "y": 30,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Expectation"
+        },
+        {
+          "id": 5,
+          "label": "Moments",
+          "x": 90,
+          "y": 50,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Moments"
+        },
+        {
+          "id": 6,
+          "label": "MGF",
+          "x": 10,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "MGF"
+        },
+        {
+          "id": 7,
+          "label": "Discrete Uniform Dist.",
+          "x": 30,
+          "y": 90,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Discrete Uniform Dist."
+        },
+        {
+          "id": 8,
+          "label": "Bayes' Theorem",
+          "x": 50,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Bayes' Theorem"
+        },
+        {
+          "id": 9,
+          "label": "Joint Probability",
+          "x": 70,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Joint Probability"
+        },
+        {
+          "id": 10,
+          "label": "Normal Distribution",
+          "x": 90,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Normal Distribution"
+        },
+        {
+          "id": 11,
+          "label": "Poisson Distribution",
+          "x": 10,
+          "y": 30,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Poisson Distribution"
+        },
+        {
+          "id": 12,
+          "label": "Bernoulli Distribution",
+          "x": 30,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Bernoulli Distribution"
+        },
+        {
+          "id": 13,
+          "label": "Binomial Distribution",
+          "x": 50,
+          "y": 50,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Binomial Distribution"
+        },
+        {
+          "id": 14,
+          "label": "Probability Theory",
+          "x": 70,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Probability Theory"
+        }
+      ],
+      "edges": [
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          6
+        ],
+        [
+          2,
+          7
+        ],
+        [
+          7,
+          9
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          10,
+          11
+        ],
+        [
+          11,
+          12
+        ],
+        [
+          12,
+          13
+        ],
+        [
+          13,
+          14
+        ],
+        [
+          14,
+          8
+        ],
+        [
+          8,
+          1
+        ]
+      ]
+    },
+    "created_at": "2026-03-07T13:35:41.734064",
+    "updated_at": "2026-03-07T18:32:40.286980",
+    "notes": ""
+  },
+  {
+    "id": "418fb935-fa58-4a7e-8f19-db769df8f05c",
+    "user_id": "f4452e08-7b0c-4bfd-abe9-4d9a945c2c04",
+    "name": "prob",
+    "course": "prob",
+    "note": "## Measurable Functions\n\n### What is a Measurable Function?\n\nA measurable function is a function that \"respects\" the structure of measurable spaces. It ensures that the pre-image of any measurable set is also measurable. This concept is crucial in real analysis and probability theory, as it allows us to define and work with random variables in a rigorous manner.\n\n> Imagine you have two rooms, each with a set of rules about what counts as \"clean\" or \"dirty.\" A measurable function is like a cleaning robot that moves between the rooms, ensuring that anything it brings from one room to the other follows the rules of cleanliness in both rooms.\n\n#### Formal Definition:\nLet $(\\Omega_1, F_1)$ and $(\\Omega_2, F_2)$ be measurable spaces. A function $f: \\Omega_1 \\to \\Omega_2$ is said to be measurable (with respect to the $\\sigma$-fields $F_1$ and $F_2$) if:\n\n$$\nf^{-1}(A) \\in F_1, \\quad \\text{for all } A \\in F_2.\n$$\n\n| Symbol      | What it means                          | Typical units/range             |\n|-------------|----------------------------------------|----------------------------------|\n| $\\Omega_1$ | Domain of the function $f$ | Set of all possible inputs |\n| $\\Omega_2$ | Codomain of the function $f$ | Set of all possible outputs |\n| $F_1$ | $\\sigma$-field over $\\Omega_1$ | Collection of measurable subsets |\n| $F_2$ | $\\sigma$-field over $\\Omega_2$ | Collection of measurable subsets |\n| $f^{-1}(A)$ | Pre-image of set $A$ under $f$ | Subset of $\\Omega_1$ |\n\nThis definition says that for any measurable set $A$ in the codomain $\\Omega_2$, the set of all points in the domain $\\Omega_1$ that map into $A$ under $f$ must also be measurable.\n\n### Pre-Image of a Set\n\nThe pre-image of a set under a function is the set of all inputs that map into the given set.\n\n> Think of a vending machine. The pre-image of \"chips\" is the set of all buttons you can press to get chips.\n\n#### Formal Definition:\nFor $f: T \\to U$ and $E \\subseteq U$, the pre-image of $E$ under $f$ is:\n\n$$\nf^{-1}(E) = \\{t \\in T \\mid f(t) \\in E\\}.\n$$\n\n| Symbol      | What it means                          | Typical units/range             |\n|-------------|----------------------------------------|----------------------------------|\n| $T$ | Domain of the function $f$ | Set of all possible inputs |\n| $U$ | Codomain of the function $f$ | Set of all possible outputs |\n| $E$ | Subset of $U$ | Measurable set in the codomain |\n| $f^{-1}(E)$ | Pre-image of $E$ under $f$ | Subset of $T$ |\n\nThis formula tells us how to find the subset of the domain $T$ that corresponds to a given subset $E$ of the codomain $U$.\n\n### Measurable Sets\n\nA measurable set is a subset of a measurable space that satisfies the rules of the $\\sigma$-field.\n\n> Imagine a library where only certain books are allowed to be borrowed. A measurable set is like the collection of books that follow the borrowing rules.\n\n#### Formal Definition:\nLet $(\\Omega, F)$ be a measurable space. A set $E \\subseteq \\Omega$ is said to be measurable if:\n\n$$\nE \\in F.\n$$\n\n| Symbol      | What it means                          | Typical units/range             |\n|-------------|----------------------------------------|----------------------------------|\n| $\\Omega$ | The space | Set of all possible elements |\n| $F$ | $\\sigma$-field over $\\Omega$ | Collection of measurable subsets |\n| $E$ | Subset of $\\Omega$ | Measurable set |\n\nThis definition ensures that $E$ follows the rules of the $\\sigma$-field $F$.\n\n### Borel $\\sigma$-Field\n\nThe Borel $\\sigma$-field is the collection of all measurable subsets of the real line.\n\n> Think of the real line as a city map. The Borel $\\sigma$-field is like the list of all neighborhoods you can visit.\n\n#### Definition:\nThe Borel $\\sigma$-field, denoted $B\\mathbb{R}$, is the $\\sigma$-field generated by the open subsets of the real line $\\mathbb{R}$.\n\n### Measurable Functions and Random Variables\n\n#### Example 1: Random Variable\nA random variable $X$ is a measurable function because it maps events in a probability space to measurable subsets of the real line.\n\n> Imagine rolling a die. The random variable $X$ maps the outcome (e.g., \"roll 4\") to a measurable subset of the real line (e.g., $[4, 4]$).\n\nLet $\\Omega_1 = \\Omega$, $\\Omega_2 = \\mathbb{R}$, $F_1 = \\text{power set of } \\Omega$, and $F_2 = B\\mathbb{R}$. Define $f: \\Omega \\to \\mathbb{R}$ as the random variable $X$, i.e., $f := X$. Then:\n\n$$\nX^{-1}((-\\infty, x]) \\in F_1, \\quad \\text{for all } (-\\infty, x] \\in F_2.\n$$\n\n| Symbol      | What it means                          | Typical units/range             |\n|-------------|----------------------------------------|----------------------------------|\n| $\\Omega$ | Sample space | Set of all possible outcomes |\n| $\\mathbb{R}$ | Real line | Set of all real numbers |\n| $F_1$ | $\\sigma$-field over $\\Omega$ | Collection of measurable subsets |\n| $F_2$ | Borel $\\sigma$-field over $\\mathbb{R}$ | Collection of measurable subsets |\n| $X^{-1}$ | Pre-image under $X$ | Subset of $\\Omega$ |\n\nThis example shows that random variables are measurable functions because their pre-images of measurable sets are measurable.\n\n#### Example 2: Constant Function\nLet $(\\Omega, F)$ and $(\\mathbb{R}, B\\mathbb{R})$ be measurable spaces. Define $X: \\Omega \\to \\mathbb{R}$ by:\n\n$$\nX(\\omega) = c, \\quad \\text{for all } \\omega \\in \\Omega.\n$$\n\nFor all $A \\in B\\mathbb{R}$, we have:\n\n$$\nf^{-1}(A) =\n\\begin{cases} \n\\emptyset, & c \\notin A, \\\\\n\\Omega, & c \\in A.\n\\end{cases}\n$$\n\n| Symbol      | What it means                          | Typical units/range             |\n|-------------|----------------------------------------|----------------------------------|\n| $\\Omega$ | Sample space | Set of all possible outcomes |\n| $F$ | $\\sigma$-field over $\\Omega$ | Collection of measurable subsets |\n| $\\mathbb{R}$ | Real line | Set of all real numbers |\n| $B\\mathbb{R}$ | Borel $\\sigma$-field over $\\mathbb{R}$ | Collection of measurable subsets |\n| $c$ | Constant value | Fixed real number |\n\nSince $\\emptyset \\in F$ and $\\Omega \\in F$ for all $A \\in B\\mathbb{R}$, $X$ is a measurable function.\n\n> **Exam Tip:** Always check whether the pre-image of a set under a function belongs to the $\\sigma$-field of the domain. This is the key property of a measurable function.\n\n## Function of a Random Variable\n\n![The diagram is a block diagram or flowchart illustrating a function composition. Key components include a circle labeled $(\\Omega, \\mathcal{F}, \\mathcal{P})$, functions $X(\\cdot)$, $f(\\cdot)$, and $f \\circ X(\\cdot)$, and a mapping $f: \\mathbb{R} \\to \\mathbb{R}$. It illustrates the concept of a random variable $X$ composed with a function $f$.](/api/images/418fb935-fa58-4a7e-8f19-db769df8f05c/img_001.png)\n*The diagram is a block diagram or flowchart illustrating a function composition. Key components include a circle labeled $(\\Omega, \\mathcal{F}, \\mathcal{P})$, functions $X(\\cdot)$, $f(\\cdot)$, and $f \\circ X(\\cdot)$, and a mapping $f: \\mathbb{R} \\to \\mathbb{R}$. It illustrates the concept of a random variable $X$ composed with a function $f$.*\n\n![The image shows a 3D surface plot of a joint probability distribution function $f_{xy}(x,y)$. The key component visible is the 3D surface plot. The concept illustrated is likely joint probability distributions.](/api/images/418fb935-fa58-4a7e-8f19-db769df8f05c/tb_img_001.jpg)\n*The image shows a 3D surface plot of a joint probability distribution function $f_{xy}(x,y)$. The key component visible is the 3D surface plot. The concept illustrated is likely joint probability distributions.*\n\n\n### Introduction to Function of a Random Variable\nA function of a random variable involves transforming one random variable into another using a mathematical function. If $X$ is a random variable and $f: \\mathbb{R} \\to \\mathbb{R}$ is a measurable function, then $Y = f(X)$ is also a random variable.\n\n> Imagine you have a random variable $X$ representing the temperature in Celsius. If you apply the function $f(X) = X \\times 9/5 + 32$, you transform $X$ into $Y$, which represents the temperature in Fahrenheit. The randomness of $X$ carries over to $Y$.\n\n#### Formal Definition:\nLet $X$ be a random variable defined over $(\\Omega, F, P)$, and let $f: \\mathbb{R} \\to \\mathbb{R}$ be a measurable function. Then $Y = f(X)$ is a random variable. \n\n### Proof: $Y = f(X)$ is a Random Variable\nTo prove that $Y = f(X)$ is a random variable, it suffices to show that $Y^{-1}((-\\infty, y]) \\in F$ for all $y \\in \\mathbb{R}$.\n\n#### Steps:\n1. Fix $y \\in \\mathbb{R}$.\n2. The pre-image of the interval $(-\\infty, y]$ under $Y$ is:\n\n   $$\n   Y^{-1}((-\\infty, y]) = \\{\\omega \\in \\Omega \\mid Y(\\omega) \\leq y\\}.\n   $$\n\n3. Substituting $Y = f(X)$:\n\n   $$\n   Y^{-1}((-\\infty, y]) = \\{\\omega \\in \\Omega \\mid f(X(\\omega)) \\leq y\\}.\n   $$\n\n4. This can be rewritten as:\n\n   $$\n   Y^{-1}((-\\infty, y]) = \\{\\omega \\in \\Omega \\mid X(\\omega) \\in f^{-1}((-\\infty, y])\\}.\n   $$\n\n5. Since $f$ is measurable, $f^{-1}((-\\infty, y]) \\in \\mathcal{B}_\\mathbb{R}$ (the Borel $\\sigma$-field).\n6. Since $X$ is a random variable, $X^{-1}(A) \\in F$ for any $A \\in \\mathcal{B}_\\mathbb{R}$. Thus:\n\n   $$\n   X^{-1}(f^{-1}((-\\infty, y])) \\in F.\n   $$\n\n7. Therefore, $Y^{-1}((-\\infty, y]) \\in F$, proving that $Y$ is a random variable.\n\n### Remark on Measurable Functions\nEvery continuous function or piecewise continuous function (defined from $\\mathbb{R} \\to \\mathbb{R}$) is a measurable function.\n\n### Distribution of $Y = f(X)$\nThe distribution of $Y = f(X)$ is fully determined by the distribution of $X$ and the function $f$. The cumulative distribution function (CDF) of $Y$ is given by:\n\n$$\nF_Y(y) = P(Y \\leq y) = P(f(X) \\leq y) = P(X \\in f^{-1}((-\\infty, y])).\n$$\n\n#### Example 1: CDF of $Y = |X|$\nLet $Y = |X|$. The CDF of $Y$ is:\n\n$$\nF_Y(y) = \n\\begin{cases} \n0, & y < 0, \\\\\nF_X(y) - F_X(-y), & y \\geq 0.\n\\end{cases}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $F_Y(y)$ | CDF of $Y$ | $[0, 1]$ |\n| $F_X(y)$ | CDF of $X$ | $[0, 1]$ |\n\n#### Example 2: CDF of $Y = aX + b$\nLet $Y = aX + b$ where $a \\neq 0$. The CDF of $Y$ is:\n\n$$\nF_Y(y) = \n\\begin{cases} \nF_X\\left(\\frac{y - b}{a}\\right), & a > 0, \\\\\n1 - F_X\\left(\\frac{y - b}{a}\\right), & a < 0.\n\\end{cases}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $F_Y(y)$ | CDF of $Y$ | $[0, 1]$ |\n| $F_X(y)$ | CDF of $X$ | $[0, 1]$ |\n\n### Function of a Random Variable: Discrete Case\nLet $X$ be a discrete random variable and $f: \\mathbb{R} \\to \\mathbb{R}$ be a measurable function. Define the set:\n\n$$\nB_y = f^{-1}(y) = \\{x_1, x_2, \\dots, x_k \\mid x_i \\in \\mathbb{R} \\text{ and } X(\\omega) = x_i \\text{ for some } \\omega \\in \\Omega\\}.\n$$\n\nThe probability $P(Y = y)$ is computed as:\n\n$$\nP(Y = y) = \\sum_{x \\in B_y} P(X = x).\n$$\n\n#### Example 3: PMF of $Y = X^2$\nLet $X$ have the following PMF:\n\n$$\np_X(x) = \n\\begin{cases} \n\\frac{1}{5}, & x = -2, -1, 0, 1, 2, \\\\\n0, & \\text{otherwise}.\n\\end{cases}\n$$\n\nLet $f(X) = X^2$. Then:\n\n$$\nf^{-1}(y) = \n\\begin{cases} \n\\{0\\}, & y = 0, \\\\\n\\{-1, 1\\}, & y = 1, \\\\\n\\{-2, 2\\}, & y = 4.\n\\end{cases}\n$$\n\nThe PMF of $Y$ is:\n\n$$\nP(Y = y) = \n\\begin{cases} \nP(X = 0) = \\frac{1}{5}, & y = 0, \\\\\nP(X = -1) + P(X = 1) = \\frac{1}{5} + \\frac{1}{5} = \\frac{2}{5}, & y = 1, \\\\\nP(X = -2) + P(X = 2) = \\frac{1}{5} + \\frac{1}{5} = \\frac{2}{5}, & y = 4.\n\\end{cases}\n$$\n\n### Function of a Random Variable: Continuous Case\nLet $X$ be a continuous random variable and $f(x)$ be a strictly monotonic, differentiable, and continuous function. The PDF of $Y = f(X)$ is given by:\n\n$$\nf_Y(y) = \n\\begin{cases} \nf_X(f^{-1}(y)) \\left| \\frac{d}{dy} f^{-1}(y) \\right|, & y = f(x) \\text{ for some } x, \\\\\n0, & \\text{otherwise}.\n\\end{cases}\n$$\n\n#### Example 4: PDF of $Y = -\\frac{1}{\\lambda} \\ln(1 - X)$\nLet $X$ be uniform on $(0, 1)$ and $Y = -\\frac{1}{\\lambda} \\ln(1 - X)$ for $\\lambda > 0$. Since $Y$ is strictly increasing and differentiable, we apply the formula:\n1. Compute $f^{-1}(y)$:\n\n   $$\n   f^{-1}(y) = 1 - e^{-\\lambda y}.\n   $$\n\n2. Compute the derivative:\n\n   $$\n   \\frac{d}{dy} f^{-1}(y) = \\lambda e^{-\\lambda y}.\n   $$\n\n3. Substitute into the formula for $f_Y(y)$:\n\n   $$\n   f_Y(y) = \n   \\begin{cases} \n   \\lambda e^{-\\lambda y}, & y > 0, \\\\\n   0, & \\text{otherwise}.\n   \\end{cases}\n   $$\n\n#### Corollary: Piecewise Strictly Monotonic Functions\nIf $f(x)$ is piecewise strictly monotonic, the PDF of $Y = f(X)$ is computed by summing contributions from each monotonic interval:\n\n$$\nf_Y(y) = \\sum_{k=1}^n f_X(f_k^{-1}(y)) \\left| \\frac{d}{dy} f_k^{-1}(y) \\right|,\n$$\n\nwhere $f_k$ is $f$ restricted to interval $I_k$.\n\n### Exercises\n1. Compute the CDF of:\n   - $Y = X^2$\n   - $Y = \\max\\{X, 0\\}$\n   - $Y = \\min\\{X, 0\\}$\n2. Find a measurable function $f$ for which $B_y$ is countably infinite, or show that no such $f$ exists.\n\n> **Exam Tip:** Always verify whether the function $f$ is strictly monotonic when applying the formula for continuous random variables. Misidentifying monotonicity is a common mistake.",
+    "proficiency": "Foundations",
+    "graph": {
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Random Variables",
+          "full_label": "Random Variables",
+          "status": "partial",
+          "x": 40,
+          "y": 10
+        },
+        {
+          "id": 2,
+          "label": "Probability Dist.",
+          "full_label": "Probability Dist.",
+          "status": "partial",
+          "x": 60,
+          "y": 10
+        },
+        {
+          "id": 3,
+          "label": "CDF",
+          "full_label": "CDF",
+          "status": "partial",
+          "x": 65,
+          "y": 70
+        },
+        {
+          "id": 4,
+          "label": "PDF",
+          "full_label": "PDF",
+          "status": "partial",
+          "x": 50,
+          "y": 85
+        },
+        {
+          "id": 5,
+          "label": "Derivatives",
+          "full_label": "Derivatives",
+          "status": "partial",
+          "x": 45,
+          "y": 40
+        }
+      ],
+      "edges": [
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          4
+        ]
+      ]
+    },
+    "created_at": "2026-03-07T14:30:56.897008",
+    "updated_at": "2026-03-07T18:36:18.269085"
+  },
+  {
+    "id": "79df25ea-f793-4bb5-8c82-e2def53d3dc2",
+    "user_id": "f4452e08-7b0c-4bfd-abe9-4d9a945c2c04",
+    "name": "distributions-1",
+    "course": "prob",
+    "note": "## Geometric Distribution\n\n### What is the Geometric Distribution?\n\nSimply put, the geometric distribution models the number of independent and identical trials needed to achieve the first success in a sequence of Bernoulli trials, where each trial has the same probability of success, $p$.\n\n> Imagine flipping a coin until you get heads for the first time. If the coin is fair, the probability of heads is $p = 0.5$. The geometric distribution tells us the likelihood of needing a certain number of flips to get that first heads.\n\n#### Formal Definition:\nLet $X$ be the random variable representing the number of trials needed for the first success. If $X$ follows the geometric distribution, we write $X \\sim \\text{Geo}(p)$, where $p$ is the probability of success in each trial ($0 < p < 1$). The possible values of $X$ are $1, 2, 3, \\dots$.\n\n---\n\n### Probability Mass Function (PMF)\n\nThe PMF of the geometric distribution is:\n\n$$\nP(X = i) = (1-p)^{i-1}p \\quad \\text{for } i = 1, 2, \\dots; \\quad P(X = i) = 0 \\quad \\text{otherwise.}\n$$\n\n| Symbol  | What it means                              | Typical units/range |\n|---------|--------------------------------------------|---------------------|\n| $X$ | Number of trials needed for first success | Positive integers |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n| $i$ | Specific number of trials | $i = 1, 2, \\dots$ |\n\nThis formula says that the probability of needing $i$ trials for the first success is proportional to the probability of failing $(i-1)$ times and then succeeding on the $i$th trial.\n\n#### Example:\nSuppose the probability of success in each trial is $p = 0.3$. What is the probability of needing exactly 4 trials for the first success?\n\n$$\nP(X = 4) = (1-0.3)^{4-1} \\cdot 0.3 = (0.7)^3 \\cdot 0.3\n$$\n\nStep-by-step calculation:\n1. Compute $(1-p)$: $1 - 0.3 = 0.7$.\n2. Raise $0.7$ to the power of $3$: $0.7^3 = 0.343$.\n3. Multiply by $p$: $0.343 \\cdot 0.3 = 0.1029$.\n\nThus, $P(X = 4) = 0.1029$. There is approximately a 10.29% chance of needing exactly 4 trials.\n\n---\n\n### Expectation (Mean)\n\nThe expected value (mean) of the geometric distribution is:\n\n$$\nE(X) = \\frac{1}{p}.\n$$\n\n| Symbol  | What it means                              | Typical units/range |\n|---------|--------------------------------------------|---------------------|\n| $E(X)$ | Expected number of trials for first success | Positive real number |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n\nThis formula shows that the average number of trials needed for the first success decreases as $p$ increases.\n\n#### Example:\nIf $p = 0.2$, the expected number of trials is:\n\n$$\nE(X) = \\frac{1}{0.2} = 5.\n$$\n\nOn average, 5 trials are needed to achieve the first success.\n\n---\n\n### Variance\n\nThe variance of the geometric distribution is:\n\n$$\n\\text{Var}(X) = \\frac{1-p}{p^2}.\n$$\n\n| Symbol         | What it means                              | Typical units/range |\n|----------------|--------------------------------------------|---------------------|\n| $\\text{Var}(X)$ | Variance of the number of trials | Positive real number |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n\nThis formula indicates how spread out the possible values of $X$ are. A smaller $p$ leads to a larger variance, meaning the number of trials needed for the first success is more variable.\n\n#### Example:\nIf $p = 0.4$, the variance is:\n\n$$\n\\text{Var}(X) = \\frac{1-0.4}{0.4^2} = \\frac{0.6}{0.16} = 3.75.\n$$\n\n---\n\n### Moment Generating Function (MGF)\n\nThe moment generating function of the geometric distribution is:\n\n$$\nM(t) = \\frac{pe^t}{1 - (1-p)e^t} \\quad \\text{for } t < -\\log(1-p).\n$$\n\n| Symbol  | What it means                              | Typical units/range |\n|---------|--------------------------------------------|---------------------|\n| $M(t)$ | Moment generating function | Function of $t$ |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n| $t$ | Parameter for the MGF | $t < -\\log(1-p)$ |\n\nThe MGF helps derive moments (like mean and variance) of the distribution. The condition $t < -\\log(1-p)$ ensures the function is well-defined.\n\n#### Example:\nIf $p = 0.5$, find the MGF for $t = -0.5$.\n\n1. Compute $1-p$: $1 - 0.5 = 0.5$.\n2. Compute $e^t$: $e^{-0.5} \\approx 0.6065$.\n3. Check the condition: $t < -\\log(1-p)$, so $-0.5 < -\\log(0.5) \\approx -0.693$, which is valid.\n4. Substitute into the formula:\n\n$$\nM(-0.5) = \\frac{0.5 \\cdot 0.6065}{1 - (0.5 \\cdot 0.6065)} = \\frac{0.30325}{1 - 0.30325} = \\frac{0.30325}{0.69675} \\approx 0.435.\n$$\n\n---\n\n### Memoryless Property\n\nThe geometric distribution has a unique property called the memoryless property. Simply put, the probability of needing additional trials does not depend on how many trials have already occurred.\n\n#### Formal Statement:\n\n$$\nP(X > m+n \\mid X > n) = P(X > m).\n$$\n\n| Symbol  | What it means                              | Typical units/range |\n|---------|--------------------------------------------|---------------------|\n| $X$ | Number of trials needed for first success | Positive integers |\n| $m, n$ | Number of trials | Positive integers |\n\nThis property means that the distribution \"resets\" after each trial. The starting point does not matter.\n\n#### Example:\nIf $p = 0.3$, find $P(X > 5 \\mid X > 3)$.\n\nUsing the memoryless property:\n\n$$\nP(X > 5 \\mid X > 3) = P(X > 2).\n$$\n\nCompute $P(X > 2)$:\n\n$$\nP(X > 2) = 1 - P(X = 1) - P(X = 2).\n$$\n\n1. Compute $P(X = 1)$: $(1-0.3)^0 \\cdot 0.3 = 0.3$.\n2. Compute $P(X = 2)$: $(1-0.3)^1 \\cdot 0.3 = 0.7 \\cdot 0.3 = 0.21$.\n3. Compute $P(X > 2)$: $1 - 0.3 - 0.21 = 0.49$.\n\nThus, $P(X > 5 \\mid X > 3) = 0.49$.\n\n---\n\n> **Exam Tip:** The memoryless property is a common exam question. Remember that the probability of needing additional trials depends only on the success probability $p$, not on past trials.\n\n## Negative Binomial Distribution\n\n### Introduction to Negative Binomial Distribution\nSimply put, the Negative Binomial distribution models the number of trials needed to achieve a fixed number of successes in a sequence of independent Bernoulli trials, where each trial has the same probability of success.\n\n> Imagine flipping a coin repeatedly until you get a certain number of heads (successes). If you want exactly 3 heads, the Negative Binomial distribution helps you determine the probability of needing a specific number of flips to achieve this.\n\nFormally, consider independent and identical Bernoulli trials, each with success probability $p$ (where $0 < p < 1$). Let $r$ be the fixed number of successes desired ($r \\geq 1$). Let $X$ be the random variable representing the number of trials needed to achieve the $r$-th success. Then $X$ follows a Negative Binomial distribution, denoted as $X \\sim \\text{NB}(p, r)$.\n\n### Probability Mass Function (PMF)\nThe PMF of the Negative Binomial distribution is given by:\n\n$$\nP(X = k) = \\binom{k-1}{r-1} (1-p)^{k-r} p^r \\quad \\text{for } k = r, r+1, r+2, \\ldots\n$$\n\n$$\nP(X = k) = 0 \\quad \\text{otherwise.}\n$$\n\n#### Symbol Table\n| Symbol       | What it means                          | Typical units/range |\n|--------------|----------------------------------------|---------------------|\n| $X$ | Number of trials needed for $r$ successes | $k \\geq r$ |\n| $k$ | Specific number of trials | Integer ($r, r+1, \\ldots$) |\n| $r$ | Fixed number of successes | Integer ($\\geq 1$) |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n| $1-p$ or $q$ | Probability of failure in each trial | $0 < q < 1$ |\n\n#### Explanation\nThis formula calculates the probability of needing exactly $k$ trials to achieve $r$ successes. The term $\\binom{k-1}{r-1}$ accounts for the number of ways to arrange $r-1$ successes among the first $k-1$ trials, and $(1-p)^{k-r} p^r$ accounts for the probabilities of failures and successes.\n\n#### Example\nSuppose $p = 0.5$ (success probability), $r = 3$ (desired successes), and $k = 5$ (trials needed). Calculate $P(X = 5)$:\n\n$$\nP(X = 5) = \\binom{5-1}{3-1} (1-0.5)^{5-3} (0.5)^3\n$$\n\n$$\nP(X = 5) = \\binom{4}{2} (0.5)^2 (0.5)^3\n$$\n\n$$\nP(X = 5) = 6 \\cdot 0.25 \\cdot 0.125 = 0.1875\n$$\n\nThus, the probability of needing exactly 5 trials to achieve 3 successes is $0.1875$.\n\n### Expectation and Variance\nThe expectation and variance of $X$ are:\n\n$$\nE(X) = \\frac{r}{p}\n$$\n\n$$\n\\text{Var}(X) = \\frac{r(1-p)}{p^2}\n$$\n\n#### Symbol Table\n| Symbol       | What it means                          | Typical units/range |\n|--------------|----------------------------------------|---------------------|\n| $E(X)$ | Expected number of trials | Real number |\n| $\\text{Var}(X)$ | Variance of the number of trials | Real number |\n| $r$ | Fixed number of successes | Integer ($\\geq 1$) |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n| $1-p$ or $q$ | Probability of failure in each trial | $0 < q < 1$ |\n\n#### Explanation\n- $E(X)$ represents the average number of trials needed to achieve $r$ successes.\n- $\\text{Var}(X)$ measures the spread or variability in the number of trials needed.\n\n#### Example\nLet $r = 3$ and $p = 0.5$. Calculate $E(X)$ and $\\text{Var}(X)$:\n\n$$\nE(X) = \\frac{3}{0.5} = 6\n$$\n\n$$\n\\text{Var}(X) = \\frac{3(1-0.5)}{0.5^2} = \\frac{3 \\cdot 0.5}{0.25} = 6\n$$\n\nThus, the expected number of trials is $6$, and the variance is also $6$.\n\n### Moment Generating Function (MGF)\nThe moment generating function of $X$ is:\n\n$$\nM(t) = \\frac{(p e^t)^r}{(1 - (1-p)e^t)^r} \\quad \\text{for } t < -\\log(1-p).\n$$\n\n#### Symbol Table\n| Symbol       | What it means                          | Typical units/range |\n|--------------|----------------------------------------|---------------------|\n| $M(t)$ | Moment generating function | Function |\n| $t$ | Parameter for the MGF | Real number |\n| $p$ | Probability of success in each trial | $0 < p < 1$ |\n| $1-p$ or $q$ | Probability of failure in each trial | $0 < q < 1$ |\n| $r$ | Fixed number of successes | Integer ($\\geq 1$) |\n\n#### Explanation\nThe MGF is a tool used to derive moments (e.g., mean, variance) of the distribution. The condition $t < -\\log(1-p)$ ensures the function is well-defined.\n\n#### Example\nLet $p = 0.5$, $r = 3$, and $t = -0.5$. Verify $M(t)$:\n\n$$\nM(-0.5) = \\frac{(0.5 e^{-0.5})^3}{(1 - (1-0.5)e^{-0.5})^3}\n$$\n\n$$\nM(-0.5) = \\frac{(0.5 \\cdot 0.6065)^3}{(1 - 0.5 \\cdot 0.6065)^3}\n$$\n\n$$\nM(-0.5) = \\frac{(0.30325)^3}{(1 - 0.30325)^3} = \\frac{0.0279}{0.69675^3} = 0.0576\n$$\n\nThus, $M(-0.5) \\approx 0.0576$.\n\n### Differences Between Binomial and Negative Binomial Distributions\n- **Binomial Distribution**: Fixes the number of trials ($n$) and counts the number of successes ($i$) within those trials.\n- **Negative Binomial Distribution**: Fixes the number of successes ($r$) and counts the number of trials ($k$) needed to achieve those successes.\n\n#### Example\nIf a coin is flipped 10 times, and we count the number of heads, this is a Binomial distribution. If we flip the coin until we get 3 heads, this is a Negative Binomial distribution.\n\n### Exercises\n#### Exercise 1\nUsing the definition of expectation and variance, show that:\n\n$$\nE(X) = \\frac{r}{p}, \\quad \\text{Var}(X) = \\frac{r(1-p)}{p^2}.\n$$\n\n#### Exercise 2\nLet $X \\sim \\text{NB}(p, r)$. Verify whether:\n\n$$\nP(X > m+n \\mid X > n) = P(X > n).\n$$\n\n> Exam Tip: The most common mistake is confusing the Negative Binomial distribution with the Binomial distribution. Always remember: Negative Binomial counts trials for a fixed number of successes, while Binomial counts successes for a fixed number of trials.\n\n## Hypergeometric Distribution\n\n### Introduction\nSimply put, the hypergeometric distribution is used to model scenarios where sampling is done **without replacement**. This means the probability of success changes after each selection because the total number of items decreases.\n\n> Imagine you have a jar with 10 red balls and 20 blue balls. If you randomly pick 5 balls without putting them back, the probability of picking a red ball changes after each draw because the total number of balls left in the jar decreases.\n\n### Formal Definition\nThe hypergeometric distribution describes the probability of selecting a certain number of \"Type-I\" items (successes) when sampling **without replacement** from a population containing two types of items. \n\nLet:\n- $N$: Total number of items in the population.\n- $k$: Number of Type-I items (successes) in the population.\n- $N-k$: Number of Type-II items (failures) in the population.\n- $n$: Number of items selected (sample size).\n- $X$: Random variable denoting the number of Type-I items in the sample.\n\nIf $X$ follows the hypergeometric distribution, we write:\n\n$$\nX \\sim \\text{HyperGeo}(N, k, n)\n$$\n\n### Probability Mass Function (PMF)\nThe PMF of the hypergeometric distribution is given by:\n\n$$\nP(X = x) = \n\\begin{cases} \n\\frac{\\binom{k}{x} \\binom{N-k}{n-x}}{\\binom{N}{n}}, & \\text{if } \\max\\{0, n+k-N\\} \\leq x \\leq \\min\\{n, k\\}, \\\\\n0, & \\text{otherwise}.\n\\end{cases}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $N$ | Total number of items in the population | Positive integer |\n| $k$ | Number of Type-I items (successes) | $0 \\leq k \\leq N$ |\n| $n$ | Number of items selected (sample size) | $0 \\leq n \\leq N$ |\n| $x$ | Number of Type-I items in the sample | $\\max\\{0, n+k-N\\} \\leq x \\leq \\min\\{n, k\\}$ |\n\nThis formula calculates the probability of selecting exactly $x$ Type-I items in the sample. It uses combinations:\n- $\\binom{k}{x}$: Ways to choose $x$ Type-I items from $k$.\n- $\\binom{N-k}{n-x}$: Ways to choose $n-x$ Type-II items from $N-k$.\n- $\\binom{N}{n}$: Total ways to choose $n$ items from $N$.\n\n#### Example: Calculating PMF\nSuppose a population has $N = 20$ items, $k = 15$ Type-I items, and $n = 6$ items are selected. What is the probability of selecting $x = 4$ Type-I items?\n\nStep-by-step:\n1. Compute $\\binom{k}{x}$:\n\n   $$\n   \\binom{15}{4} = \\frac{15 \\cdot 14 \\cdot 13 \\cdot 12}{4 \\cdot 3 \\cdot 2 \\cdot 1} = 1365\n   $$\n\n2. Compute $\\binom{N-k}{n-x}$:\n\n   $$\n   \\binom{5}{2} = \\frac{5 \\cdot 4}{2 \\cdot 1} = 10\n   $$\n\n3. Compute $\\binom{N}{n}$:\n\n   $$\n   \\binom{20}{6} = \\frac{20 \\cdot 19 \\cdot 18 \\cdot 17 \\cdot 16 \\cdot 15}{6 \\cdot 5 \\cdot 4 \\cdot 3 \\cdot 2 \\cdot 1} = 38760\n   $$\n\n4. Plug values into the PMF:\n\n   $$\n   P(X = 4) = \\frac{\\binom{15}{4} \\binom{5}{2}}{\\binom{20}{6}} = \\frac{1365 \\cdot 10}{38760} = 0.352\n   $$\n\nThus, the probability of selecting exactly 4 Type-I items is $0.352$.\n\n### Conditions on $x$\nThe value of $x$ must satisfy:\n1. $x \\leq \\min\\{n, k\\}$: $x$ cannot exceed the total number of Type-I items ($k$) or the sample size ($n$).\n2. $x \\geq \\max\\{0, n+k-N\\}$: $x$ must be at least the number of Type-I items required to ensure the sample size is met.\n\nThese conditions ensure that $x$ is a valid count of Type-I items in the sample.\n\n### Expectation and Variance\n#### Expectation\nThe expected number of Type-I items in the sample is:\n\n$$\nE(X) = n \\cdot \\frac{k}{N}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $E(X)$ | Expected value of $X$ | Real number |\n| $n$ | Sample size | Positive integer |\n| $k$ | Number of Type-I items | $0 \\leq k \\leq N$ |\n| $N$ | Total number of items | Positive integer |\n\nThis formula says that the expected number of successes is proportional to the sample size and the fraction of Type-I items in the population.\n\n#### Variance\nThe variance of $X$ is:\n\n$$\n\\text{Var}(X) = n \\cdot \\frac{k}{N} \\cdot \\left(1 - \\frac{k}{N}\\right) \\cdot \\frac{N-n}{N-1}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $\\text{Var}(X)$ | Variance of $X$ | Real number |\n| $n$ | Sample size | Positive integer |\n| $k$ | Number of Type-I items | $0 \\leq k \\leq N$ |\n| $N$ | Total number of items | Positive integer |\n\nThis formula accounts for the changing probabilities due to sampling without replacement.\n\n#### Exercise\nProve that:\n\n$$\nE(X(X-1)) = \\frac{k(k-1)n(n-1)}{N(N-1)}\n$$\n\nand use this result to show:\n\n$$\n\\text{Var}(X) = \\frac{N-n}{N-1} \\cdot \\frac{kn}{N} \\cdot \\left(1 - \\frac{k}{N}\\right)\n$$\n\n### Convergence to Binomial Distribution\nIf the population size $N \\to \\infty$ and the proportion of Type-I items $k/N \\to p$, the hypergeometric distribution converges to the binomial distribution with parameters $n$ and $p$. Formally:\n\n$$\nP(X = x) \\to \\binom{n}{x} p^x (1-p)^{n-x}\n$$\n\nThis happens because, as $N$ becomes very large, the effect of sampling without replacement becomes negligible, making the trials effectively independent.\n\n### Worked Example: Functional System Probability\nA system requires at least 4 working components out of 6 selected from a bin of 20 components, where 15 are working. What is the probability the system is functional?\n\nHere:\n- $N = 20$, $k = 15$, $n = 6$, $X$: Number of working components.\n\nWe need $P(X \\geq 4)$:\n\n$$\nP(X \\geq 4) = P(X = 4) + P(X = 5) + P(X = 6)\n$$\n\nCompute each term:\n1. $P(X = 4) = \\frac{\\binom{15}{4} \\binom{5}{2}}{\\binom{20}{6}} \\approx 0.352$\n2. $P(X = 5) = \\frac{\\binom{15}{5} \\binom{5}{1}}{\\binom{20}{6}} \\approx 0.441$\n3. $P(X = 6) = \\frac{\\binom{15}{6} \\binom{5}{0}}{\\binom{20}{6}} \\approx 0.076$\n\nAdd probabilities:\n\n$$\nP(X \\geq 4) = 0.352 + 0.441 + 0.076 = 0.869\n$$\n\nThus, the probability the system is functional is approximately $0.869$.\n\n---\n\n> **Exam Tip:** The most common mistake is forgetting that hypergeometric sampling is **without replacement**. Always check the conditions on $x$ and ensure you compute combinations correctly!\n\n## Poisson Process\n\n### Introduction to Poisson Process\n\nSimply put, a Poisson process is a mathematical model used to describe the number of occurrences of an event within a given time interval. It is particularly useful when the events happen randomly but at a constant average rate.\n\n> Imagine you are counting the number of cars passing through a toll booth in one hour. The cars arrive randomly, but there is an average rate at which cars pass through the booth. This situation can be modeled using a Poisson process.\n\nFormally, the Poisson process is defined by three assumptions:\n\n1. **Assumption 1**: The number of occurrences in disjoint time intervals are independent.  \n   > Example: The number of calls received in the first hour does not affect the number of calls received in the second hour.\n\n2. **Assumption 2**: The probability of a single occurrence in a small time interval is proportional to the length of the interval.  \n   > Example: If you observe a toll booth for 10 minutes, the probability of a car passing through is proportional to those 10 minutes.\n\n3. **Assumption 3**: The probability of more than one occurrence in a small time interval is negligible.  \n   > Example: In a very short time frame (e.g., 1 second), it is highly unlikely that two cars pass through the toll booth simultaneously.\n\n### Probability Mass Function (PMF)\n\nThe number of occurrences in a time interval of length $t$ is denoted as $X(t)$. The PMF of $X(t)$ is given by:\n\n$$\nP(X(t) = n) = \\frac{e^{-\\lambda t} (\\lambda t)^n}{n!}, \\quad \\text{for } n = 0, 1, 2, \\dots, \\lambda > 0\n$$\n\n| Symbol   | What it means                                | Typical units/range       |\n|----------|---------------------------------------------|---------------------------|\n| $P(X(t) = n)$ | Probability of $n$ occurrences in time $t$ | Dimensionless (0 to 1) |\n| $\\lambda$ | Rate of occurrences per unit time | Occurrences per unit time |\n| $t$ | Length of the time interval | Time (e.g., seconds, hours) |\n| $n$ | Number of occurrences | Non-negative integers |\n\nThis formula says that the probability of observing $n$ occurrences in a time interval $t$ depends on the rate $\\lambda$ and the interval length $t$. The term $e^{-\\lambda t}$ ensures that probabilities sum to 1.\n\n#### Example: Calculating PMF\n\nSuppose the rate of occurrences $\\lambda = 2$ events per hour, and we want to find the probability of observing exactly 3 events in a 2-hour interval.\n\n$$\nP(X(2) = 3) = \\frac{e^{-2 \\cdot 2} (2 \\cdot 2)^3}{3!}\n$$\n\nStep-by-step calculation:\n\n1. Compute $e^{-\\lambda t}$:  \n   $e^{-2 \\cdot 2} = e^{-4} \\approx 0.0183$\n\n2. Compute $(\\lambda t)^n$:  \n   $(2 \\cdot 2)^3 = 8^3 = 512$\n\n3. Compute $n!$:  \n   $3! = 3 \\cdot 2 \\cdot 1 = 6$\n\n4. Combine terms:  \n   $P(X(2) = 3) = \\frac{0.0183 \\cdot 512}{6} \\approx 1.56$\n\nThus, the probability of observing exactly 3 events in 2 hours is approximately $0.156$.\n\n### Expectation and Variance\n\nThe expectation (mean) and variance of $X(t)$ are:\n\n$$\nE(X(t)) = \\lambda t\n$$\n\n$$\n\\text{Var}(X(t)) = \\lambda t\n$$\n\n| Symbol   | What it means                                | Typical units/range       |\n|----------|---------------------------------------------|---------------------------|\n| $E(X(t))$ | Expected number of occurrences | Non-negative real numbers |\n| $\\text{Var}(X(t))$ | Variance of occurrences | Non-negative real numbers |\n| $\\lambda$ | Rate of occurrences per unit time | Occurrences per unit time |\n| $t$ | Length of the time interval | Time (e.g., seconds, hours) |\n\n#### Example: Calculating Expectation and Variance\n\nIf $\\lambda = 5$ occurrences per hour and $t = 3$ hours:\n\n1. Compute expectation:  \n   $E(X(3)) = \\lambda t = 5 \\cdot 3 = 15$\n\n2. Compute variance:  \n   $\\text{Var}(X(3)) = \\lambda t = 5 \\cdot 3 = 15$\n\nThus, the expected number of occurrences in 3 hours is 15, and the variance is also 15.\n\n### Moment Generating Function (MGF)\n\nThe moment generating function (MGF) of $X(t)$ is:\n\n$$\nM(t) = e^{\\lambda (e^t - 1)}\n$$\n\n| Symbol   | What it means                                | Typical units/range       |\n|----------|---------------------------------------------|---------------------------|\n| $M(t)$ | Moment generating function | Dimensionless |\n| $\\lambda$ | Rate of occurrences per unit time | Occurrences per unit time |\n| $t$ | Moment parameter | Real numbers |\n\nThe MGF is used to derive moments (e.g., mean, variance) of the distribution.\n\n### Special Case: Poisson Distribution\n\nThe Poisson distribution is a special case of the Poisson process when $\\lambda t$ is constant. In this case, the PMF simplifies to:\n\n$$\nP(X = n) = \\frac{e^{-\\lambda} \\lambda^n}{n!}, \\quad \\text{for } n = 0, 1, 2, \\dots, \\lambda > 0\n$$\n\nThis is commonly used to model the number of occurrences in a fixed time interval.\n\n### Remarks on Assumptions\n\n1. **Assumption 2**: The probability of a single occurrence in a small interval $h$ is $P(X(h) = 1) = \\lambda h$. Here, $\\lambda$ is the constant of proportionality.\n\n2. **Assumption 3**: The probability of more than one occurrence in a small interval $h$ is negligible:\n\n   $$\n   P(X(h) \\geq 2) = 1 - P(X(h) = 0) - P(X(h) = 1) = \\epsilon(h)\n   $$\n\n   where $\\epsilon(h)$ is a negligible function.\n\n#### Definition of Negligible Function\n\nA function $f: \\mathbb{N} \\to [0, 1]$ is negligible if for all positive polynomials $p$, there exists $n_0 \\in \\mathbb{N}$ such that for all $n \\geq n_0$:\n\n$$\nf(n) \\leq \\frac{1}{p(n)}\n$$\n\nThis means $f$ becomes asymptotically smaller than the inverse of any polynomial.\n\n### Exam Tip\n\nThe most-tested fact about the Poisson process is the PMF formula:\n\n$$\nP(X(t) = n) = \\frac{e^{-\\lambda t} (\\lambda t)^n}{n!}\n$$\n\nCommon mistakes include forgetting to multiply $\\lambda$ by $t$ or incorrectly calculating $n!$. Always double-check these steps in calculations.\n\n## Uniform Continuous Distribution\n\n### Introduction to Uniform Continuous Distribution\nSimply put, a uniform continuous distribution models a situation where a random variable has an equal probability of taking any value within a specified interval. This interval is defined by two numbers, $a$ and $b$, which represent the lower and upper bounds, respectively.\n\n> Imagine rolling a perfectly balanced die, but instead of discrete numbers, the die can land anywhere between 1 and 6. Every number between 1 and 6 is equally likely to occur. This is similar to a uniform continuous distribution over the interval [1, 6].\n\nFormally, a random variable $X$ follows a uniform continuous distribution over the interval $[a, b]$ if its probability density function (PDF) is defined as:\n\n$$\nf(x) = \n\\begin{cases} \n\\frac{1}{b-a}, & a \\leq x \\leq b \\\\ \n0, & \\text{otherwise} \n\\end{cases}\n$$\n\n| Symbol | What it means                     | Typical units/range        |\n|--------|-----------------------------------|----------------------------|\n| $x$ | Value of the random variable | Any real number |\n| $a$ | Lower bound of the interval | Real number ($a < b$) |\n| $b$ | Upper bound of the interval | Real number ($b > a$) |\n| $f(x)$ | Probability density function value | Probability per unit length |\n\nThis formula states that the probability density is constant ($\\frac{1}{b-a}$) for values of $x$ within the interval $[a, b]$, and zero outside this interval.\n\n### Validity of the PDF\nTo confirm that $f(x)$ is a valid probability density function, it must integrate to 1 over the interval $[a, b]$. The calculation is as follows:\n\n$$\n\\int_a^b f(x) \\, dx = \\int_a^b \\frac{1}{b-a} \\, dx = \\frac{1}{b-a} \\int_a^b 1 \\, dx = \\frac{1}{b-a} \\cdot (b-a) = 1\n$$\n\nThus, the PDF is valid.\n\n### Cumulative Distribution Function (CDF)\nThe cumulative distribution function $F(x)$ gives the probability that the random variable $X$ is less than or equal to a given value $x$. For the uniform distribution, the CDF is defined as:\n\n$$\nF(x) = \n\\begin{cases} \n0, & x < a \\\\ \n\\frac{x-a}{b-a}, & a \\leq x \\leq b \\\\ \n1, & x > b \n\\end{cases}\n$$\n\n| Symbol | What it means                     | Typical units/range        |\n|--------|-----------------------------------|----------------------------|\n| $x$ | Value of the random variable | Any real number |\n| $a$ | Lower bound of the interval | Real number ($a < b$) |\n| $b$ | Upper bound of the interval | Real number ($b > a$) |\n| $F(x)$ | Cumulative probability | Probability (0 to 1) |\n\nThis formula breaks into three cases:\n1. If $x < a$, the probability is 0 because $x$ is outside the interval.\n2. If $a \\leq x \\leq b$, the probability is proportional to how far $x$ is from $a$, scaled by the interval length $b-a$.\n3. If $x > b$, the probability is 1 because $x$ exceeds the upper bound, meaning all possible values of $X$ are less than or equal to $x$.\n\n### Expectation (Mean)\nThe expectation (mean) of a uniform continuous random variable $X$ is:\n\n$$\nE(X) = \\frac{a+b}{2}\n$$\n\n| Symbol | What it means                     | Typical units/range        |\n|--------|-----------------------------------|----------------------------|\n| $E(X)$ | Expected value (mean) | Real number |\n| $a$ | Lower bound of the interval | Real number ($a < b$) |\n| $b$ | Upper bound of the interval | Real number ($b > a$) |\n\nThis formula calculates the midpoint of the interval $[a, b]$, which makes sense because the uniform distribution is symmetric.\n\n**Example:**\nLet $X \\sim \\text{Unif}(2, 8)$. Compute $E(X)$:\n\n$$\nE(X) = \\frac{2+8}{2} = \\frac{10}{2} = 5\n$$\n\nSo, the mean is 5.\n\n### Variance\nThe variance of a uniform continuous random variable $X$ is:\n\n$$\n\\text{Var}(X) = \\frac{(b-a)^2}{12}\n$$\n\n| Symbol       | What it means                     | Typical units/range        |\n|--------------|-----------------------------------|----------------------------|\n| $\\text{Var}(X)$ | Variance of $X$ | Real number (non-negative) |\n| $a$ | Lower bound of the interval | Real number ($a < b$) |\n| $b$ | Upper bound of the interval | Real number ($b > a$) |\n\nThis formula measures the spread of the distribution. Larger intervals result in higher variance.\n\n**Example:**\nLet $X \\sim \\text{Unif}(2, 8)$. Compute $\\text{Var}(X)$:\n\n$$\n\\text{Var}(X) = \\frac{(8-2)^2}{12} = \\frac{6^2}{12} = \\frac{36}{12} = 3\n$$\n\nSo, the variance is 3.\n\n### Moment Generating Function (MGF)\nThe moment generating function $M(t)$ for a uniform continuous random variable $X$ is:\n\n$$\nM(t) = \n\\begin{cases} \n\\frac{e^{tb} - e^{ta}}{t(b-a)}, & t \\neq 0 \\\\ \n1, & t = 0 \n\\end{cases}\n$$\n\n| Symbol | What it means                     | Typical units/range        |\n|--------|-----------------------------------|----------------------------|\n| $M(t)$ | Moment generating function | Function of $t$ |\n| $t$ | Parameter | Real number |\n| $a$ | Lower bound of the interval | Real number ($a < b$) |\n| $b$ | Upper bound of the interval | Real number ($b > a$) |\n\nThis formula helps compute moments of the distribution. For $t = 0$, $M(t)$ simplifies to 1 because $e^{0} = 1$.\n\n**Example:**\nLet $X \\sim \\text{Unif}(2, 8)$ and compute $M(t)$ for $t = 1$:\n\n$$\nM(1) = \\frac{e^{1 \\cdot 8} - e^{1 \\cdot 2}}{1 \\cdot (8-2)} = \\frac{e^8 - e^2}{6}\n$$\n\nNumerical evaluation would require approximations for $e^8$ and $e^2$.\n\n---\n\n> **Exam Tip:** The most common mistake on exams is forgetting that the PDF is constant only within the interval $[a, b]$. Always check the bounds before applying formulas!\n\n## Exponential Distribution\n\nThe exponential distribution is a fundamental probability distribution used to model the time until the first occurrence of an event in a Poisson process.\n\n### Definition and Real-World Analogy\n\nSimply put, the exponential distribution describes the time between events in a process where events happen continuously and independently at a constant average rate.\n\n> Imagine you're waiting for a bus at a stop where buses arrive randomly but at an average rate of 4 buses per hour. The time you wait for the next bus can be modeled using the exponential distribution.\n\nFormally, if a random variable $T$ follows the exponential distribution with parameter $\\lambda > 0$, we write $T \\sim \\text{Exp}(\\lambda)$.\n\n### Probability Density Function (PDF)\n\nThe PDF of the exponential distribution is given by:\n\n$$\nf(t) = \n\\begin{cases} \n\\lambda e^{-\\lambda t}, & t > 0 \\\\\n0, & t \\leq 0\n\\end{cases}\n$$\n\n| Symbol | What it means                  | Typical units/range       |\n|--------|--------------------------------|---------------------------|\n| $t$ | Time | $t > 0$ (seconds, hours) |\n| $\\lambda$ | Rate parameter (events per unit time) | $\\lambda > 0$ |\n\nThis formula says that the probability density decreases exponentially as time $t$ increases. The parameter $\\lambda$ controls how quickly the probability density decreases.\n\n#### Example:\nLet $\\lambda = 2$ (events per hour). Find $f(t)$ for $t = 1$ hour.\n\n$$\nf(1) = \\lambda e^{-\\lambda t} = 2 e^{-2 \\cdot 1} = 2 e^{-2} \\approx 2 \\cdot 0.1353 = 0.2706\n$$\n\nSo, the probability density at $t = 1$ is approximately $0.2706$.\n\n### Cumulative Distribution Function (CDF)\n\nThe CDF of the exponential distribution is:\n\n$$\nF(t) = \n\\begin{cases} \n1 - e^{-\\lambda t}, & t > 0 \\\\\n0, & t \\leq 0\n\\end{cases}\n$$\n\n| Symbol | What it means                  | Typical units/range       |\n|--------|--------------------------------|---------------------------|\n| $t$ | Time | $t > 0$ (seconds, hours) |\n| $\\lambda$ | Rate parameter (events per unit time) | $\\lambda > 0$ |\n\nThis formula gives the probability that the time until the event occurs is less than or equal to $t$. \n\n#### Example:\nLet $\\lambda = 2$ (events per hour). Find $F(t)$ for $t = 1$ hour.\n\n$$\nF(1) = 1 - e^{-\\lambda t} = 1 - e^{-2 \\cdot 1} = 1 - e^{-2} \\approx 1 - 0.1353 = 0.8647\n$$\n\nSo, the probability that the event occurs within 1 hour is approximately $0.8647$.\n\n### Expectation and Variance\n\nThe mean (expected value) and variance of an exponential random variable $T \\sim \\text{Exp}(\\lambda)$ are:\n\n#### Expectation:\n\n$$\nE(T) = \\frac{1}{\\lambda}\n$$\n\n#### Variance:\n\n$$\n\\text{Var}(T) = \\frac{1}{\\lambda^2}\n$$\n\n| Symbol | What it means                  | Typical units/range       |\n|--------|--------------------------------|---------------------------|\n| $\\lambda$ | Rate parameter (events per unit time) | $\\lambda > 0$ |\n\n#### Example:\nLet $\\lambda = 2$ (events per hour). Find $E(T)$ and $\\text{Var}(T)$.\n\n$$\nE(T) = \\frac{1}{\\lambda} = \\frac{1}{2} = 0.5 \\, \\text{hours}\n$$\n\n$$\n\\text{Var}(T) = \\frac{1}{\\lambda^2} = \\frac{1}{2^2} = \\frac{1}{4} = 0.25 \\, \\text{hours}^2\n$$\n\nSo, the mean waiting time is $0.5$ hours, and the variance is $0.25$ hours$^2$.\n\n### Moment Generating Function (MGF)\n\nThe moment generating function (MGF) of the exponential distribution is:\n\n$$\nM(u) = \n\\begin{cases} \n\\frac{\\lambda}{\\lambda - u}, & u < \\lambda \\\\\n1, & u = 0\n\\end{cases}\n$$\n\n| Symbol | What it means                  | Typical units/range       |\n|--------|--------------------------------|---------------------------|\n| $u$ | Argument of the MGF | $u < \\lambda$ |\n| $\\lambda$ | Rate parameter (events per unit time) | $\\lambda > 0$ |\n\nThe MGF is useful for calculating moments (mean, variance, etc.) of the distribution.\n\n#### Example:\nLet $\\lambda = 2$ and $u = 1$. Find $M(u)$.\n\n$$\nM(1) = \\frac{\\lambda}{\\lambda - u} = \\frac{2}{2 - 1} = 2\n$$\n\nSo, the MGF at $u = 1$ is $2$.\n\n### Memoryless Property\n\nThe exponential distribution has a unique property called the memoryless property:\n\n$$\nP(T > a + b \\mid T > b) = P(T > a)\n$$\n\n| Symbol | What it means                  | Typical units/range       |\n|--------|--------------------------------|---------------------------|\n| $T$ | Time until the event occurs | $T > 0$ |\n| $a, b$ | Time intervals | $a, b > 0$ |\n\nThis property means that the probability of waiting an additional time $a$, given that you've already waited $b$, is the same as the probability of waiting $a$ from the start. In other words, the exponential distribution \"forgets\" how much time has already passed.\n\n#### Example:\nLet $\\lambda = 2$. Find $P(T > 3 \\mid T > 1)$.\n\nUsing the memoryless property:\n\n$$\nP(T > 3 \\mid T > 1) = P(T > 3 - 1) = P(T > 2)\n$$\n\n$$\nP(T > 2) = e^{-\\lambda t} = e^{-2 \\cdot 2} = e^{-4} \\approx 0.0183\n$$\n\nSo, the probability is approximately $0.0183$.\n\n### Gamma Function and Higher-Order Expectations\n\nThe $k$-th order expectation of $T \\sim \\text{Exp}(\\lambda)$ is:\n\n$$\nE(T^k) = \\frac{\\Gamma(k+1)}{\\lambda^k}\n$$\n\nWhere $\\Gamma(k+1)$ is the Gamma function:\n\n$$\n\\Gamma(k+1) = \\int_0^\\infty x^k e^{-x} dx\n$$\n\nFor positive integers $k$, $\\Gamma(k+1) = k!$.\n\n#### Example:\nLet $\\lambda = 2$ and $k = 1$. Find $E(T^1)$.\n\n$$\nE(T^1) = \\frac{\\Gamma(1+1)}{\\lambda^1} = \\frac{\\Gamma(2)}{2} = \\frac{1!}{2} = \\frac{1}{2} = 0.5\n$$\n\nSo, the first-order expectation is $0.5$ hours.\n\n### Proposition: Minimum of Independent Exponential Random Variables\n\nIf $X_1, X_2, \\dots, X_n$ are independent exponential random variables with parameters $\\lambda_1, \\lambda_2, \\dots, \\lambda_n$, then:\n\n$$\n\\text{min}(X_1, X_2, \\dots, X_n) \\sim \\text{Exp}\\left(\\sum_{i=1}^n \\lambda_i\\right)\n$$\n\nThis result is useful for modeling systems with competing exponential processes.\n\n---\n\n> **Exam Tip:** The memoryless property is the most commonly tested feature of the exponential distribution. Make sure you understand how to apply it to conditional probabilities.\n\n## Gamma Distribution\n\n### What is the Gamma Distribution?\n\nThe Gamma distribution is a continuous probability distribution that models the time until the $r$-th occurrence in a Poisson process. In a Poisson process, random events occur independently and continuously over time, such as the arrival of customers at a store or the occurrence of phone calls in a call center.\n\nFormally, if $T$ is the time until the $r$-th event in a Poisson process with rate $\\lambda > 0$, then $T$ follows a Gamma distribution with shape and rate parameters $(\\lambda, r)$ and is denoted as:\n\n$$\nT \\sim \\text{Gamma}(\\lambda, r).\n$$\n\n> Example: Imagine you're waiting for buses at a bus stop, and buses arrive at random intervals. The Gamma distribution can be used to model how long you'll need to wait for the $r$-th bus.\n\n---\n\n### Relationship Between Gamma and Chi-Square Distribution\n\nThe Chi-square distribution is a **special case of the Gamma distribution**. Specifically:\n\n- If $\\lambda = \\frac{1}{2}$ and $r = \\frac{n}{2}$ (where $n$ is a positive integer), then:\n\n  $$\n  T \\sim \\text{Gamma}\\left(\\frac{1}{2}, \\frac{n}{2}\\right)\n  $$\n\n  becomes equivalent to the Chi-square distribution with $n$ degrees of freedom:\n\n  $$\n  T \\sim \\chi_n^2.\n  $$\n\n#### Why does this work? 💡 \nA Chi-square random variable arises from the sum of the squares of $n$ independent standard normal random variables. It can also be shown (see source slides) that the square of a standard normal random variable corresponds to an exponential random variable with parameter $\\lambda = \\frac{1}{2}$. Summing $n$ such squared terms creates a Gamma distribution with specific parameters — the Chi-square distribution.\n\n> 📝 **Exam Tip:** Be careful not to confuse Chi-square and Gamma parameters. For a Chi-square random variable with $n$ degrees of freedom, $\\lambda = \\frac{1}{2}$ and $r = \\frac{n}{2}$, **not** $\\lambda = 1$ and $r = n$.\n\n---\n\n### Cumulative Distribution Function (CDF)\n\nThe CDF of a Gamma random variable $T$ is given by:\n\n$$\nF(t) = \n\\begin{cases} \n1 - \\sum_{j=0}^{r-1} \\frac{e^{-\\lambda t} (\\lambda t)^j}{j!}, & t > 0 \\\\\n0, & t \\leq 0\n\\end{cases}\n$$\n\nThis gives the probability that $T$, the time until the $r$-th event, is less than or equal to $t$. \n\n| Symbol | Meaning | Notes |\n|--------|---------|-------|\n| $F(t)$ | Cumulative probability up to time $t$ | $[0, 1]$ |\n| $t$ | Time variable | $t > 0$ |\n| $\\lambda$ | Rate of the Poisson process | $\\lambda > 0$ |\n| $r$ | Number of occurrences | $r \\in \\mathbb{N}$ |\n\n#### Example:\nLet $\\lambda = 2$, $r = 3$, and $t = 1$. Compute $F(t)$:\n\n1. Evaluate the cumulative sum:\n\n   - For $j = 0$: \n\n     $$\n     \\frac{e^{-2 \\cdot 1} (2 \\cdot 1)^0}{0!} = e^{-2}.\n     $$\n\n   - For $j = 1$:\n\n     $$\n     \\frac{e^{-2 \\cdot 1} (2 \\cdot 1)^1}{1!} = 2e^{-2}.\n     $$\n\n   - For $j = 2$: \n\n     $$\n     \\frac{e^{-2 \\cdot 1} (2 \\cdot 1)^2}{2!} = 2e^{-2}.\n     $$\n\n2. Sum terms: \n\n   $$\n   e^{-2} + 2e^{-2} + 2e^{-2} = 5e^{-2}.\n   $$\n\n3. Subtract from 1: \n\n   $$\n   F(1) = 1 - 5e^{-2} \\approx 0.6767.\n   $$\n\n---\n\n### Probability Density Function (PDF)\n\nThe PDF of a Gamma random variable $T$ is:\n\n$$\nf(t) = \n\\begin{cases} \n\\frac{\\lambda^r t^{r-1} e^{-\\lambda t}}{\\Gamma(r)}, & t > 0 \\\\\n0, & t \\leq 0\n\\end{cases}\n$$\n\nThe Gamma function $\\Gamma(r)$ generalizes the factorial and is defined as:\n\n$$\n\\Gamma(r) = \\int_0^\\infty x^{r-1} e^{-x} dx.\n$$\n\nFor integers, $\\Gamma(r) = (r - 1)!$.\n\n| Symbol | What it means | Units/range |\n|--------|---------------|-------------|\n| $f(t)$ | Probability density at time $t$ | $[0, \\infty)$ |\n| $t$ | Time | $t > 0$ |\n| $\\lambda$ | Rate | $\\lambda > 0$ |\n| $r$ | Shape (number of occurrences) | $r > 0$ |\n\n#### Example:\nLet $\\lambda = 2$, $r = 3$, and $t = 1$. Compute $f(t)$:\n\n- Compute $\\Gamma(r)$: \n\n  $$\n  \\Gamma(3) = (3 - 1)! = 2! = 2.\n  $$\n\n- Substitute into the PDF formula:  \n\n  $$\n  f(1) = \\frac{2^3 \\cdot 1^{3-1} \\cdot e^{-2 \\cdot 1}}{\\Gamma(3)} = \\frac{8 \\cdot e^{-2}}{2} = 4e^{-2}.\n  $$\n\n- Approximate: \n\n  $$\n  f(1) \\approx 4 \\cdot 0.1353 = 0.5412.\n  $$\n\n---\n\n### Expectation and Variance\n\nThe expectation (mean) and variance of a Gamma random variable $T$ are:\n\n$$\nE(T) = \\frac{r}{\\lambda}, \\quad \\text{Var}(T) = \\frac{r}{\\lambda^2}.\n$$\n\n| Symbol | Description | Formula |\n|--------|-------------|---------|\n| $E(T)$ | Expected time | $\\frac{r}{\\lambda}$ |\n| $\\text{Var}(T)$ | Variance of time | $\\frac{r}{\\lambda^2}$ |\n\n#### Example:\nLet $\\lambda = 2$ and $r = 3$:\n\n- Expectation: \n\n  $$\n  E(T) = \\frac{3}{2} = 1.5.\n  $$\n\n- Variance:  \n\n  $$\n  \\text{Var}(T) = \\frac{3}{2^2} = 0.75.\n  $$\n\n---\n\n### Moment Generating Function (MGF)\n\nThe moment generating function (MGF) of a Gamma random variable $T$ is:\n\n$$\nM(u) = \n\\begin{cases} \n\\left(\\frac{\\lambda}{\\lambda - u}\\right)^r, & u < \\lambda \\\\\n1, & u = 0\n\\end{cases}\n$$\n\nThis is useful for deriving moments like the mean and variance.\n\n#### Example:\nLet $\\lambda = 2$, $r = 3$, and $u = 1$. Compute $M(u)$:\n\n- Substitute values:  \n\n  $$\n  M(1) = \\left(\\frac{2}{2 - 1}\\right)^3 = 2^3 = 8.\n  $$\n\n---\n\n### Special Properties\n\n1. **Additivity**: If $X_1 \\sim \\text{Gamma}(\\lambda, r_1)$ and $X_2 \\sim \\text{Gamma}(\\lambda, r_2)$ are independent, then:\n\n   $$\n   X_1 + X_2 \\sim \\text{Gamma}(\\lambda, r_1 + r_2).\n   $$\n\n2. **Connection to Exponentials**: If $T \\sim \\text{Gamma}(\\lambda, 1)$, then $T$ is an exponential random variable with rate $\\lambda$.\n\n---\n\n### Chi-Square Wrap-Up 💡\n\nWhen faced with Chi-square and Gamma distributions:\n- Recall that $\\lambda = \\frac{1}{2}$ and $r = \\frac{n}{2}$ for a Chi-square distribution with $n$ degrees of freedom.\n- Misattributing $\\lambda = 1$ and $r = n$ for a Chi-square leads to incorrect conclusions.\n\nThis equivalence links the Chi-square distribution to the Gamma family and highlights the versatility of the Gamma distribution in modeling various phenomena.\n\n---\n\n> 📝 **Exam Tip:** On exams, use $\\chi^2$ distributions for sums of squares in normal variables and verify whether $r$ and $\\lambda$ conform to the Chi-square's definition.\n\n## Beta Distribution\n\n### What is the Beta Distribution?\n\nSimply put, the Beta distribution is a probability distribution that models random variables within the interval [0, 1]. It is particularly useful for representing probabilities or proportions, such as the likelihood of success in a given scenario.\n\n> Imagine you are flipping a coin and want to model the probability that the coin lands heads. The Beta distribution can describe this probability, considering how many times you've flipped the coin and how many heads you've observed.\n\nFormally, a random variable $X$ follows the Beta distribution with parameters $\\alpha$ and $\\beta$ (where $\\alpha, \\beta > 0$) if its probability density function (PDF) is given by:\n\n$$\nf(x) = \n\\begin{cases} \n\\frac{x^{\\alpha-1}(1-x)^{\\beta-1}}{B(\\alpha, \\beta)}, & 0 < x < 1 \\\\ \n0, & \\text{otherwise}\n\\end{cases}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $f(x)$ | Probability density function | Dimensionless |\n| $x$ | Random variable | $0 \\leq x \\leq 1$ |\n| $\\alpha$ | Shape parameter 1 | $\\alpha > 0$ |\n| $\\beta$ | Shape parameter 2 | $\\beta > 0$ |\n| $B(\\alpha, \\beta)$ | Beta function (normalizing constant) | Dimensionless |\n\nThis formula says that the PDF is proportional to $x^{\\alpha-1}(1-x)^{\\beta-1}$ for values of $x$ between 0 and 1, and zero otherwise. The Beta function $B(\\alpha, \\beta)$ ensures that the total area under the curve equals 1, as required for a probability density function.\n\n#### Special Case: Uniform Distribution\nWhen $\\alpha = \\beta = 1$, the Beta distribution simplifies to the uniform distribution over the interval [0, 1]. This means that every value in the interval is equally likely.\n\n### Beta Function\n\nThe Beta function $B(\\alpha, \\beta)$ is a key component of the Beta distribution and is defined as:\n\n$$\nB(\\alpha, \\beta) = \\int_0^1 x^{\\alpha-1}(1-x)^{\\beta-1} \\, dx\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $B(\\alpha, \\beta)$ | Beta function | Dimensionless |\n| $\\alpha$ | Shape parameter 1 | $\\alpha > 0$ |\n| $\\beta$ | Shape parameter 2 | $\\beta > 0$ |\n\nThe Beta function acts as a normalizing constant to ensure that the total probability across the interval [0, 1] sums to 1. It can also be expressed in terms of the Gamma function:\n\n$$\nB(\\alpha, \\beta) = \\frac{\\Gamma(\\alpha) \\Gamma(\\beta)}{\\Gamma(\\alpha + \\beta)}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $\\Gamma(\\alpha)$ | Gamma function | Dimensionless |\n| $\\Gamma(\\beta)$ | Gamma function | Dimensionless |\n| $\\Gamma(\\alpha + \\beta)$ | Gamma function | Dimensionless |\n\nThis relationship allows us to compute $B(\\alpha, \\beta)$ without directly evaluating the integral.\n\n#### Numerical Example: Computing $B(2, 3)$\nUsing the Gamma function relationship:\n\n$$\nB(2, 3) = \\frac{\\Gamma(2) \\Gamma(3)}{\\Gamma(2 + 3)}\n$$\n\nFrom the properties of the Gamma function:\n- $\\Gamma(2) = 1! = 1$\n- $\\Gamma(3) = 2! = 2$\n- $\\Gamma(5) = 4! = 24$\n\nSubstitute these values:\n\n$$\nB(2, 3) = \\frac{1 \\cdot 2}{24} = \\frac{2}{24} = \\frac{1}{12}\n$$\n\nThus, $B(2, 3) = \\frac{1}{12}$.\n\n### Expectation and Variance\n\n#### Expectation\nThe expected value (mean) of a Beta random variable $X$ is given by:\n\n$$\nE(X) = \\frac{\\alpha}{\\alpha + \\beta}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $E(X)$ | Expected value (mean) | Dimensionless |\n| $\\alpha$ | Shape parameter 1 | $\\alpha > 0$ |\n| $\\beta$ | Shape parameter 2 | $\\beta > 0$ |\n\nThis formula shows that the mean depends on the relative sizes of $\\alpha$ and $\\beta$. If $\\alpha = \\beta$, the mean is 0.5 (the midpoint of the interval [0, 1]).\n\n#### Variance\nThe variance of a Beta random variable $X$ is given by:\n\n$$\n\\text{Var}(X) = \\frac{\\alpha \\beta}{(\\alpha + \\beta)^2 (\\alpha + \\beta + 1)}\n$$\n\n| Symbol | What it means | Typical units/range |\n|--------|---------------|---------------------|\n| $\\text{Var}(X)$ | Variance | Dimensionless |\n| $\\alpha$ | Shape parameter 1 | $\\alpha > 0$ |\n| $\\beta$ | Shape parameter 2 | $\\beta > 0$ |\n\nThis formula shows that the variance decreases as $\\alpha$ and $\\beta$ increase, meaning the distribution becomes more concentrated around the mean.\n\n#### Numerical Example: Computing $E(X)$ and $\\text{Var}(X)$ for $\\alpha = 2$, $\\beta = 3$\n1. Compute $E(X)$:\n\n   $$\n   E(X) = \\frac{\\alpha}{\\alpha + \\beta} = \\frac{2}{2 + 3} = \\frac{2}{5} = 0.4\n   $$\n\n2. Compute $\\text{Var}(X)$:\n\n   $$\n   \\text{Var}(X) = \\frac{\\alpha \\beta}{(\\alpha + \\beta)^2 (\\alpha + \\beta + 1)}\n   $$\n\n   Substitute $\\alpha = 2$, $\\beta = 3$:\n\n   $$\n   \\text{Var}(X) = \\frac{2 \\cdot 3}{(2 + 3)^2 (2 + 3 + 1)} = \\frac{6}{5^2 \\cdot 6} = \\frac{6}{150} = 0.04\n   $$\n\nThus, $E(X) = 0.4$ and $\\text{Var}(X) = 0.04$.\n\n### Higher-Order Expectations\n\nThe $k$-th order expectation of a Beta random variable $X$ is given by:\n\n$$\nE(X^k) = \\frac{B(\\alpha + k, \\beta)}{B(\\alpha, \\beta)}\n$$\n\nUsing the Gamma function relationship:\n\n$$\nE(X^k) = \\frac{\\Gamma(\\alpha + k) \\Gamma(\\beta)}{\\Gamma(\\alpha + \\beta + k)} \\cdot \\frac{\\Gamma(\\alpha + \\beta)}{\\Gamma(\\alpha) \\Gamma(\\beta)}\n$$\n\nThis formula allows us to compute moments of the Beta distribution.\n\n#### Special Case: First-Order Expectation\nFor $k = 1$, the formula reduces to:\n\n$$\nE(X) = \\frac{\\alpha}{\\alpha + \\beta}\n$$\n\nThis matches the earlier formula for the mean.\n\n### Visualizing the Beta Distribution\n\nThe shape of the Beta distribution depends on the values of $\\alpha$ and $\\beta$. For example:\n- If $\\alpha > \\beta$, the distribution is skewed to the right.\n- If $\\alpha < \\beta$, the distribution is skewed to the left.\n- If $\\alpha = \\beta$, the distribution is symmetric.\n\n#### Exercise: Plot Shapes for Different $\\alpha$ and $\\beta$\nTry plotting the PDF for:\n1. $\\alpha = 2$, $\\beta = 5$\n2. $\\alpha = 5$, $\\beta = 2$\n3. $\\alpha = \\beta = 3$\n\nThis will help you understand how $\\alpha$ and $\\beta$ affect the distribution.\n\n---\n\n> **Exam Tip:** The most common mistake students make is forgetting that the Beta distribution is defined only on the interval [0, 1]. Always check the range of $x$ when solving problems!\n\n## Normal (Gaussian) Distribution\n\n### What is the Normal Distribution?\n\nThe normal distribution is a fundamental concept in probability and statistics, used to model continuous random variables that tend to cluster around a central value, forming a symmetric, bell-shaped curve. It is one of the most widely used probability distributions in various fields.\n\n> For example, consider measuring the heights of all students in a school. Most students will have heights close to the average, while very few will be extremely short or tall. This clustering around the average height forms a bell-shaped pattern, which is modeled by the normal distribution.\n\n### Formal Definition\n\nA random variable $X$ is said to follow a normal (or Gaussian) distribution with parameters $\\mu$ (mean) and $\\sigma^2$ (variance) if its probability density function (PDF) is given by:\n\n$$\nf(x) = \\frac{1}{\\sigma \\sqrt{2\\pi}} \\exp\\left(-\\frac{(x-\\mu)^2}{2\\sigma^2}\\right), \\quad -\\infty < x < \\infty\n$$\n\n| Symbol | Meaning | Typical Units/Range |\n|--------|---------|----------------------|\n| $x$ | Value of the random variable | Any real number |\n| $\\mu$ | Mean (average) of the distribution | Any real number |\n| $\\sigma^2$ | Variance (spread of the data) | Positive real number |\n| $\\sigma$ | Standard deviation ($\\sqrt{\\sigma^2}$) | Positive real number |\n\nThis formula indicates that the probability density of $X$ at a specific value $x$ depends on the distance of $x$ from the mean $\\mu$, scaled by the standard deviation $\\sigma$. The exponential term ensures that values closer to $\\mu$ have higher probabilities, while values farther away have lower probabilities.\n\n### Properties of the Normal Distribution\n\n1. **Expectation (Mean):** The mean of $X$ is $\\mu$:\n\n   $$\n   E[X] = \\mu\n   $$\n\n2. **Variance:** The variance of $X$ is $\\sigma^2$:\n\n   $$\n   \\text{Var}(X) = \\sigma^2\n   $$\n\n3. **Standard Normal Distribution:** When $\\mu = 0$ and $\\sigma^2 = 1$, the normal distribution is referred to as the standard normal distribution. Its PDF simplifies to:\n\n   $$\n   f(x) = \\frac{1}{\\sqrt{2\\pi}} \\exp\\left(-\\frac{x^2}{2}\\right)\n   $$\n\n4. **Sum of Independent Normal Random Variables:** If $X_1 \\sim N(\\mu_1, \\sigma_1^2)$ and $X_2 \\sim N(\\mu_2, \\sigma_2^2)$ are independent, then their sum $X_1 + X_2$ also follows a normal distribution:\n\n   $$\n   X_1 + X_2 \\sim N(\\mu_1 + \\mu_2, \\sigma_1^2 + \\sigma_2^2)\n   $$\n\n### Validity of the PDF\n\nFor $f(x)$ to be a valid probability density function, it must integrate to 1 over the entire real line. This is verified as follows:\n\n$$\n\\int_{-\\infty}^\\infty f(x) \\, dx = \\int_{-\\infty}^\\infty \\frac{1}{\\sigma \\sqrt{2\\pi}} \\exp\\left(-\\frac{(x-\\mu)^2}{2\\sigma^2}\\right) \\, dx\n$$\n\nBy substituting $z = \\frac{x-\\mu}{\\sigma}$, the integral becomes:\n\n$$\n\\int_{-\\infty}^\\infty \\frac{1}{\\sqrt{2\\pi}} \\exp\\left(-\\frac{z^2}{2}\\right) \\, dz\n$$\n\nThis is a standard Gaussian integral, and its value is 1. Therefore, the PDF is valid.\n\n### Computing Expectation and Variance\n\n#### Expectation:\nTo compute $E[X]$, we use the property that the standardized variable $\\frac{X - \\mu}{\\sigma}$ has an expectation of 0 (due to symmetry about $\\mu$). This gives:\n\n$$\nE[X] = \\mu\n$$\n\n#### Variance:\nThe variance is derived using the second moment:\n\n$$\nE[X^2] = \\sigma^2 + \\mu^2\n$$\n\nThus:\n\n$$\n\\text{Var}(X) = E[X^2] - (E[X])^2 = \\sigma^2\n$$\n\n### Standard Normal Distribution and Z-Transformation\n\nIf $X \\sim N(\\mu, \\sigma^2)$, we can standardize $X$ using the transformation:\n\n$$\nZ = \\frac{X - \\mu}{\\sigma}\n$$\n\nThe resulting variable $Z$ follows a standard normal distribution with mean 0 and variance 1:\n\n$$\nZ \\sim N(0, 1)\n$$\n\nThis transformation simplifies probability calculations. For example:\n- To find $P(X < b)$, note that $X < b$ is equivalent to $Z < \\frac{b-\\mu}{\\sigma}$.\n- Similarly, for $a < X < b$, we compute:\n\n$$\nP(a < X < b) = P\\left(\\frac{a-\\mu}{\\sigma} < Z < \\frac{b-\\mu}{\\sigma}\\right)\n$$\n\n### Worked Example: Standardizing a Normal Variable\n\nSuppose $X \\sim N(50, 16)$ (mean = 50, variance = 16). Find $P(X < 54)$.\n\n1. Standardize $X$:\n\n   $$\n   Z = \\frac{X - \\mu}{\\sigma} = \\frac{X - 50}{4}\n   $$\n\n2. For $X < 54$, compute $Z$:\n\n   $$\n   Z = \\frac{54 - 50}{4} = 1\n   $$\n\n3. Use the standard normal table to find $P(Z < 1)$. From the table:\n\n   $$\n   P(Z < 1) \\approx 0.8413\n   $$\n\nThus, $P(X < 54) = 0.8413$.\n\n### Special Case: Chi-Squared Distribution\n\nWhen the squares of independent standard normal variables are summed, the result follows a chi-squared distribution. For example, if $Z_1$ and $Z_2$ are independent standard normal variables, then:\n\n$$\nD^2 = Z_1^2 + Z_2^2\n$$\n\nfollows a chi-squared distribution with 2 degrees of freedom.\n\n#### Example:\nIf $D^2 > 9$, the probability is:\n\n$$\nP(D^2 > 9) = P(\\chi^2_2 > 9) \\approx 0.0111\n$$\n\n> 📝 **Exam Tip:** The most common exam mistake is forgetting to standardize a normal variable before using the standard normal table. Always apply the transformation $Z = \\frac{X - \\mu}{\\sigma}$ first!",
+    "proficiency": "Foundations",
+    "graph": {
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Geometric Dist.",
+          "x": 10,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Geometric Dist."
+        },
+        {
+          "id": 2,
+          "label": "Bernoulli Dist.",
+          "x": 30,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Bernoulli Dist."
+        },
+        {
+          "id": 3,
+          "label": "Probability Mass",
+          "x": 50,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Probability Mass"
+        },
+        {
+          "id": 4,
+          "label": "Expectation",
+          "x": 10,
+          "y": 40,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Expectation"
+        },
+        {
+          "id": 5,
+          "label": "Variance",
+          "x": 30,
+          "y": 40,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Variance"
+        },
+        {
+          "id": 6,
+          "label": "MGF",
+          "x": 50,
+          "y": 40,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "MGF"
+        },
+        {
+          "id": 7,
+          "label": "Memoryless Prop.",
+          "x": 70,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Memoryless Prop."
+        },
+        {
+          "id": 8,
+          "label": "Negative Binomial",
+          "x": 90,
+          "y": 10,
+          "status": "mastered",
+          "mutation_count": 0,
+          "full_label": "Negative Binomial"
+        },
+        {
+          "id": 9,
+          "label": "Binomial Dist.",
+          "x": 70,
+          "y": 40,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Binomial Dist."
+        },
+        {
+          "id": 10,
+          "label": "Poisson Dist.",
+          "x": 50,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Poisson Dist."
+        },
+        {
+          "id": 11,
+          "label": "Normal Dist.",
+          "x": 30,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Normal Dist."
+        },
+        {
+          "id": 12,
+          "label": "Bayes' Theorem",
+          "x": 10,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Bayes' Theorem"
+        },
+        {
+          "id": 13,
+          "label": "Random Variable",
+          "x": 70,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Random Variable"
+        },
+        {
+          "id": 14,
+          "label": "Statistical Moments",
+          "x": 90,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Statistical Moments"
+        }
+      ],
+      "edges": [
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          4
+        ],
+        [
+          1,
+          5
+        ],
+        [
+          1,
+          6
+        ],
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          8
+        ],
+        [
+          2,
+          9
+        ],
+        [
+          9,
+          8
+        ],
+        [
+          8,
+          10
+        ],
+        [
+          10,
+          11
+        ],
+        [
+          11,
+          12
+        ],
+        [
+          12,
+          13
+        ],
+        [
+          13,
+          14
+        ]
+      ]
+    },
+    "created_at": "2026-03-07T18:39:26.707960",
+    "updated_at": "2026-03-07T19:19:58.926287"
+  },
+  {
+    "id": "a4cf3eec-0b35-403a-a2b7-5835fbd232f6",
+    "user_id": "demo",
+    "name": "Digital Signal Processing",
+    "course": "EC301 — DSP",
+    "note": "```markdown\n## Fourier Transform\n\nThe Fourier Transform is a mathematical tool used to analyze and represent functions or signals in terms of their frequency components. It transforms a time-domain signal into its frequency-domain representation, providing insight into the signal's spectral characteristics.\n\n### Definition\n\nFor a continuous-time signal $f(t)$, the Fourier Transform $F(\\omega)$ is defined as:\n\n$$\nF(\\omega) = \\int_{-\\infty}^\\infty f(t) e^{-i \\omega t} \\, dt\n$$\n\nHere:\n- $f(t)$ is the original signal in the time domain.\n- $F(\\omega)$ is the transformed signal in the frequency domain.\n- $\\omega$ represents angular frequency, measured in radians per second.\n- $i$ is the imaginary unit ($i^2 = -1$).\n\nThe inverse Fourier Transform allows us to reconstruct the original signal $f(t)$ from its frequency-domain representation $F(\\omega)$:\n\n$$\nf(t) = \\frac{1}{2\\pi} \\int_{-\\infty}^\\infty F(\\omega) e^{i \\omega t} \\, d\\omega\n$$\n\n### Intuition\n\nThe Fourier Transform decomposes a signal into a sum of sinusoidal components (sines and cosines) of varying frequencies, amplitudes, and phases. Each frequency component corresponds to a \"building block\" of the original signal. This decomposition is particularly useful for understanding periodicity, filtering signals, and solving differential equations.\n\n### Key Properties\n\n1. **Linearity**: If $f_1(t)$ and $f_2(t)$ have Fourier Transforms $F_1(\\omega)$ and $F_2(\\omega)$, then for any constants $a$ and $b$:\n\n   $$\n   \\text{Fourier Transform of } af_1(t) + bf_2(t) = aF_1(\\omega) + bF_2(\\omega).\n   $$\n\n2. **Time Shift**: If $f(t)$ is shifted by $t_0$, its Fourier Transform becomes:\n\n   $$\n   f(t - t_0) \\xrightarrow{\\text{FT}} F(\\omega)e^{-i \\omega t_0}.\n   $$\n\n3. **Frequency Shift**: Multiplying $f(t)$ by $e^{i \\omega_0 t}$ shifts its Fourier Transform:\n\n   $$\n   f(t)e^{i \\omega_0 t} \\xrightarrow{\\text{FT}} F(\\omega - \\omega_0).\n   $$\n\n4. **Scaling**: If $f(at)$ is a scaled version of $f(t)$, its Fourier Transform is scaled inversely:\n\n   $$\n   f(at) \\xrightarrow{\\text{FT}} \\frac{1}{|a|} F\\left(\\frac{\\omega}{a}\\right).\n   $$\n\n5. **Parseval's Theorem**: The total energy of a signal is preserved in both the time and frequency domains:\n\n   $$\n   \\int_{-\\infty}^\\infty |f(t)|^2 \\, dt = \\frac{1}{2\\pi} \\int_{-\\infty}^\\infty |F(\\omega)|^2 \\, d\\omega.\n   $$\n\n### Applications\n\nThe Fourier Transform is widely used in fields such as signal processing, communications, image analysis, and physics. Common applications include:\n- Filtering unwanted frequencies from signals.\n- Analyzing the frequency content of audio and images.\n- Solving partial differential equations in engineering and physics.\n\nUnderstanding the Fourier Transform provides a foundation for working with more advanced tools like the Discrete Fourier Transform (DFT) and Fast Fourier Transform (FFT), which are computationally efficient implementations for discrete signals.\n```\n\n\n---\n\n**Amendment (page 1):**\n\n```markdown\n## Fourier Transform\n\nThe Fourier Transform is a mathematical tool used to analyze and represent functions or signals in terms of their frequency components. It transforms a time-domain signal into its frequency-domain representation, providing insight into the signal's spectral characteristics.\n\n### Definition\n\nFor a continuous-time signal $f(t)$, the Fourier Transform $F(\\omega)$ is defined as:\n\n$$\nF(\\omega) = \\int_{-\\infty}^\\infty f(t) e^{-i \\omega t} \\, dt\n$$\n\nHere:\n- $f(t)$ is the original signal in the time domain.\n- $F(\\omega)$ is the transformed signal in the frequency domain.\n- $\\omega$ represents angular frequency, measured in radians per second.\n- $i$ is the imaginary unit ($i^2 = -1$).\n\nThe inverse Fourier Transform reconstructs the original signal $f(t)$ from its frequency-domain representation $F(\\omega)$:\n\n$$\nf(t) = \\frac{1}{2\\pi} \\int_{-\\infty}^\\infty F(\\omega) e^{i \\omega t} \\, d\\omega\n$$\n\n### Intuition\n\nThe Fourier Transform expresses a signal as a sum of sinusoidal components (both sines and cosines) having various frequencies, amplitudes, and phases. These components act as \"building blocks\" of the signal, allowing us to transition from observing how a signal evolves over time (the time domain) to how it breaks down into frequencies (the frequency domain). Conversely, the inverse Fourier Transform combines these frequency components back into the original signal.\n\n💡 Intuition behind Duality: Duality showcases an inherent symmetry in the Fourier Transform. The roles of the time-domain signal $f(t)$ and its frequency-domain counterpart $F(\\omega)$ can be interchanged under specific modifications. This means that analyzing $f(t)$ as a function of time versus analyzing $F(\\omega)$ as a function of frequency are symmetric, complementary perspectives on the same data. This property allows techniques in one domain to be applied in the other.\n\n---\n\n### Key Properties\n\n1. **Linearity**  \n   The Fourier Transform is linear, meaning the transform of a scaled or summed signal is equal to the scaled or summed transforms:\n\n   $$\n   \\text{If } f_1(t) \\xrightarrow{\\text{FT}} F_1(\\omega) \\text{ and } f_2(t) \\xrightarrow{\\text{FT}} F_2(\\omega), \\text{ then }\n   $$\n\n   $$\n   af_1(t) + bf_2(t) \\xrightarrow{\\text{FT}} aF_1(\\omega) + bF_2(\\omega).\n   $$\n\n2. **Time Shift**  \n   If the signal $f(t)$ is shifted in time by $t_0$, its Fourier Transform is multiplied by a complex exponential:\n\n   $$\n   f(t - t_0) \\xrightarrow{\\text{FT}} F(\\omega)e^{-i \\omega t_0}.\n   $$\n\n3. **Frequency Shift**  \n   If $f(t)$ is modulated (multiplied by $e^{i \\omega_0 t}$), its Fourier Transform is shifted by $\\omega_0$:\n\n   $$\n   f(t)e^{i \\omega_0 t} \\xrightarrow{\\text{FT}} F(\\omega - \\omega_0).\n   $$\n\n4. **Scaling**  \n   A compression or expansion of $f(t)$ by a factor of $a$ scales its Fourier Transform inversely:\n\n   $$\n   f(at) \\xrightarrow{\\text{FT}} \\frac{1}{|a|} F\\left(\\frac{\\omega}{a}\\right).\n   $$\n\n5. **Parseval's Theorem**  \n   The energy of a signal is preserved across time and frequency domains:\n\n   $$\n   \\int_{-\\infty}^\\infty |f(t)|^2 \\, dt = \\frac{1}{2\\pi} \\int_{-\\infty}^\\infty |F(\\omega)|^2 \\, d\\omega.\n   $$\n\n6. **Duality**  \n\n   Duality highlights that the Fourier Transform has symmetry between the time and frequency domains. Specifically, the Fourier Transform of $f(t)$ is $F(\\omega)$, and if we swap the roles of $f(t)$ and $F(\\omega)$ (time and frequency domain), we get a similar Fourier relation. Formally, if:\n\n   $$\n   f(t) \\xrightarrow{\\text{FT}} F(\\omega),\n   $$\n\n   then under duality:\n\n   $$\n   \\frac{1}{2\\pi} F(t) \\xrightarrow{\\text{FT}} f(-\\omega).\n   $$\n\n   💡 Why it works: The mathematical derivation of duality rests on the symmetry of the Fourier kernel $e^{-i\\omega t}$ under role-reversal. Intuitively, it implies that operating in the time domain and frequency domain offers interchangeable interpretations of the same signal, connected by scaling factors.\n\n   > 📝 **Exam Tip:** If given a Fourier Transform pair $f(t) \\leftrightarrow F(\\omega)$, you can use duality to immediately deduce what $F(t)$ transforms into, without recalculating the Fourier integral.\n\n---\n\n### Applications\n\nThe Fourier Transform has extensive applications in science and engineering, including:\n- **Signal analysis**: Decomposing audio, radio, or video signals into their frequency content.\n- **Filtering**: Removing unwanted frequencies while preserving key components of a signal.\n- **Image processing**: Enhancing, compressing, or analyzing images via their frequency spectrum.\n- **Solving differential equations**: Transforming difficult equations into algebraic forms for easier solutions.\n\nUnderstanding the Fourier Transform sets the foundation for advanced tools like the Discrete Fourier Transform (DFT) and Fast Fourier Transform (FFT), which efficiently handle discrete signals in computational applications.\n```",
+    "proficiency": "Practitioner",
+    "graph": {
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Fourier Transform",
+          "x": 10,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Fourier Transform"
+        },
+        {
+          "id": 2,
+          "label": "Linearity",
+          "x": 30,
+          "y": 40,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Linearity"
+        },
+        {
+          "id": 3,
+          "label": "Time Shift",
+          "x": 50,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Time Shift"
+        },
+        {
+          "id": 4,
+          "label": "Frequency Shift",
+          "x": 70,
+          "y": 40,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Frequency Shift"
+        },
+        {
+          "id": 5,
+          "label": "Scaling",
+          "x": 90,
+          "y": 70,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Scaling"
+        },
+        {
+          "id": 6,
+          "label": "Parseval's Theorem",
+          "x": 10,
+          "y": 80,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Parseval's Theorem"
+        },
+        {
+          "id": 7,
+          "label": "Duality",
+          "x": 50,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Duality"
+        },
+        {
+          "id": 8,
+          "label": "Discrete Fourier Transform",
+          "x": 30,
+          "y": 90,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Discrete Fourier Transform"
+        },
+        {
+          "id": 9,
+          "label": "Fast Fourier Transform",
+          "x": 70,
+          "y": 90,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Fast Fourier Transform"
+        },
+        {
+          "id": 10,
+          "label": "Signal Processing",
+          "x": 10,
+          "y": 50,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Signal Processing"
+        },
+        {
+          "id": 11,
+          "label": "Communications",
+          "x": 30,
+          "y": 60,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Communications"
+        },
+        {
+          "id": 12,
+          "label": "Image Analysis",
+          "x": 50,
+          "y": 50,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Image Analysis"
+        },
+        {
+          "id": 13,
+          "label": "Partial Differential Equations",
+          "x": 70,
+          "y": 60,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Partial Differential Equations"
+        },
+        {
+          "id": 14,
+          "label": "Inverse Fourier Transform",
+          "x": 90,
+          "y": 10,
+          "status": "partial",
+          "mutation_count": 0,
+          "full_label": "Inverse Fourier Transform"
+        }
+      ],
+      "edges": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          4
+        ],
+        [
+          1,
+          5
+        ],
+        [
+          1,
+          6
+        ],
+        [
+          1,
+          7
+        ],
+        [
+          1,
+          8
+        ],
+        [
+          1,
+          9
+        ],
+        [
+          1,
+          10
+        ],
+        [
+          1,
+          11
+        ],
+        [
+          1,
+          12
+        ],
+        [
+          1,
+          13
+        ],
+        [
+          1,
+          14
+        ],
+        [
+          2,
+          8
+        ],
+        [
+          3,
+          8
+        ],
+        [
+          4,
+          9
+        ],
+        [
+          5,
+          9
+        ],
+        [
+          6,
+          8
+        ],
+        [
+          7,
+          9
+        ],
+        [
+          10,
+          11
+        ],
+        [
+          10,
+          12
+        ],
+        [
+          11,
+          13
+        ]
+      ]
+    },
+    "created_at": "2026-03-07T20:19:20.495938",
+    "updated_at": "2026-03-07T20:23:59.513337"
+  },
+  {
+    "id": "d590fbed-6fb0-4739-bd7a-5ad194347da1",
+    "user_id": "demo",
+    "name": "Neural Networks",
+    "course": "CS401",
+    "note": "",
+    "proficiency": "Intermediate",
+    "graph": {
+      "nodes": [],
+      "edges": []
+    },
+    "created_at": "2026-03-07T20:24:47.879652",
+    "updated_at": "2026-03-07T20:24:47.879668"
+  }
+]
